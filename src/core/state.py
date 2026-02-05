@@ -130,6 +130,10 @@ class StateManager:
         pnl.net_profit += net_profit
         if pnl.net_profit < pnl.max_drawdown:
             pnl.max_drawdown = pnl.net_profit
+        if net_profit >= 0:
+            pnl.win_count += 1
+        else:
+            pnl.loss_count += 1
 
         # Credit sim balance with the payout
         if self._settings.dry_run:
@@ -375,3 +379,48 @@ class StateManager:
         self._daily_pnl = {}
         for d, pnl_data in data.get("daily_pnl", {}).items():
             self._daily_pnl[d] = DailyPnL(**pnl_data)
+
+    # ------------------------------------------------------------------
+    # Startup recovery
+    # ------------------------------------------------------------------
+
+    def startup_recovery(self, path: str = "state_snapshot.json") -> dict[str, Any]:
+        """Load snapshot and clean up orphaned positions (expired markets).
+
+        Returns a report dict with keys:
+            loaded: bool — whether a snapshot was loaded
+            orphaned_removed: list[str] — condition_ids of removed positions
+            positions_restored: int — count of valid positions kept
+        """
+        report: dict[str, Any] = {
+            "loaded": False,
+            "orphaned_removed": [],
+            "positions_restored": 0,
+        }
+
+        loaded = self.load_snapshot(path)
+        report["loaded"] = loaded
+        if not loaded:
+            return report
+
+        # Detect orphaned positions whose markets have already expired
+        now = datetime.utcnow()  # naive UTC, matches Market.end_time format
+        orphaned: list[str] = []
+        for cid, pos in list(self._positions.items()):
+            if pos.market.end_time < now:
+                orphaned.append(cid)
+
+        for cid in orphaned:
+            del self._positions[cid]
+            logger.warning("orphaned_position_removed", condition_id=cid)
+
+        report["orphaned_removed"] = orphaned
+        report["positions_restored"] = len(self._positions)
+
+        logger.info(
+            "startup_recovery_complete",
+            loaded=True,
+            orphaned=len(orphaned),
+            restored=report["positions_restored"],
+        )
+        return report

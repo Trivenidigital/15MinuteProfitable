@@ -1,0 +1,63 @@
+# Deployment Guide
+
+## Prerequisites
+- Ubuntu 22.04+ VPS with Python 3.11+
+- systemd
+- A funded Polymarket account with API key
+
+## Setup
+
+```bash
+# Create bot user
+sudo useradd -r -m -d /opt/btc15minutebot botuser
+
+# Clone and install
+sudo -u botuser git clone <repo-url> /opt/btc15minutebot
+cd /opt/btc15minutebot
+sudo -u botuser python3 -m venv .venv
+sudo -u botuser .venv/bin/pip install -e .
+
+# Configure environment
+sudo -u botuser cp .env.example .env
+sudo -u botuser nano .env  # Set BOT_PRIVATE_KEY, BOT_FUNDER, etc.
+chmod 600 /opt/btc15minutebot/.env
+
+# Create log directory
+sudo mkdir -p /var/log/btc15minutebot
+sudo chown botuser:botuser /var/log/btc15minutebot
+
+# Install systemd service
+sudo cp deploy/btc15minutebot.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable btc15minutebot
+
+# Install logrotate config
+sudo cp deploy/logrotate.conf /etc/logrotate.d/btc15minutebot
+```
+
+## Operations
+
+```bash
+# Start / stop / restart
+sudo systemctl start btc15minutebot
+sudo systemctl stop btc15minutebot
+sudo systemctl restart btc15minutebot
+
+# View status and logs
+sudo systemctl status btc15minutebot
+sudo journalctl -u btc15minutebot -f
+tail -f /var/log/btc15minutebot/bot.log
+
+# Dry-run mode
+# Set BOT_DRY_RUN=true in .env, then restart
+```
+
+## Monitoring
+
+Configure Telegram or Discord alerts in `.env`:
+
+```
+BOT_TELEGRAM_BOT_TOKEN=your_bot_token
+BOT_TELEGRAM_CHAT_ID=your_chat_id
+BOT_DISCORD_WEBHOOK_URL=your_webhook_url
+```

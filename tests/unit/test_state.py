@@ -709,3 +709,197 @@ class TestSnapshotPersistence:
         restored = new_state.get_position("cond_none")
         assert restored.opened_at is None
         assert restored.yes_shares == 10
+
+
+# ---------------------------------------------------------------------------
+# close_position win/loss tracking
+# ---------------------------------------------------------------------------
+
+
+class TestWinLossTracking:
+    """Tests for win_count/loss_count in close_position."""
+
+    def test_winning_trade_increments_win_count(
+        self, state: StateManager, market_btc: Market
+    ) -> None:
+        pos = _make_position(
+            market=market_btc, yes_shares=100, no_shares=100,
+            yes_cost_basis=45.0, no_cost_basis=47.0,
+        )
+        state.add_position(pos)
+        state.close_position("cond_btc", payout_per_share=1.0)  # profit
+        pnl = state.daily_pnl()
+        assert pnl.win_count == 1
+        assert pnl.loss_count == 0
+
+    def test_losing_trade_increments_loss_count(
+        self, state: StateManager, market_btc: Market
+    ) -> None:
+        pos = _make_position(
+            market=market_btc, yes_shares=100, no_shares=0,
+            yes_cost_basis=90.0,
+        )
+        state.add_position(pos)
+        state.close_position("cond_btc", payout_per_share=0.0)  # loss
+        pnl = state.daily_pnl()
+        assert pnl.win_count == 0
+        assert pnl.loss_count == 1
+
+    def test_breakeven_counts_as_win(
+        self, state: StateManager, market_btc: Market
+    ) -> None:
+        pos = _make_position(
+            market=market_btc, yes_shares=100, no_shares=0,
+            yes_cost_basis=50.0,
+        )
+        state.add_position(pos)
+        state.close_position("cond_btc", payout_per_share=0.5)  # exactly even
+        pnl = state.daily_pnl()
+        assert pnl.win_count == 1
+        assert pnl.loss_count == 0
+
+    def test_multiple_closes_accumulate(
+        self, state: StateManager, market_btc: Market, market_eth: Market
+    ) -> None:
+        pos1 = _make_position(
+            market=market_btc, yes_shares=100, no_shares=100,
+            yes_cost_basis=45.0, no_cost_basis=47.0,
+        )
+        pos2 = _make_position(
+            market=market_eth, yes_shares=50, no_shares=0,
+            yes_cost_basis=45.0,
+        )
+        state.add_position(pos1)
+        state.add_position(pos2)
+        state.close_position("cond_btc", payout_per_share=1.0)  # win
+        state.close_position("cond_eth", payout_per_share=0.0)  # loss
+        pnl = state.daily_pnl()
+        assert pnl.win_count == 1
+        assert pnl.loss_count == 1
+
+
+# ---------------------------------------------------------------------------
+# startup_recovery
+# ---------------------------------------------------------------------------
+
+
+class TestStartupRecovery:
+    """Tests for startup_recovery."""
+
+    def test_recovery_no_snapshot(self, state: StateManager, tmp_path: Path) -> None:
+        report = state.startup_recovery(str(tmp_path / "missing.json"))
+        assert report["loaded"] is False
+        assert report["orphaned_removed"] == []
+        assert report["positions_restored"] == 0
+
+    def test_recovery_removes_expired_positions(
+        self, state: StateManager, tmp_path: Path
+    ) -> None:
+        # Create a position with an expired market
+        now = datetime.utcnow()
+        expired_market = Market(
+            condition_id="cond_expired",
+            slug="expired-test",
+            question="Expired?",
+            yes_token_id="yes_exp",
+            no_token_id="no_exp",
+            start_time=now - timedelta(hours=2),
+            end_time=now - timedelta(hours=1),  # Expired 1h ago
+            asset="BTC",
+        )
+        pos = _make_position(market=expired_market, yes_shares=50, yes_cost_basis=25.0)
+        state.add_position(pos)
+
+        snapshot_path = str(tmp_path / "recovery.json")
+        state.save_snapshot(snapshot_path)
+
+        new_state = StateManager(Settings(
+            private_key="0x" + "ab" * 32, dry_run=True,
+        ))
+        report = new_state.startup_recovery(snapshot_path)
+        assert report["loaded"] is True
+        assert "cond_expired" in report["orphaned_removed"]
+        assert report["positions_restored"] == 0
+        assert new_state.get_position("cond_expired") is None
+
+    def test_recovery_keeps_active_positions(
+        self, state: StateManager, tmp_path: Path
+    ) -> None:
+        now = datetime.utcnow()
+        active_market = Market(
+            condition_id="cond_active",
+            slug="active-test",
+            question="Active?",
+            yes_token_id="yes_act",
+            no_token_id="no_act",
+            start_time=now - timedelta(minutes=5),
+            end_time=now + timedelta(minutes=10),
+            asset="BTC",
+        )
+        pos = _make_position(market=active_market, yes_shares=50, yes_cost_basis=25.0)
+        state.add_position(pos)
+
+        snapshot_path = str(tmp_path / "recovery2.json")
+        state.save_snapshot(snapshot_path)
+
+        new_state = StateManager(Settings(
+            private_key="0x" + "ab" * 32, dry_run=True,
+        ))
+        report = new_state.startup_recovery(snapshot_path)
+        assert report["loaded"] is True
+        assert report["orphaned_removed"] == []
+        assert report["positions_restored"] == 1
+        assert new_state.get_position("cond_active") is not None
+
+    def test_recovery_mixed_positions(
+        self, state: StateManager, tmp_path: Path
+    ) -> None:
+        now = datetime.utcnow()
+        expired = Market(
+            condition_id="cond_old",
+            slug="old",
+            question="Old?",
+            yes_token_id="y1",
+            no_token_id="n1",
+            start_time=now - timedelta(hours=2),
+            end_time=now - timedelta(hours=1),
+            asset="BTC",
+        )
+        active = Market(
+            condition_id="cond_new",
+            slug="new",
+            question="New?",
+            yes_token_id="y2",
+            no_token_id="n2",
+            start_time=now - timedelta(minutes=5),
+            end_time=now + timedelta(minutes=10),
+            asset="ETH",
+        )
+        state.add_position(_make_position(market=expired, yes_shares=30, yes_cost_basis=15.0))
+        state.add_position(_make_position(market=active, yes_shares=50, yes_cost_basis=25.0))
+
+        snapshot_path = str(tmp_path / "recovery3.json")
+        state.save_snapshot(snapshot_path)
+
+        new_state = StateManager(Settings(
+            private_key="0x" + "ab" * 32, dry_run=True,
+        ))
+        report = new_state.startup_recovery(snapshot_path)
+        assert report["loaded"] is True
+        assert len(report["orphaned_removed"]) == 1
+        assert "cond_old" in report["orphaned_removed"]
+        assert report["positions_restored"] == 1
+
+    def test_recovery_preserves_sim_balance(
+        self, state: StateManager, tmp_path: Path
+    ) -> None:
+        state.sim_debit(100.0)
+        snapshot_path = str(tmp_path / "recovery4.json")
+        state.save_snapshot(snapshot_path)
+
+        new_state = StateManager(Settings(
+            private_key="0x" + "ab" * 32, dry_run=True, sim_balance=0.0,
+        ))
+        report = new_state.startup_recovery(snapshot_path)
+        assert report["loaded"] is True
+        assert new_state.sim_balance == pytest.approx(900.0)

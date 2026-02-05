@@ -44,6 +44,10 @@ _CIRCUIT_BREAKER_FAILURE_THRESHOLD: int = 3
 
 _DEFAULT_CIRCUIT_BREAKER_DURATION: float = 300.0  # 5 minutes
 
+_DAILY_LOSS_BREAKER_DURATION: float = 86400.0  # 24 hours
+
+_DISCONNECT_THRESHOLD: float = 30.0  # seconds
+
 
 # ---------------------------------------------------------------------------
 # RiskManager
@@ -66,6 +70,9 @@ class RiskManager:
         # Execution tracking
         self._consecutive_failures = 0
         self._last_trade_time: dict[str, float] = {}  # condition_id -> timestamp
+
+        # Optional Kelly sizer
+        self._sizer: object | None = None
 
     # ------------------------------------------------------------------
     # Pre-trade checks
@@ -95,7 +102,7 @@ class RiskManager:
             self._log.warning("risk_rejected", check="circuit_breaker", reason=reason)
             return False, reason
 
-        # 2. Daily loss limit
+        # 2. Daily loss limit — also auto-trips circuit breaker for 24h
         pnl = self._state.daily_pnl()
         if pnl.net_profit < -self._settings.max_daily_loss:
             reason = (
@@ -103,6 +110,11 @@ class RiskManager:
                 f"limit=-{self._settings.max_daily_loss:.2f}"
             )
             self._log.warning("risk_rejected", check="daily_loss", reason=reason)
+            if not self._circuit_breaker_active:
+                self.activate_circuit_breaker(
+                    reason=f"daily loss limit: {pnl.net_profit:.2f}",
+                    duration_seconds=_DAILY_LOSS_BREAKER_DURATION,
+                )
             return False, reason
 
         # 3. Market exposure
@@ -300,3 +312,65 @@ class RiskManager:
         self._circuit_breaker_active = False
         self._circuit_breaker_reason = ""
         self._circuit_breaker_until = 0.0
+
+    # ------------------------------------------------------------------
+    # Disconnect tracking
+    # ------------------------------------------------------------------
+
+    def record_disconnect(self, duration_seconds: float) -> None:
+        """Record a WebSocket disconnect.
+
+        If the disconnect lasted longer than the threshold (30s), the
+        circuit breaker is activated for the default duration.
+        """
+        self._log.warning(
+            "disconnect_recorded",
+            duration_seconds=duration_seconds,
+        )
+        if duration_seconds > _DISCONNECT_THRESHOLD:
+            self.activate_circuit_breaker(
+                reason=f"disconnect lasted {duration_seconds:.1f}s",
+                duration_seconds=_DEFAULT_CIRCUIT_BREAKER_DURATION,
+            )
+
+    # ------------------------------------------------------------------
+    # Kelly sizing integration
+    # ------------------------------------------------------------------
+
+    def set_sizer(self, sizer: object) -> None:
+        """Attach a PositionSizer for Kelly-adjusted sizing."""
+        self._sizer = sizer
+        self._log.info("sizer_attached", sizer=type(sizer).__name__)
+
+    def kelly_adjusted_size(
+        self,
+        opp: Opportunity,
+        bankroll: float,
+        win_rate: float = 0.0,
+        avg_win: float = 0.0,
+        avg_loss: float = 0.0,
+    ) -> float:
+        """Compute Kelly-adjusted size, falling back to adjust_size if no sizer.
+
+        For arbitrage, uses kelly_fraction_arb(edge, bankroll).
+        For directional, uses kelly_fraction_directional(win_rate, avg_win, avg_loss, bankroll).
+        """
+        if self._sizer is None:
+            return self.adjust_size(opp, self._settings.order_size)
+
+        kelly_size = 0.0
+        if opp.strategy in _HEDGED_STRATEGIES:
+            edge = opp.expected_profit_pct if opp.expected_profit_pct > 0 else 0.0
+            if edge > 0:
+                kelly_size = self._sizer.kelly_fraction_arb(edge, bankroll)  # type: ignore[attr-defined]
+        else:
+            if win_rate > 0 and avg_win > 0 and avg_loss > 0:
+                kelly_size = self._sizer.kelly_fraction_directional(  # type: ignore[attr-defined]
+                    win_rate, avg_win, avg_loss, bankroll,
+                )
+
+        if kelly_size <= 0:
+            return self.adjust_size(opp, self._settings.order_size)
+
+        # Still apply risk limits on the Kelly-derived size
+        return self.adjust_size(opp, kelly_size)

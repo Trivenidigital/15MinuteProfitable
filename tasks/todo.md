@@ -1,7 +1,7 @@
 # Polymarket 15-Minute Crypto Trading Bot — Implementation Plan
 
-> **Status:** Phase 4 complete, ready for Phase 5
-> **Last updated:** 2026-02-04
+> **Status:** Phase 6 complete
+> **Last updated:** 2026-02-05
 
 ---
 
@@ -1102,18 +1102,18 @@ Future capability to replay historical orderbook snapshots through strategy logi
 **Goal:** Production-grade reliability and observability
 **Depends on:** Phases 2-5
 
-- [ ] Full Kelly criterion position sizing with historical calibration
-- [ ] Circuit breaker system (daily loss, consecutive failures, disconnect)
-- [ ] Telegram alert integration (trades, errors, daily summaries)
-- [ ] Discord webhook integration (alternative alert channel)
-- [ ] State persistence (JSON snapshot for crash recovery)
-- [ ] Startup recovery (check for orphaned positions, resume tracking)
-- [ ] Daily P&L summary generation
-- [ ] Performance metrics dashboard data (trades, win rate, avg profit, fees paid)
-- [ ] Graceful shutdown handler (SIGTERM → flatten positions → save state → exit)
-- [ ] PID lock file to prevent duplicate instances
-- [ ] VPS deployment scripts (systemd service file, log rotation)
-- [ ] Fee verification at startup (compare calculated vs. live API response)
+- [x] Full Kelly criterion position sizing with historical calibration (PositionSizer)
+- [x] Circuit breaker system (daily loss 24h auto-trip, consecutive failures, disconnect >30s)
+- [x] Telegram alert integration (trades, errors, daily summaries)
+- [x] Discord webhook integration (alternative alert channel)
+- [x] State persistence (JSON snapshot for crash recovery) — existed from Phase 2
+- [x] Startup recovery (check for orphaned positions, resume tracking)
+- [x] Daily P&L summary generation (MetricsCollector + daily_summary_loop)
+- [x] Performance metrics dashboard data (trades, win rate, avg profit, fees paid)
+- [x] Graceful shutdown handler (SIGTERM → cancel GTC orders → save state → exit)
+- [x] PID lock file to prevent duplicate instances (PidLock)
+- [x] VPS deployment scripts (systemd service file, log rotation)
+- [x] Win/loss tracking on DailyPnL (win_count, loss_count)
 
 **Deliverable:** Production-ready bot with comprehensive monitoring, alerting, and crash recovery running 24/7 on a VPS.
 

@@ -176,3 +176,5 @@ class DailyPnL:
     opportunities_seen: int = 0
     opportunities_taken: int = 0
     max_drawdown: float = 0.0
+    win_count: int = 0
+    loss_count: int = 0

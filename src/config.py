@@ -81,3 +81,13 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     log_format: str = "json"
     neg_risk: bool = True
+
+    # Risk Sizing
+    kelly_fraction: float = 0.25
+
+    # Process Management
+    pid_lock_path: str = "btc15minutebot.pid"
+    state_snapshot_path: str = "state_snapshot.json"
+
+    # Daily Summary
+    daily_summary_hour: int = 0  # UTC hour to send daily summary

@@ -22,13 +22,17 @@ from src.data.market_manager import MarketManager
 from src.data.orderbook import OrderBookManager
 from src.data.spot_buffer import SpotBuffer
 from src.execution.executor import OrderExecutor
+from src.monitoring.alerts import AlertDispatcher
 from src.monitoring.logger import get_logger, setup_logging
+from src.monitoring.metrics import MetricsCollector
 from src.risk.manager import RiskManager
+from src.risk.sizing import PositionSizer
 from src.strategy.arbitrage import ArbitrageStrategy
 from src.strategy.asymmetric import AsymmetricStrategy
 from src.strategy.base import BaseStrategy
 from src.strategy.price_lag import ASSET_TO_BINANCE_SYMBOL, PriceLagStrategy
 from src.strategy.scanner import MarketScanner
+from src.utils.pid_lock import PidLock
 from src.utils.rate_limiter import RateLimiter
 
 # ---------------------------------------------------------------------------
@@ -38,6 +42,7 @@ from src.utils.rate_limiter import RateLimiter
 _shutdown_event: asyncio.Event | None = None
 _log = get_logger("main")
 _pending_gtc_orders: list[dict] = []
+_alerts: AlertDispatcher | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -200,11 +205,18 @@ async def _execute_arb_trade(
             no_status=no_result.status.value,
             daily_pnl=round(state_manager.daily_pnl().net_profit, 4),
         )
+        if _alerts and settings.alert_on_trade:
+            await _alerts.send_trade(
+                f"Arb: {market.slug} YES@{yes_order.price:.2f}+NO@{no_order.price:.2f} "
+                f"x{adjusted_size:.0f} profit={opp.expected_profit:.4f}"
+            )
     except asyncio.TimeoutError:
         _log.warning("rate_limit_timeout", market=market.slug)
     except Exception as exc:
         risk_manager.record_execution_failure()
         _log.error("execution_error", market=market.slug, error=str(exc))
+        if _alerts and settings.alert_on_error:
+            await _alerts.send_error(f"Arb exec error {market.slug}: {exc}")
 
 
 async def _execute_directional_trade(
@@ -260,11 +272,18 @@ async def _execute_directional_trade(
             status=result.status.value,
             daily_pnl=round(state_manager.daily_pnl().net_profit, 4),
         )
+        if _alerts and settings.alert_on_trade:
+            await _alerts.send_trade(
+                f"Directional: {market.slug} {direction} @{order.price:.2f} "
+                f"x{adjusted_size:.0f}"
+            )
     except asyncio.TimeoutError:
         _log.warning("rate_limit_timeout", market=market.slug)
     except Exception as exc:
         risk_manager.record_execution_failure()
         _log.error("execution_error", market=market.slug, error=str(exc))
+        if _alerts and settings.alert_on_error:
+            await _alerts.send_error(f"Directional exec error {market.slug}: {exc}")
 
 
 async def _execute_asymmetric_trade(
@@ -571,6 +590,7 @@ async def _monitor_loop(
     book_manager: OrderBookManager,
     state_manager: StateManager,
     rate_limiter: RateLimiter,
+    metrics: MetricsCollector,
     interval: float = 10.0,
 ) -> None:
     """Log orderbook state and P&L at regular intervals."""
@@ -591,14 +611,11 @@ async def _monitor_loop(
             )
 
         pnl = state_manager.daily_pnl()
+        dashboard = metrics.compute_dashboard(pnl, state_manager.sim_balance)
+        metrics.log_dashboard(dashboard)
+
         _log.info(
-            "daily_summary",
-            trades=pnl.trades,
-            net_profit=round(pnl.net_profit, 4),
-            total_fees=round(pnl.total_fees, 4),
-            opportunities_seen=pnl.opportunities_seen,
-            opportunities_taken=pnl.opportunities_taken,
-            sim_balance=round(state_manager.sim_balance, 2),
+            "monitor_status",
             active_markets=len(market_manager.active_markets),
             rate_limit_available=round(rate_limiter.available, 1),
         )
@@ -608,6 +625,42 @@ async def _monitor_loop(
                 _shutdown_event.wait(),
                 timeout=interval,
             )
+        except asyncio.TimeoutError:
+            pass
+
+
+# ---------------------------------------------------------------------------
+# Daily summary loop
+# ---------------------------------------------------------------------------
+
+
+async def _daily_summary_loop(
+    state_manager: StateManager,
+    metrics: MetricsCollector,
+    settings: Settings,
+    interval: float = 60.0,
+) -> None:
+    """Send daily summary at the configured UTC hour."""
+    last_summary_date = ""
+    while _shutdown_event is not None and not _shutdown_event.is_set():
+        try:
+            from datetime import datetime, timezone
+
+            now = datetime.now(tz=timezone.utc)
+            today = now.strftime("%Y-%m-%d")
+            if now.hour == settings.daily_summary_hour and today != last_summary_date:
+                pnl = state_manager.daily_pnl()
+                dashboard = metrics.compute_dashboard(pnl, state_manager.sim_balance)
+                summary = metrics.format_daily_summary(dashboard)
+                if _alerts:
+                    await _alerts.send_daily_summary(summary)
+                _log.info("daily_summary_sent", date=today)
+                last_summary_date = today
+        except Exception as exc:
+            _log.error("daily_summary_error", error=str(exc))
+
+        try:
+            await asyncio.wait_for(_shutdown_event.wait(), timeout=interval)
         except asyncio.TimeoutError:
             pass
 
@@ -658,8 +711,9 @@ def _build_strategies(
 
 async def async_main() -> None:
     """Async entry point: discover, subscribe, evaluate, execute."""
-    global _shutdown_event
+    global _shutdown_event, _alerts
     _shutdown_event = asyncio.Event()
+    pid_lock: PidLock | None = None
 
     # Register signal handlers for graceful shutdown
     loop = asyncio.get_running_loop()
@@ -684,6 +738,28 @@ async def async_main() -> None:
     # Initialize logging
     setup_logging(log_level=settings.log_level, log_format=settings.log_format)
 
+    # PID lock — prevent duplicate instances
+    pid_lock = PidLock(settings.pid_lock_path)
+    if not pid_lock.acquire():
+        _log.error("pid_lock_failed", msg="Another instance is already running.")
+        return
+
+    try:
+        await _run_bot(settings, pid_lock)
+    finally:
+        # Always release PID lock
+        if pid_lock is not None:
+            pid_lock.release()
+        # Close alert clients
+        if _alerts is not None:
+            await _alerts.close()
+            _alerts = None
+
+
+async def _run_bot(settings: Settings, pid_lock: PidLock) -> None:
+    """Core bot logic, separated for clean PID lock management."""
+    global _alerts
+
     _log.info(
         "bot_starting",
         dry_run=settings.dry_run,
@@ -696,6 +772,12 @@ async def async_main() -> None:
         enable_multi_market=settings.enable_multi_market,
     )
 
+    # Alert dispatcher
+    _alerts = AlertDispatcher.from_settings(settings)
+
+    # Metrics collector
+    metrics = MetricsCollector()
+
     # Core components
     book_manager = OrderBookManager()
     state_manager = StateManager(settings)
@@ -703,6 +785,14 @@ async def async_main() -> None:
     executor = OrderExecutor(settings)
     rate_limiter = RateLimiter(max_per_minute=55)
     spot_buffer = SpotBuffer(window_seconds=60)
+
+    # Kelly position sizer
+    sizer = PositionSizer(
+        kelly_fraction=settings.kelly_fraction,
+        min_size=5.0,
+        max_size=settings.max_position_per_market,
+    )
+    risk_manager.set_sizer(sizer)
 
     clob_ws = ClobWebSocket(
         ws_url=settings.clob_ws_url,
@@ -730,8 +820,9 @@ async def async_main() -> None:
         book_manager=book_manager,
     )
 
-    # Load any saved state
-    state_manager.load_snapshot()
+    # Startup recovery (replaces load_snapshot)
+    recovery_report = state_manager.startup_recovery(settings.state_snapshot_path)
+    _log.info("startup_recovery", **recovery_report)
 
     # Initial market discovery via MarketManager
     markets = await market_manager.initialize()
@@ -763,6 +854,7 @@ async def async_main() -> None:
     monitor_task = asyncio.create_task(
         _monitor_loop(
             market_manager, book_manager, state_manager, rate_limiter,
+            metrics=metrics,
             interval=10.0,
         ),
     )
@@ -805,15 +897,27 @@ async def async_main() -> None:
         ),
     )
 
+    # Daily summary loop
+    summary_task = asyncio.create_task(
+        _daily_summary_loop(
+            state_manager=state_manager,
+            metrics=metrics,
+            settings=settings,
+            interval=60.0,
+        ),
+    )
+
     _log.info(
         "bot_running",
         active_markets=len(markets),
         strategies=scanner.strategy_names,
         binance_symbols=binance_symbols,
+        alert_sinks=_alerts.sink_count if _alerts else 0,
         msg="Press Ctrl+C to stop.",
     )
 
     # Wait for shutdown signal
+    assert _shutdown_event is not None
     await _shutdown_event.wait()
 
     # Graceful shutdown
@@ -821,8 +925,18 @@ async def async_main() -> None:
     clob_ws.stop()
     binance_ws.stop()
 
+    # Cancel all pending GTC orders
+    for entry in _pending_gtc_orders:
+        try:
+            order = entry["order"]
+            if order.order_id:
+                await executor.cancel_order(order.order_id)
+        except Exception as exc:
+            _log.warning("gtc_cancel_error", error=str(exc))
+    _pending_gtc_orders.clear()
+
     # Save state before exiting
-    state_manager.save_snapshot()
+    state_manager.save_snapshot(settings.state_snapshot_path)
 
     # Cancel tasks
     for ws in [ws_task, binance_task]:
@@ -831,7 +945,11 @@ async def async_main() -> None:
         except asyncio.TimeoutError:
             ws.cancel()
 
-    for task in [monitor_task, strategy_task, rollover_task, exit_task, gtc_task]:
+    all_tasks = [
+        monitor_task, strategy_task, rollover_task,
+        exit_task, gtc_task, summary_task,
+    ]
+    for task in all_tasks:
         if task is not None:
             task.cancel()
             try:

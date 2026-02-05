@@ -335,3 +335,137 @@ class TestRecordSuccess:
         rm.record_execution_success("cond_abc")
         # The last trade time should be set
         assert rm._last_trade_time.get("cond_abc", 0) >= before
+
+
+# ---------------------------------------------------------------------------
+# Daily loss auto-breaker
+# ---------------------------------------------------------------------------
+
+
+class TestDailyLossBreaker:
+    def test_daily_loss_activates_circuit_breaker(self, settings: Settings) -> None:
+        """When daily loss exceeds limit, circuit breaker should auto-activate."""
+        state = MockState(daily_loss=60.0)
+        rm = RiskManager(settings, state)
+        opp = _make_opportunity()
+        approved, reason = rm.check_opportunity(opp)
+        assert approved is False
+        assert rm.is_circuit_breaker_active() is True
+
+    def test_daily_loss_breaker_not_duplicated(self, settings: Settings) -> None:
+        """If breaker is already active, don't re-activate on daily loss."""
+        state = MockState(daily_loss=60.0)
+        rm = RiskManager(settings, state)
+        rm.activate_circuit_breaker("manual", duration_seconds=60.0)
+        opp = _make_opportunity()
+        rm.check_opportunity(opp)
+        # Should still be the manual reason, not overwritten
+        assert "manual" in rm._circuit_breaker_reason
+
+
+# ---------------------------------------------------------------------------
+# Disconnect tracking
+# ---------------------------------------------------------------------------
+
+
+class TestDisconnectTracking:
+    def test_short_disconnect_no_breaker(self, settings: Settings) -> None:
+        rm = RiskManager(settings, MockState())
+        rm.record_disconnect(10.0)  # Under 30s threshold
+        assert rm.is_circuit_breaker_active() is False
+
+    def test_long_disconnect_triggers_breaker(self, settings: Settings) -> None:
+        rm = RiskManager(settings, MockState())
+        rm.record_disconnect(45.0)  # Over 30s threshold
+        assert rm.is_circuit_breaker_active() is True
+
+    def test_disconnect_at_threshold_no_breaker(self, settings: Settings) -> None:
+        rm = RiskManager(settings, MockState())
+        rm.record_disconnect(30.0)  # Exactly at threshold (not over)
+        assert rm.is_circuit_breaker_active() is False
+
+
+# ---------------------------------------------------------------------------
+# Kelly sizing integration
+# ---------------------------------------------------------------------------
+
+
+class TestKellySizing:
+    def test_no_sizer_falls_back_to_adjust_size(self, settings: Settings) -> None:
+        state = MockState()
+        rm = RiskManager(settings, state)
+        opp = _make_opportunity()
+        size = rm.kelly_adjusted_size(opp, bankroll=10_000.0)
+        # Should fall back to adjust_size with settings.order_size (50.0)
+        assert size == 50.0
+
+    def test_arb_with_sizer(self, settings: Settings) -> None:
+        from src.risk.sizing import PositionSizer
+
+        state = MockState()
+        rm = RiskManager(settings, state)
+        sizer = PositionSizer(kelly_fraction=0.25, min_size=5.0, max_size=500.0)
+        rm.set_sizer(sizer)
+
+        opp = _make_opportunity(strategy=StrategyType.ARBITRAGE)
+        opp.expected_profit_pct = 0.02  # 2% edge
+        size = rm.kelly_adjusted_size(opp, bankroll=10_000.0)
+        # Kelly: 0.02 * 10000 * 0.25 = 50, capped by risk limits
+        assert size == pytest.approx(50.0)
+
+    def test_directional_with_sizer(self, settings: Settings) -> None:
+        from src.risk.sizing import PositionSizer
+
+        state = MockState()
+        rm = RiskManager(settings, state)
+        sizer = PositionSizer(kelly_fraction=0.25, min_size=5.0, max_size=500.0)
+        rm.set_sizer(sizer)
+
+        opp = _make_opportunity(strategy=StrategyType.PRICE_LAG)
+        size = rm.kelly_adjusted_size(
+            opp, bankroll=10_000.0,
+            win_rate=0.6, avg_win=10.0, avg_loss=8.0,
+        )
+        # Should produce a valid non-zero size
+        assert size > 0
+
+    def test_arb_zero_edge_falls_back(self, settings: Settings) -> None:
+        from src.risk.sizing import PositionSizer
+
+        state = MockState()
+        rm = RiskManager(settings, state)
+        sizer = PositionSizer(kelly_fraction=0.25)
+        rm.set_sizer(sizer)
+
+        opp = _make_opportunity(strategy=StrategyType.ARBITRAGE)
+        opp.expected_profit_pct = 0.0  # No edge
+        size = rm.kelly_adjusted_size(opp, bankroll=10_000.0)
+        # Falls back to adjust_size
+        assert size == 50.0
+
+    def test_directional_no_stats_falls_back(self, settings: Settings) -> None:
+        from src.risk.sizing import PositionSizer
+
+        state = MockState()
+        rm = RiskManager(settings, state)
+        sizer = PositionSizer(kelly_fraction=0.25)
+        rm.set_sizer(sizer)
+
+        opp = _make_opportunity(strategy=StrategyType.PRICE_LAG)
+        size = rm.kelly_adjusted_size(opp, bankroll=10_000.0)
+        # No win_rate/avg_win/avg_loss → falls back
+        assert size == 50.0
+
+    def test_kelly_respects_risk_limits(self, settings: Settings) -> None:
+        from src.risk.sizing import PositionSizer
+
+        state = MockState(market_exp=490.0)  # only 10 remaining
+        rm = RiskManager(settings, state)
+        sizer = PositionSizer(kelly_fraction=1.0, min_size=5.0, max_size=500.0)
+        rm.set_sizer(sizer)
+
+        opp = _make_opportunity(strategy=StrategyType.ARBITRAGE)
+        opp.expected_profit_pct = 0.10  # Large edge → big Kelly size
+        size = rm.kelly_adjusted_size(opp, bankroll=100_000.0)
+        # Capped by market remaining (10)
+        assert size == pytest.approx(10.0)
