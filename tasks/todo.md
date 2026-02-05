@@ -1,6 +1,6 @@
 # Polymarket 15-Minute Crypto Trading Bot — Implementation Plan
 
-> **Status:** Phase 2 complete, ready for Phase 3
+> **Status:** Phase 3 complete, ready for Phase 4
 > **Last updated:** 2026-02-04
 
 ---
@@ -1055,13 +1055,13 @@ Future capability to replay historical orderbook snapshots through strategy logi
 **Goal:** Monitor and trade across BTC, ETH, SOL, XRP simultaneously
 **Depends on:** Phase 2
 
-- [ ] Extend market discovery to support ETH, SOL, XRP slug patterns
-- [ ] Multi-token WebSocket subscription management
-- [ ] Multi-market scanner: evaluate all active markets, prioritize opportunities
-- [ ] Per-market state tracking
-- [ ] Aggregate risk limits across markets
-- [ ] Rate limit management across concurrent markets
-- [ ] Market rollover handling (current market expires → switch to next)
+- [x] Extend market discovery to support ETH, SOL, XRP slug patterns
+- [x] Multi-token WebSocket subscription management (MarketManager)
+- [x] Multi-market scanner: evaluate all active markets, prioritize opportunities (MarketScanner)
+- [x] Per-market state tracking (StateManager already supports)
+- [x] Aggregate risk limits across markets (RiskManager already supports)
+- [x] Rate limit management across concurrent markets (RateLimiter)
+- [x] Market rollover handling (MarketManager.check_rollover)
 - [ ] Integration tests against live multi-market data
 
 **Deliverable:** Bot simultaneously monitors 4+ crypto markets, finding and executing the best arbitrage opportunities across all of them.

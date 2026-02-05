@@ -37,6 +37,17 @@ class Settings(BaseSettings):
     enable_price_lag: bool = False
     enable_multi_market: bool = True
 
+    # Price-Lag Strategy Parameters
+    spot_move_threshold: float = 0.0015  # 0.15% minimum spot move to trigger
+    spot_window_seconds: int = 15  # window to measure spot movement
+    odds_lag_threshold: float = 0.03  # min discrepancy between implied direction and PM odds
+    lag_entry_dead_zone_start: float = 60.0  # seconds after market open to wait
+    lag_entry_dead_zone_end: float = 30.0  # seconds before market close to stop
+    stop_loss_pct: float = 0.05  # 5% per-position stop loss
+    take_profit_pct: float = 0.10  # 10% per-position take profit
+    time_exit_seconds: float = 60.0  # force close N seconds before expiry
+    lag_confirmations: int = 2  # N consecutive spot confirmations before acting
+
     # Markets
     markets: list[str] = ["BTC", "ETH", "SOL", "XRP"]
     market_slug_override: str = ""
