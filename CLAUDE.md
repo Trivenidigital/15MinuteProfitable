@@ -23,13 +23,15 @@ src/
 ├── config.py            # Pydantic settings, env var loading
 ├── core/                # Core domain models and state
 │   ├── models.py        # Trade, Position, Opportunity, Market dataclasses
-│   └── state.py         # Global state manager (positions, P&L, exposure)
+│   └── state.py         # Global state manager (positions, P&L, exposure, recovery)
 ├── data/                # Data layer (feeds, orderbook)
 │   ├── clob_ws.py       # CLOB WebSocket client (orderbook deltas)
 │   ├── rtds_ws.py       # RTDS WebSocket client (market lifecycle)
 │   ├── binance_ws.py    # Binance WebSocket (spot price feeds)
 │   ├── orderbook.py     # L2 orderbook state management
-│   └── market_discovery.py  # Gamma API market scanner
+│   ├── spot_buffer.py   # Rolling spot price buffer
+│   ├── market_discovery.py  # Gamma API market scanner
+│   └── market_manager.py    # Market lifecycle + rollover management
 ├── strategy/            # Strategy engine
 │   ├── base.py          # Abstract strategy interface
 │   ├── arbitrage.py     # Fee-adjusted pure arbitrage (Strategy A)
@@ -37,20 +39,25 @@ src/
 │   ├── price_lag.py     # Price-lag exploitation (Strategy C)
 │   └── scanner.py       # Multi-market opportunity scanner (Strategy D)
 ├── execution/           # Order execution engine
-│   ├── executor.py      # Order signing, submission, fill tracking
-│   ├── parallel_signer.py  # Parallel order pre-signing
+│   ├── executor.py      # Order signing, submission, fill tracking + parallel signing
 │   └── unwind.py        # Emergency position flattening
 ├── risk/                # Risk management
-│   ├── manager.py       # Position limits, exposure monitoring
-│   ├── sizing.py        # Kelly criterion position sizing
-│   └── circuit_breaker.py  # Loss limits, kill switches
+│   ├── manager.py       # Position limits, exposure, circuit breaker, Kelly integration
+│   └── sizing.py        # Kelly criterion position sizing
 ├── monitoring/          # Logging, alerts, metrics
 │   ├── logger.py        # Structured logging setup
-│   ├── alerts.py        # Telegram/Discord notifications
-│   └── metrics.py       # P&L tracking, performance metrics
+│   ├── alerts.py        # Telegram/Discord alert dispatcher
+│   └── metrics.py       # Performance metrics + daily summary
 └── utils/               # Shared utilities
     ├── fees.py          # Fee calculation (taker + winner)
+    ├── fee_verifier.py  # Startup fee sanity check
+    ├── pid_lock.py      # PID lock file management
+    ├── rate_limiter.py  # Token bucket rate limiter
     └── time_utils.py    # 15-minute window alignment helpers
+deploy/
+├── btc15minutebot.service  # systemd unit file
+├── logrotate.conf          # Log rotation config
+└── README.md               # VPS deployment guide
 ```
 
 ## API Endpoints

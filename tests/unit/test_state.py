@@ -903,3 +903,82 @@ class TestStartupRecovery:
         report = new_state.startup_recovery(snapshot_path)
         assert report["loaded"] is True
         assert new_state.sim_balance == pytest.approx(900.0)
+
+
+# ---------------------------------------------------------------------------
+# close_position win/loss amount tracking
+# ---------------------------------------------------------------------------
+
+
+class TestWinLossAmountTracking:
+    """Tests for total_win_amount/total_loss_amount in close_position."""
+
+    def test_close_position_tracks_win_amount(
+        self, state: StateManager, market_btc: Market
+    ) -> None:
+        """Profitable close should accumulate total_win_amount."""
+        pos = _make_position(
+            market=market_btc,
+            yes_shares=100,
+            no_shares=100,
+            yes_cost_basis=45.0,
+            no_cost_basis=47.0,
+        )
+        state.add_position(pos)
+        # Payout = 200 * 1.0 = 200, cost = 92, profit = 108
+        state.close_position("cond_btc", payout_per_share=1.0)
+
+        pnl = state.daily_pnl()
+        assert pnl.win_count == 1
+        assert pnl.total_win_amount == pytest.approx(108.0)
+        assert pnl.total_loss_amount == pytest.approx(0.0)
+
+    def test_close_position_tracks_loss_amount(
+        self, state: StateManager, market_btc: Market
+    ) -> None:
+        """Losing close should accumulate total_loss_amount (absolute value)."""
+        pos = _make_position(
+            market=market_btc,
+            yes_shares=100,
+            no_shares=0,
+            yes_cost_basis=90.0,
+        )
+        state.add_position(pos)
+        # Payout = 100 * 0.0 = 0, cost = 90, profit = -90
+        state.close_position("cond_btc", payout_per_share=0.0)
+
+        pnl = state.daily_pnl()
+        assert pnl.loss_count == 1
+        assert pnl.total_loss_amount == pytest.approx(90.0)
+        assert pnl.total_win_amount == pytest.approx(0.0)
+
+    def test_multiple_close_accumulates_amounts(
+        self, state: StateManager, market_btc: Market, market_eth: Market
+    ) -> None:
+        """Multiple closes should sum win and loss amounts correctly."""
+        # Win: cost 92, payout 200, profit = 108
+        pos1 = _make_position(
+            market=market_btc,
+            yes_shares=100,
+            no_shares=100,
+            yes_cost_basis=45.0,
+            no_cost_basis=47.0,
+        )
+        # Loss: cost 45, payout 0, loss = -45
+        pos2 = _make_position(
+            market=market_eth,
+            yes_shares=50,
+            no_shares=0,
+            yes_cost_basis=45.0,
+        )
+        state.add_position(pos1)
+        state.add_position(pos2)
+
+        state.close_position("cond_btc", payout_per_share=1.0)  # win +108
+        state.close_position("cond_eth", payout_per_share=0.0)  # loss -45
+
+        pnl = state.daily_pnl()
+        assert pnl.win_count == 1
+        assert pnl.loss_count == 1
+        assert pnl.total_win_amount == pytest.approx(108.0)
+        assert pnl.total_loss_amount == pytest.approx(45.0)

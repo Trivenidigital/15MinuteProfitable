@@ -132,8 +132,10 @@ class StateManager:
             pnl.max_drawdown = pnl.net_profit
         if net_profit >= 0:
             pnl.win_count += 1
+            pnl.total_win_amount += net_profit
         else:
             pnl.loss_count += 1
+            pnl.total_loss_amount += abs(net_profit)
 
         # Credit sim balance with the payout
         if self._settings.dry_run:

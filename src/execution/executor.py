@@ -340,6 +340,19 @@ class OrderExecutor:
         yes_order = await self.verify_fill(yes_order)
         no_order = await self.verify_fill(no_order)
 
+        # Detect partial fill (one leg filled, other didn't)
+        yes_filled = yes_order.status == OrderStatus.FILLED
+        no_filled = no_order.status == OrderStatus.FILLED
+
+        if yes_filled != no_filled:
+            self._log.warning(
+                "partial_arb_fill",
+                yes_status=yes_order.status.value,
+                no_status=no_order.status.value,
+                yes_fill_size=yes_order.fill_size,
+                no_fill_size=no_order.fill_size,
+            )
+
         self._log.info(
             "arb_executed",
             yes_status=yes_order.status.value,

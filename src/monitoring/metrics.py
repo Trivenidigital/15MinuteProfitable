@@ -35,6 +35,13 @@ class MetricsCollector:
             else 0.0
         )
 
+        avg_win = (
+            (pnl.total_win_amount / pnl.win_count) if pnl.win_count > 0 else 0.0
+        )
+        avg_loss = (
+            (pnl.total_loss_amount / pnl.loss_count) if pnl.loss_count > 0 else 0.0
+        )
+
         return {
             "win_rate": win_rate,
             "avg_profit_per_trade": avg_profit,
@@ -49,6 +56,8 @@ class MetricsCollector:
             "loss_count": float(pnl.loss_count),
             "opportunities_seen": float(pnl.opportunities_seen),
             "opportunities_taken": float(pnl.opportunities_taken),
+            "avg_win": avg_win,
+            "avg_loss": avg_loss,
         }
 
     def format_daily_summary(self, dashboard: dict[str, float]) -> str:
@@ -64,6 +73,8 @@ class MetricsCollector:
             f"Gross Profit: ${dashboard['gross_profit']:.2f}",
             f"Total Fees: ${dashboard['total_fees']:.2f}",
             f"Avg Profit/Trade: ${dashboard['avg_profit_per_trade']:.4f}",
+            f"Avg Win: ${dashboard['avg_win']:.4f}",
+            f"Avg Loss: ${dashboard['avg_loss']:.4f}",
             f"Max Drawdown: ${dashboard['max_drawdown']:.2f}",
             f"Take Rate: {dashboard['take_rate']:.1%}",
             f"Opps Seen/Taken: {int(dashboard['opportunities_seen'])}/{int(dashboard['opportunities_taken'])}",

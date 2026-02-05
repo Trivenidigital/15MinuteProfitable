@@ -1,6 +1,6 @@
 # Polymarket 15-Minute Crypto Trading Bot — Implementation Plan
 
-> **Status:** Phase 6 complete
+> **Status:** All phases complete (594 tests passing, 10 integration skipped)
 > **Last updated:** 2026-02-05
 
 ---
@@ -1045,7 +1045,7 @@ Future capability to replay historical orderbook snapshots through strategy logi
 - [x] Simulation mode (DRY_RUN): log would-trade, track sim P&L
 - [x] State manager (position tracking, P&L)
 - [x] Basic risk checks (position limits, balance check, 8 checks)
-- [ ] Partial fill handling and emergency unwind
+- [x] Partial fill handling and emergency unwind (EmergencyUnwind + executor detection)
 - [x] Unit tests for strategy + executor + risk + state (113 new, 204 total)
 - [ ] Run in simulation for 24+ hours, verify P&L tracking
 
@@ -1062,7 +1062,7 @@ Future capability to replay historical orderbook snapshots through strategy logi
 - [x] Aggregate risk limits across markets (RiskManager already supports)
 - [x] Rate limit management across concurrent markets (RateLimiter)
 - [x] Market rollover handling (MarketManager.check_rollover)
-- [ ] Integration tests against live multi-market data
+- [x] Integration tests against live multi-market data (tests/integration/ with skip markers)
 
 **Deliverable:** Bot simultaneously monitors 4+ crypto markets, finding and executing the best arbitrage opportunities across all of them.
 
@@ -1078,7 +1078,7 @@ Future capability to replay historical orderbook snapshots through strategy logi
 - [x] Dead zone enforcement (lag_entry_dead_zone_start/end)
 - [x] Position exit management (stop-loss 5%, take-profit 10%, time-based 60s)
 - [x] Separate fast exit-check loop (every 2s, _exit_check_loop)
-- [ ] Track win rate and average profit for Kelly calibration
+- [x] Track win rate and average profit for Kelly calibration (total_win_amount/total_loss_amount on DailyPnL)
 - [x] Unit tests for spot detection + lag calculation (107 new tests)
 - [ ] Extended simulation run (48+ hours)
 

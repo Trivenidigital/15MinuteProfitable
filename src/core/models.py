@@ -178,3 +178,5 @@ class DailyPnL:
     max_drawdown: float = 0.0
     win_count: int = 0
     loss_count: int = 0
+    total_win_amount: float = 0.0
+    total_loss_amount: float = 0.0

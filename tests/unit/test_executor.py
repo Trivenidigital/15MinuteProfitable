@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from unittest.mock import AsyncMock, patch
 
 os.environ.setdefault("BOT_PRIVATE_KEY", "0x" + "ab" * 32)
 
@@ -209,3 +210,110 @@ class TestCancelDryRun:
     async def test_cancel_all_returns_true(self, executor: OrderExecutor) -> None:
         result = await executor.cancel_all()
         assert result is True
+
+
+# ---------------------------------------------------------------------------
+# execute_arb partial fill detection
+# ---------------------------------------------------------------------------
+
+
+class TestExecuteArbPartialFill:
+    """Tests for partial fill detection in execute_arb."""
+
+    async def _make_verify_fill_side_effect(
+        self,
+        yes_status: OrderStatus,
+        no_status: OrderStatus,
+        yes_token_id: str,
+        no_token_id: str,
+    ) -> AsyncMock:
+        """Create a mock verify_fill that returns different statuses per token."""
+
+        async def _verify(order: TradeOrder, **kwargs: object) -> TradeOrder:
+            if order.token_id == yes_token_id:
+                order.status = yes_status
+                if yes_status == OrderStatus.FILLED:
+                    order.fill_size = order.size
+                    order.fill_price = order.price
+                else:
+                    order.fill_size = 0.0
+                    order.fill_price = 0.0
+            else:
+                order.status = no_status
+                if no_status == OrderStatus.FILLED:
+                    order.fill_size = order.size
+                    order.fill_price = order.price
+                else:
+                    order.fill_size = 0.0
+                    order.fill_price = 0.0
+            return order
+
+        return _verify
+
+    async def test_execute_arb_partial_fill_yes_only(
+        self, executor: OrderExecutor
+    ) -> None:
+        """YES fills but NO gets cancelled -- partial fill detected."""
+        yes = _make_order(token_id="yes_tok", price=0.45)
+        no = _make_order(token_id="no_tok", price=0.47)
+
+        verify_side_effect = await self._make_verify_fill_side_effect(
+            OrderStatus.FILLED, OrderStatus.CANCELLED, "yes_tok", "no_tok"
+        )
+
+        with patch.object(executor, "verify_fill", side_effect=verify_side_effect):
+            yes_r, no_r = await executor.execute_arb(yes, no)
+
+        assert yes_r.status == OrderStatus.FILLED
+        assert no_r.status == OrderStatus.CANCELLED
+        assert yes_r.fill_size == 50.0
+        assert no_r.fill_size == 0.0
+
+    async def test_execute_arb_partial_fill_no_only(
+        self, executor: OrderExecutor
+    ) -> None:
+        """NO fills but YES gets cancelled -- partial fill detected."""
+        yes = _make_order(token_id="yes_tok", price=0.45)
+        no = _make_order(token_id="no_tok", price=0.47)
+
+        verify_side_effect = await self._make_verify_fill_side_effect(
+            OrderStatus.CANCELLED, OrderStatus.FILLED, "yes_tok", "no_tok"
+        )
+
+        with patch.object(executor, "verify_fill", side_effect=verify_side_effect):
+            yes_r, no_r = await executor.execute_arb(yes, no)
+
+        assert yes_r.status == OrderStatus.CANCELLED
+        assert no_r.status == OrderStatus.FILLED
+        assert yes_r.fill_size == 0.0
+        assert no_r.fill_size == 50.0
+
+    async def test_execute_arb_both_filled(self, executor: OrderExecutor) -> None:
+        """Both legs fill successfully -- no partial fill."""
+        yes = _make_order(token_id="yes_tok", price=0.45)
+        no = _make_order(token_id="no_tok", price=0.47)
+
+        # Dry run: both fill by default
+        yes_r, no_r = await executor.execute_arb(yes, no)
+
+        assert yes_r.status == OrderStatus.FILLED
+        assert no_r.status == OrderStatus.FILLED
+        assert yes_r.fill_size == 50.0
+        assert no_r.fill_size == 50.0
+
+    async def test_execute_arb_both_cancelled(self, executor: OrderExecutor) -> None:
+        """Both legs cancelled (FOK rejected) -- no partial fill."""
+        yes = _make_order(token_id="yes_tok", price=0.45)
+        no = _make_order(token_id="no_tok", price=0.47)
+
+        verify_side_effect = await self._make_verify_fill_side_effect(
+            OrderStatus.CANCELLED, OrderStatus.CANCELLED, "yes_tok", "no_tok"
+        )
+
+        with patch.object(executor, "verify_fill", side_effect=verify_side_effect):
+            yes_r, no_r = await executor.execute_arb(yes, no)
+
+        assert yes_r.status == OrderStatus.CANCELLED
+        assert no_r.status == OrderStatus.CANCELLED
+        assert yes_r.fill_size == 0.0
+        assert no_r.fill_size == 0.0

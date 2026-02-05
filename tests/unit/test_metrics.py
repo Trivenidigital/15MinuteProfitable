@@ -90,6 +90,7 @@ class TestComputeDashboard:
             "net_profit", "gross_profit", "total_fees", "max_drawdown",
             "sim_balance", "trades", "win_count", "loss_count",
             "opportunities_seen", "opportunities_taken",
+            "avg_win", "avg_loss",
         }
         assert set(d.keys()) == expected_keys
 
@@ -110,6 +111,8 @@ class TestFormatDailySummary:
             "gross_profit": 50.0,
             "total_fees": 5.0,
             "avg_profit_per_trade": 4.5,
+            "avg_win": 8.0,
+            "avg_loss": 5.0,
             "max_drawdown": -10.0,
             "take_rate": 0.1,
             "opportunities_seen": 100.0,
@@ -134,6 +137,8 @@ class TestFormatDailySummary:
             "gross_profit": 0.0,
             "total_fees": 0.0,
             "avg_profit_per_trade": 0.0,
+            "avg_win": 0.0,
+            "avg_loss": 0.0,
             "max_drawdown": 0.0,
             "take_rate": 0.0,
             "opportunities_seen": 0.0,
@@ -154,6 +159,8 @@ class TestFormatDailySummary:
             "gross_profit": -20.0,
             "total_fees": 5.0,
             "avg_profit_per_trade": -5.0,
+            "avg_win": 10.0,
+            "avg_loss": 8.75,
             "max_drawdown": -30.0,
             "take_rate": 0.5,
             "opportunities_seen": 10.0,
@@ -174,6 +181,58 @@ class TestFormatDailySummary:
 # ---------------------------------------------------------------------------
 # log_dashboard (smoke test)
 # ---------------------------------------------------------------------------
+
+
+class TestDashboardAvgWinLoss:
+    """Tests for avg_win and avg_loss in compute_dashboard."""
+
+    def test_dashboard_avg_win_loss(self, collector: MetricsCollector) -> None:
+        pnl = DailyPnL(
+            date="2024-01-01",
+            trades=10,
+            win_count=3,
+            loss_count=2,
+            total_win_amount=30.0,  # avg_win = 10.0
+            total_loss_amount=20.0,  # avg_loss = 10.0
+            net_profit=10.0,
+        )
+        d = collector.compute_dashboard(pnl, sim_balance=1000.0)
+        assert d["avg_win"] == pytest.approx(10.0)
+        assert d["avg_loss"] == pytest.approx(10.0)
+
+    def test_dashboard_avg_win_loss_zero_counts(self, collector: MetricsCollector) -> None:
+        pnl = DailyPnL(date="2024-01-01")
+        d = collector.compute_dashboard(pnl, sim_balance=500.0)
+        assert d["avg_win"] == 0.0
+        assert d["avg_loss"] == 0.0
+
+    def test_dashboard_avg_win_only(self, collector: MetricsCollector) -> None:
+        pnl = DailyPnL(
+            date="2024-01-01",
+            trades=5,
+            win_count=5,
+            loss_count=0,
+            total_win_amount=50.0,
+            total_loss_amount=0.0,
+            net_profit=50.0,
+        )
+        d = collector.compute_dashboard(pnl, sim_balance=1050.0)
+        assert d["avg_win"] == pytest.approx(10.0)
+        assert d["avg_loss"] == 0.0
+
+    def test_dashboard_avg_loss_only(self, collector: MetricsCollector) -> None:
+        pnl = DailyPnL(
+            date="2024-01-01",
+            trades=4,
+            win_count=0,
+            loss_count=4,
+            total_win_amount=0.0,
+            total_loss_amount=80.0,
+            net_profit=-80.0,
+        )
+        d = collector.compute_dashboard(pnl, sim_balance=920.0)
+        assert d["avg_win"] == 0.0
+        assert d["avg_loss"] == pytest.approx(20.0)
 
 
 class TestLogDashboard:

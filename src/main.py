@@ -22,6 +22,7 @@ from src.data.market_manager import MarketManager
 from src.data.orderbook import OrderBookManager
 from src.data.spot_buffer import SpotBuffer
 from src.execution.executor import OrderExecutor
+from src.execution.unwind import EmergencyUnwind
 from src.monitoring.alerts import AlertDispatcher
 from src.monitoring.logger import get_logger, setup_logging
 from src.monitoring.metrics import MetricsCollector
@@ -32,6 +33,7 @@ from src.strategy.asymmetric import AsymmetricStrategy
 from src.strategy.base import BaseStrategy
 from src.strategy.price_lag import ASSET_TO_BINANCE_SYMBOL, PriceLagStrategy
 from src.strategy.scanner import MarketScanner
+from src.utils.fee_verifier import verify_fees
 from src.utils.pid_lock import PidLock
 from src.utils.rate_limiter import RateLimiter
 
@@ -196,6 +198,28 @@ async def _execute_arb_trade(
     try:
         await rate_limiter.acquire(4)
         yes_result, no_result = await executor.execute_arb(yes_order, no_order)
+
+        # Detect partial fill — one leg filled, the other didn't
+        yes_filled = yes_result.status == OrderStatus.FILLED
+        no_filled = no_result.status == OrderStatus.FILLED
+        if yes_filled != no_filled:
+            _log.warning(
+                "partial_arb_detected",
+                market=market.slug,
+                yes_status=yes_result.status.value,
+                no_status=no_result.status.value,
+            )
+            unwind = EmergencyUnwind(executor, state_manager)
+            filled = yes_result if yes_filled else no_result
+            unfilled = no_result if yes_filled else yes_result
+            await unwind.unwind_partial_arb(filled, unfilled)
+            risk_manager.record_execution_failure()
+            if _alerts and settings.alert_on_error:
+                await _alerts.send_error(
+                    f"Partial arb fill {market.slug}: unwind triggered"
+                )
+            return
+
         state_manager.record_trade(opp, [yes_result, no_result])
         risk_manager.record_execution_success(market.condition_id)
         _log.info(
@@ -775,6 +799,15 @@ async def _run_bot(settings: Settings, pid_lock: PidLock) -> None:
     # Alert dispatcher
     _alerts = AlertDispatcher.from_settings(settings)
 
+    # Fee verification at startup
+    fee_errors = verify_fees()
+    if any(e.severity == "error" for e in fee_errors):
+        _log.error("fee_verification_has_errors", count=len(fee_errors))
+        if _alerts:
+            await _alerts.send_error(
+                f"Fee verification: {len(fee_errors)} issue(s) detected at startup"
+            )
+
     # Metrics collector
     metrics = MetricsCollector()
 
@@ -934,6 +967,21 @@ async def _run_bot(settings: Settings, pid_lock: PidLock) -> None:
         except Exception as exc:
             _log.warning("gtc_cancel_error", error=str(exc))
     _pending_gtc_orders.clear()
+
+    # Flatten unhedged directional positions on shutdown
+    unhedged = [p for p in state_manager.get_all_positions() if not p.is_hedged]
+    if unhedged:
+        _log.warning("shutdown_unwind_unhedged", count=len(unhedged))
+        unwinder = EmergencyUnwind(executor, state_manager)
+        for pos in unhedged:
+            try:
+                await unwinder.unwind_position(pos)
+            except Exception as exc:
+                _log.error(
+                    "shutdown_unwind_error",
+                    condition_id=pos.market.condition_id,
+                    error=str(exc),
+                )
 
     # Save state before exiting
     state_manager.save_snapshot(settings.state_snapshot_path)
