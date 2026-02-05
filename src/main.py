@@ -10,9 +10,10 @@ from __future__ import annotations
 
 import asyncio
 import signal
+import time
 
 from src.config import Settings
-from src.core.models import Side, StrategyType, TradeOrder
+from src.core.models import OrderStatus, Side, StrategyType, TradeOrder
 from src.core.state import StateManager
 from src.data.binance_ws import BinanceWebSocket
 from src.data.clob_ws import ClobWebSocket
@@ -24,6 +25,7 @@ from src.execution.executor import OrderExecutor
 from src.monitoring.logger import get_logger, setup_logging
 from src.risk.manager import RiskManager
 from src.strategy.arbitrage import ArbitrageStrategy
+from src.strategy.asymmetric import AsymmetricStrategy
 from src.strategy.base import BaseStrategy
 from src.strategy.price_lag import ASSET_TO_BINANCE_SYMBOL, PriceLagStrategy
 from src.strategy.scanner import MarketScanner
@@ -35,6 +37,7 @@ from src.utils.rate_limiter import RateLimiter
 
 _shutdown_event: asyncio.Event | None = None
 _log = get_logger("main")
+_pending_gtc_orders: list[dict] = []
 
 
 # ---------------------------------------------------------------------------
@@ -50,6 +53,7 @@ async def _strategy_loop(
     state_manager: StateManager,
     rate_limiter: RateLimiter,
     settings: Settings,
+    strategies: list[BaseStrategy] | None = None,
 ) -> None:
     """Continuously scan all active markets for the best opportunity.
 
@@ -97,6 +101,7 @@ async def _strategy_loop(
                             risk_manager=risk_manager,
                             rate_limiter=rate_limiter,
                             settings=settings,
+                            strategies=strategies or [],
                         )
 
         # Wait before next evaluation cycle
@@ -117,19 +122,26 @@ async def _execute_opportunity(
     risk_manager: RiskManager,
     rate_limiter: RateLimiter,
     settings: Settings,
+    strategies: list[BaseStrategy] | None = None,
 ) -> None:
     """Build orders, acquire rate limit tokens, and execute.
 
-    Handles both arbitrage (two-leg YES+NO) and directional (single-leg)
-    strategies based on which fills are present in the opportunity.
+    Handles arbitrage (two-leg YES+NO), asymmetric (GTC limit), and
+    directional (single-leg FOK) strategies.
     """
     market = opp.market
     is_arb = opp.yes_fill is not None and opp.no_fill is not None
+    is_asymmetric = opp.metadata.get("order_type") == "GTC"
 
     if is_arb:
         await _execute_arb_trade(
             opp, adjusted_size, executor, state_manager,
             risk_manager, rate_limiter, settings,
+        )
+    elif is_asymmetric:
+        await _execute_asymmetric_trade(
+            opp, adjusted_size, executor, state_manager,
+            risk_manager, rate_limiter, settings, strategies or [],
         )
     else:
         await _execute_directional_trade(
@@ -253,6 +265,161 @@ async def _execute_directional_trade(
     except Exception as exc:
         risk_manager.record_execution_failure()
         _log.error("execution_error", market=market.slug, error=str(exc))
+
+
+async def _execute_asymmetric_trade(
+    opp,
+    adjusted_size: float,
+    executor: OrderExecutor,
+    state_manager: StateManager,
+    risk_manager: RiskManager,
+    rate_limiter: RateLimiter,
+    settings: Settings,
+    strategies: list[BaseStrategy],
+) -> None:
+    """Place a GTC limit order for asymmetric accumulation (0% maker fee)."""
+    market = opp.market
+    fill = opp.yes_fill or opp.no_fill
+    if fill is None:
+        return
+
+    buy_side = opp.metadata.get("buy_side", "YES")
+    target_token_id = opp.metadata.get("target_token_id", "")
+    buy_price = opp.metadata.get("buy_price", fill.vwap)
+
+    order = TradeOrder(
+        token_id=target_token_id,
+        side=Side.BUY,
+        price=buy_price,
+        size=adjusted_size,
+        order_type="GTC",
+    )
+
+    _log.info(
+        "executing_asymmetric",
+        market=market.slug,
+        side=buy_side,
+        price=order.price,
+        size=adjusted_size,
+        dry_run=settings.dry_run,
+    )
+
+    try:
+        await rate_limiter.acquire(2)
+        await executor.sign_order(order)
+        result = await executor.submit_order(order)
+
+        if result.status == OrderStatus.FILLED:
+            # Dry-run: immediate fill
+            _record_asymmetric_fill(
+                strategies, market.condition_id, buy_side,
+                result.fill_size or adjusted_size,
+                (result.fill_price or buy_price) * (result.fill_size or adjusted_size),
+            )
+            state_manager.record_trade(opp, [result])
+            risk_manager.record_execution_success(market.condition_id)
+        elif result.status == OrderStatus.SUBMITTED and result.order_id:
+            # Live: GTC order on the book, track for fill checking
+            _pending_gtc_orders.append({
+                "order": result,
+                "condition_id": market.condition_id,
+                "buy_side": buy_side,
+                "price": buy_price,
+                "size": adjusted_size,
+                "submitted_at": time.time(),
+                "opportunity": opp,
+            })
+            _log.info(
+                "gtc_order_placed",
+                order_id=result.order_id,
+                market=market.slug,
+                side=buy_side,
+            )
+        else:
+            risk_manager.record_execution_failure()
+    except asyncio.TimeoutError:
+        _log.warning("rate_limit_timeout", market=market.slug)
+    except Exception as exc:
+        risk_manager.record_execution_failure()
+        _log.error("execution_error", market=market.slug, error=str(exc))
+
+
+def _record_asymmetric_fill(
+    strategies: list[BaseStrategy],
+    condition_id: str,
+    side: str,
+    shares: float,
+    cost: float,
+) -> None:
+    """Find the AsymmetricStrategy and record a fill."""
+    for strat in strategies:
+        if isinstance(strat, AsymmetricStrategy):
+            strat.record_fill(condition_id, side, shares, cost)
+            break
+
+
+# ---------------------------------------------------------------------------
+# GTC order monitoring loop (asymmetric strategy)
+# ---------------------------------------------------------------------------
+
+
+async def _gtc_monitor_loop(
+    executor: OrderExecutor,
+    state_manager: StateManager,
+    risk_manager: RiskManager,
+    strategies: list[BaseStrategy],
+    settings: Settings,
+    interval: float = 5.0,
+) -> None:
+    """Periodically check pending GTC orders for fills and cancel stale ones."""
+    while _shutdown_event is not None and not _shutdown_event.is_set():
+        try:
+            to_remove = []
+            now = time.time()
+
+            for entry in _pending_gtc_orders:
+                order = entry["order"]
+                age = now - entry["submitted_at"]
+
+                # Check if filled (quick poll)
+                checked = await executor.verify_fill(order, timeout=1.0, poll_interval=0.5)
+
+                if checked.status == OrderStatus.FILLED:
+                    to_remove.append(entry)
+                    _record_asymmetric_fill(
+                        strategies,
+                        entry["condition_id"],
+                        entry["buy_side"],
+                        checked.fill_size or entry["size"],
+                        (checked.fill_price or entry["price"])
+                        * (checked.fill_size or entry["size"]),
+                    )
+                    state_manager.record_trade(entry["opportunity"], [checked])
+                    risk_manager.record_execution_success(entry["condition_id"])
+                    _log.info(
+                        "gtc_fill_confirmed",
+                        order_id=order.order_id,
+                        side=entry["buy_side"],
+                    )
+                elif age > settings.stale_order_seconds:
+                    to_remove.append(entry)
+                    await executor.cancel_order(order.order_id)
+                    _log.info(
+                        "gtc_order_cancelled_stale",
+                        order_id=order.order_id,
+                        age=round(age, 1),
+                    )
+
+            for entry in to_remove:
+                _pending_gtc_orders.remove(entry)
+
+        except Exception as exc:
+            _log.error("gtc_monitor_error", error=str(exc))
+
+        try:
+            await asyncio.wait_for(_shutdown_event.wait(), timeout=interval)
+        except asyncio.TimeoutError:
+            pass
 
 
 # ---------------------------------------------------------------------------
@@ -478,9 +645,8 @@ def _build_strategies(
             settings=settings, book_manager=book_manager, spot_buffer=spot_buffer,
         ))
 
-    # Future strategies:
-    # if settings.enable_asymmetric:
-    #     strategies.append(AsymmetricStrategy(...))
+    if settings.enable_asymmetric:
+        strategies.append(AsymmetricStrategy(settings=settings, book_manager=book_manager))
 
     return strategies
 
@@ -526,6 +692,7 @@ async def async_main() -> None:
         target_pair_cost=settings.target_pair_cost,
         enable_arbitrage=settings.enable_arbitrage,
         enable_price_lag=settings.enable_price_lag,
+        enable_asymmetric=settings.enable_asymmetric,
         enable_multi_market=settings.enable_multi_market,
     )
 
@@ -609,6 +776,19 @@ async def async_main() -> None:
             state_manager=state_manager,
             rate_limiter=rate_limiter,
             settings=settings,
+            strategies=strategies,
+        ),
+    )
+
+    # GTC order monitoring (asymmetric strategy fill checking)
+    gtc_task = asyncio.create_task(
+        _gtc_monitor_loop(
+            executor=executor,
+            state_manager=state_manager,
+            risk_manager=risk_manager,
+            strategies=strategies,
+            settings=settings,
+            interval=5.0,
         ),
     )
 
@@ -651,7 +831,7 @@ async def async_main() -> None:
         except asyncio.TimeoutError:
             ws.cancel()
 
-    for task in [monitor_task, strategy_task, rollover_task, exit_task]:
+    for task in [monitor_task, strategy_task, rollover_task, exit_task, gtc_task]:
         if task is not None:
             task.cancel()
             try:

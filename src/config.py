@@ -48,6 +48,14 @@ class Settings(BaseSettings):
     time_exit_seconds: float = 60.0  # force close N seconds before expiry
     lag_confirmations: int = 2  # N consecutive spot confirmations before acting
 
+    # Asymmetric Entry Strategy Parameters
+    yes_cheap_threshold: float = 0.42  # buy YES when ask < this
+    no_cheap_threshold: float = 0.42  # buy NO when ask < this
+    accumulation_size: float = 10.0  # shares per accumulation buy
+    max_accumulation_per_side: float = 200.0  # max shares before completing pair
+    target_avg_combined: float = 0.90  # target avg combined cost for profit
+    stale_order_seconds: float = 120.0  # cancel GTC orders older than this
+
     # Markets
     markets: list[str] = ["BTC", "ETH", "SOL", "XRP"]
     market_slug_override: str = ""
