@@ -1,6 +1,6 @@
 # Polymarket 15-Minute Crypto Trading Bot — Implementation Plan
 
-> **Status:** Phase 3 complete, ready for Phase 4
+> **Status:** Phase 4 complete, ready for Phase 5
 > **Last updated:** 2026-02-04
 
 ---
@@ -1070,16 +1070,16 @@ Future capability to replay historical orderbook snapshots through strategy logi
 **Goal:** Directional trading based on spot price leads
 **Depends on:** Phase 3
 
-- [ ] Binance WebSocket client for BTC/ETH/SOL spot feeds
-- [ ] Rolling price buffer with configurable window
-- [ ] Spot movement detection (threshold-based)
-- [ ] Price-lag calculation (compare spot direction to Polymarket odds)
-- [ ] Time-aware position sizing (decreasing as expiry approaches)
-- [ ] Dead zone enforcement (no trades near market open/close)
-- [ ] Position exit management (stop-loss, take-profit, time-based)
-- [ ] Separate fast exit-check loop (every 2s)
+- [x] Binance WebSocket client for BTC/ETH/SOL/XRP spot feeds (BinanceWebSocket)
+- [x] Rolling price buffer with configurable window (SpotBuffer)
+- [x] Spot movement detection (threshold-based, detect_movement)
+- [x] Price-lag calculation (compare spot direction to Polymarket odds)
+- [x] Time-aware position sizing (>5min=1x, 2-5min=0.5x, 30s-2min=0.25x, <30s=0)
+- [x] Dead zone enforcement (lag_entry_dead_zone_start/end)
+- [x] Position exit management (stop-loss 5%, take-profit 10%, time-based 60s)
+- [x] Separate fast exit-check loop (every 2s, _exit_check_loop)
 - [ ] Track win rate and average profit for Kelly calibration
-- [ ] Unit tests for spot detection + lag calculation
+- [x] Unit tests for spot detection + lag calculation (107 new tests)
 - [ ] Extended simulation run (48+ hours)
 
 **Deliverable:** Bot detects when spot prices move ahead of Polymarket odds and takes directional positions with proper risk management.
