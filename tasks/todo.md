@@ -1,6 +1,6 @@
 # Polymarket 15-Minute Crypto Trading Bot — Implementation Plan
 
-> **Status:** Phase 1 complete, implementing Phase 2
+> **Status:** Phase 2 complete, ready for Phase 3
 > **Last updated:** 2026-02-04
 
 ---
@@ -1037,16 +1037,16 @@ Future capability to replay historical orderbook snapshots through strategy logi
 **Goal:** First profitable strategy running in simulation
 **Depends on:** Phase 1
 
-- [ ] Order executor (sign, submit, verify, cancel) wrapping py-clob-client
-- [ ] Parallel order signing via asyncio.to_thread()
-- [ ] Batch order submission
-- [ ] Fill verification with polling
-- [ ] Arbitrage strategy implementation (fee-adjusted threshold)
-- [ ] Simulation mode (DRY_RUN): log would-trade, track sim P&L
-- [ ] State manager (position tracking, P&L)
-- [ ] Basic risk checks (position limits, balance check)
+- [x] Order executor (sign, submit, verify, cancel) wrapping py-clob-client
+- [x] Parallel order signing via asyncio.to_thread()
+- [x] Batch order submission
+- [x] Fill verification with polling
+- [x] Arbitrage strategy implementation (fee-adjusted threshold)
+- [x] Simulation mode (DRY_RUN): log would-trade, track sim P&L
+- [x] State manager (position tracking, P&L)
+- [x] Basic risk checks (position limits, balance check, 8 checks)
 - [ ] Partial fill handling and emergency unwind
-- [ ] Unit tests for strategy + executor
+- [x] Unit tests for strategy + executor + risk + state (113 new, 204 total)
 - [ ] Run in simulation for 24+ hours, verify P&L tracking
 
 **Deliverable:** Bot simulates fee-adjusted arbitrage trades on live BTC 15-min market, logging every opportunity and simulated execution.
