@@ -219,7 +219,10 @@ class MarketDiscovery:
         parsed.
         """
         try:
-            condition_id = data["condition_id"]
+            # API uses camelCase, handle both for compatibility
+            condition_id = data.get("conditionId") or data.get("condition_id")
+            if not condition_id:
+                raise KeyError("conditionId")
             slug = data["slug"]
             question = data.get("question", "")
 
