@@ -23,8 +23,22 @@
 
 ## Architecture Decisions
 
-- (To be populated during implementation)
+- **Dashboard in same event loop:** FastAPI/Uvicorn runs in same asyncio loop via `uvicorn.Server.serve()` - no separate process needed.
+- **SQLite with WAL mode:** Enables concurrent reads during bot operation, safe for single-writer pattern.
+- **systemd for production:** Use systemd service for auto-restart, logging, and process management.
+
+## Deployment Lessons
+
+- **GitHub auth changed:** Password authentication no longer works for git clone. Use Personal Access Token or make repo public.
+- **Ubuntu 24.04 has Python 3.12:** No need to install Python 3.11, the default Python 3.12 works fine.
+- **systemd User= must exist:** If service file specifies `User=botuser`, that user must exist. Either create it or change to `User=root`.
+- **Hetzner Helsinki for EU:** Amsterdam not available on Hetzner Cloud. Helsinki is closest to London AWS (Polymarket servers).
+- **.env parsing is strict:** No extra whitespace, no quotes around values, no trailing spaces. Use `printf` instead of heredocs.
+- **BOT_MARKETS format:** Don't include BOT_MARKETS in .env if using default. The comma-separated format can cause parsing issues.
 
 ## Common Mistakes
 
-- (To be populated after corrections)
+- **Heredoc in SSH:** Copy-pasting heredocs (`cat << 'EOF'`) over SSH often fails. Use multiple `printf` or `echo` commands instead.
+- **Forgot to create venv:** Always `source .venv/bin/activate` before running `pip install -e .`
+- **Wrong working directory:** Always `cd /opt/btc15minutebot` before running bot commands.
+- **Port already in use:** Kill old process before starting new one. Check with `netstat -ano | findstr :8080`

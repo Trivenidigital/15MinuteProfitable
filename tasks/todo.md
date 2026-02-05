@@ -1,7 +1,8 @@
 # Polymarket 15-Minute Crypto Trading Bot — Implementation Plan
 
-> **Status:** All phases complete (594 tests passing, 10 integration skipped)
+> **Status:** DEPLOYED TO PRODUCTION - Paper trading on Hetzner Helsinki
 > **Last updated:** 2026-02-05
+> **Server:** 46.62.206.192 | **Dashboard:** http://46.62.206.192:8080 | **Cost:** €6.99/mo
 
 ---
 
