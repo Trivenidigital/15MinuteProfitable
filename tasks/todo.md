@@ -1088,13 +1088,13 @@ Future capability to replay historical orderbook snapshots through strategy logi
 **Goal:** Opportunistic accumulation for fee-free execution
 **Depends on:** Phase 3
 
-- [ ] Asymmetric strategy with accumulation logic
-- [ ] Per-side cost basis tracking (running average)
-- [ ] Pair completion detection
-- [ ] GTC limit order management (place, monitor, cancel stale)
-- [ ] Open order tracking (GTC orders that haven't filled)
-- [ ] Strategy switching: detect when to accumulate vs. when to arb
-- [ ] Unit tests for accumulation math + pair completion
+- [x] Asymmetric strategy with accumulation logic (AsymmetricStrategy)
+- [x] Per-side cost basis tracking (AccumulationState dataclass)
+- [x] Pair completion detection (can_complete + combined_avg_cost)
+- [x] GTC limit order management (place, monitor, cancel stale)
+- [x] Open order tracking (_pending_gtc_orders + _gtc_monitor_loop)
+- [x] Strategy switching: scanner evaluates all strategies per market
+- [x] Unit tests for accumulation math + pair completion (51 tests)
 
 **Deliverable:** Bot places cheap limit orders (0% maker fee) to accumulate shares opportunistically, completing profitable pairs when the combined cost basis is favorable.
 
