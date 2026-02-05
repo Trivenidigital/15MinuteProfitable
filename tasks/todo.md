@@ -1,6 +1,6 @@
 # Polymarket 15-Minute Crypto Trading Bot — Implementation Plan
 
-> **Status:** Planning complete, awaiting implementation
+> **Status:** Phase 1 complete, implementing Phase 2
 > **Last updated:** 2026-02-04
 
 ---
@@ -1019,17 +1019,17 @@ Future capability to replay historical orderbook snapshots through strategy logi
 **Goal:** Data feeds working, can observe markets in real-time
 **Duration estimate:** Foundation phase
 
-- [ ] Project scaffolding (pyproject.toml, src/__init__.py, test structure)
-- [ ] Configuration management (Pydantic Settings, .env loading)
-- [ ] Core models (Market, OrderBook, OrderBookLevel, FillEstimate)
-- [ ] Fee calculation module with full test coverage
-- [ ] Time utilities (15-min window alignment, dead zone checks)
-- [ ] Market discovery via Gamma API (3-tier: computed → Gamma → scrape)
-- [ ] CLOB WebSocket client (connect, subscribe, receive L2 snapshots + deltas)
-- [ ] L2 orderbook state manager (apply snapshot, apply delta, compute fill)
-- [ ] Structured logging setup (structlog, JSON format)
-- [ ] Basic main.py loop: discover market → subscribe → log orderbook state
-- [ ] Unit tests for all above modules
+- [x] Project scaffolding (pyproject.toml, src/__init__.py, test structure)
+- [x] Configuration management (Pydantic Settings, .env loading)
+- [x] Core models (Market, OrderBook, OrderBookLevel, FillEstimate)
+- [x] Fee calculation module with full test coverage (49 tests)
+- [x] Time utilities (15-min window alignment, dead zone checks) (25 tests)
+- [x] Market discovery via Gamma API (3-tier: computed → Gamma → scrape)
+- [x] CLOB WebSocket client (connect, subscribe, receive L2 snapshots + deltas)
+- [x] L2 orderbook state manager (apply snapshot, apply delta, compute fill) (17 tests)
+- [x] Structured logging setup (structlog, JSON format)
+- [x] Basic main.py loop: discover market → subscribe → log orderbook state
+- [x] Unit tests for all above modules (91 total)
 
 **Deliverable:** Bot that connects to Polymarket, discovers 15-min BTC market, subscribes to WebSocket, and logs real-time orderbook updates.
 
