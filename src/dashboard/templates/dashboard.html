@@ -1,0 +1,1120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BTC15MinuteBot Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+    <style>
+        /* ----------------------------------------------------------------
+           CSS Variables & Reset
+           ---------------------------------------------------------------- */
+        :root {
+            --bg: #1a1a2e;
+            --bg-card: #16213e;
+            --text: #e0e0e0;
+            --accent: #0f3460;
+            --green: #00b894;
+            --red: #e74c3c;
+            --yellow: #fdcb6e;
+            --blue: #74b9ff;
+            --border: #2d3a5a;
+            --bg-table-row: #1b2840;
+            --bg-table-row-alt: #162038;
+        }
+
+        *, *::before, *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        /* ----------------------------------------------------------------
+           Header
+           ---------------------------------------------------------------- */
+        .header {
+            background: var(--bg-card);
+            border-bottom: 1px solid var(--border);
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 100;
+            height: 56px;
+        }
+
+        .header h1 {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--blue);
+        }
+
+        .connection-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--red);
+            transition: background 0.3s;
+        }
+
+        .status-dot.connected {
+            background: var(--green);
+        }
+
+        /* ----------------------------------------------------------------
+           Main container
+           ---------------------------------------------------------------- */
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 72px 16px 32px;
+        }
+
+        /* ----------------------------------------------------------------
+           Overview cards
+           ---------------------------------------------------------------- */
+        .cards-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px 20px;
+            flex: 1 1 180px;
+            min-width: 160px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+
+        .card .label {
+            font-size: 12px;
+            text-transform: uppercase;
+            color: #8899aa;
+            margin-bottom: 6px;
+            letter-spacing: 0.5px;
+        }
+
+        .card .value {
+            font-size: 24px;
+            font-weight: 700;
+            font-family: 'Courier New', Courier, monospace;
+        }
+
+        .card .value.green { color: var(--green); }
+        .card .value.red { color: var(--red); }
+        .card .value.yellow { color: var(--yellow); }
+        .card .value.blue { color: var(--blue); }
+
+        /* ----------------------------------------------------------------
+           Section titles
+           ---------------------------------------------------------------- */
+        .section-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin: 24px 0 12px;
+            color: var(--blue);
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 6px;
+        }
+
+        /* ----------------------------------------------------------------
+           Charts row
+           ---------------------------------------------------------------- */
+        .charts-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+
+        .chart-container {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+
+        .chart-equity {
+            flex: 2 1 500px;
+            min-height: 300px;
+        }
+
+        .chart-strategy {
+            flex: 1 1 250px;
+            min-height: 300px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .chart-container canvas {
+            max-width: 100%;
+        }
+
+        /* ----------------------------------------------------------------
+           Tables
+           ---------------------------------------------------------------- */
+        .table-wrapper {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow-x: auto;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        th {
+            background: var(--accent);
+            color: var(--text);
+            padding: 10px 12px;
+            text-align: left;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        td {
+            padding: 8px 12px;
+            border-bottom: 1px solid var(--border);
+            font-family: 'Courier New', Courier, monospace;
+            white-space: nowrap;
+        }
+
+        tr:nth-child(even) td {
+            background: var(--bg-table-row-alt);
+        }
+
+        tr:nth-child(odd) td {
+            background: var(--bg-table-row);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .badge-green { background: rgba(0,184,148,0.2); color: var(--green); }
+        .badge-red { background: rgba(231,76,60,0.2); color: var(--red); }
+        .badge-blue { background: rgba(116,185,255,0.2); color: var(--blue); }
+        .badge-yellow { background: rgba(253,203,110,0.2); color: var(--yellow); }
+
+        /* ----------------------------------------------------------------
+           Pagination
+           ---------------------------------------------------------------- */
+        .pagination {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            padding: 12px;
+        }
+
+        .pagination button {
+            background: var(--accent);
+            color: var(--text);
+            border: 1px solid var(--border);
+            padding: 6px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+
+        .pagination button:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .pagination button:hover:not(:disabled) {
+            background: var(--blue);
+            color: #111;
+        }
+
+        .pagination .page-info {
+            font-size: 13px;
+            color: #8899aa;
+        }
+
+        /* ----------------------------------------------------------------
+           Orderbook viewer
+           ---------------------------------------------------------------- */
+        .orderbook-controls {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .orderbook-controls select {
+            background: var(--accent);
+            color: var(--text);
+            border: 1px solid var(--border);
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+
+        .orderbook-grid {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .orderbook-side {
+            flex: 1 1 200px;
+            min-width: 200px;
+        }
+
+        .orderbook-side h4 {
+            font-size: 13px;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        .orderbook-side h4.bids-title { color: var(--green); }
+        .orderbook-side h4.asks-title { color: var(--red); }
+
+        .ob-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 3px 0;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 13px;
+        }
+
+        .ob-price { width: 70px; text-align: right; }
+        .ob-size { width: 80px; text-align: right; }
+
+        .ob-bar {
+            flex: 1;
+            height: 16px;
+            border-radius: 2px;
+            min-width: 0;
+        }
+
+        .ob-bar-bid { background: rgba(0,184,148,0.3); }
+        .ob-bar-ask { background: rgba(231,76,60,0.3); }
+
+        /* ----------------------------------------------------------------
+           Risk & Spot panels
+           ---------------------------------------------------------------- */
+        .panels-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+
+        .panel {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px;
+            flex: 1 1 300px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+
+        .panel h3 {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--blue);
+            margin-bottom: 12px;
+        }
+
+        .risk-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 0;
+            border-bottom: 1px solid var(--border);
+            font-size: 13px;
+        }
+
+        .risk-item:last-child { border-bottom: none; }
+
+        .risk-label { color: #8899aa; }
+        .risk-value { font-family: 'Courier New', Courier, monospace; font-weight: 600; }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: var(--accent);
+            border-radius: 4px;
+            margin-top: 4px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.3s;
+        }
+
+        .spot-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--border);
+            font-size: 14px;
+        }
+
+        .spot-item:last-child { border-bottom: none; }
+
+        .spot-symbol { font-weight: 600; color: var(--blue); }
+        .spot-price { font-family: 'Courier New', Courier, monospace; font-weight: 600; }
+
+        .empty-state {
+            text-align: center;
+            padding: 24px;
+            color: #667788;
+            font-size: 14px;
+        }
+
+        /* ----------------------------------------------------------------
+           Responsive
+           ---------------------------------------------------------------- */
+        @media (max-width: 768px) {
+            .container { padding: 64px 8px 16px; }
+            .card { flex: 1 1 140px; padding: 12px; }
+            .card .value { font-size: 18px; }
+            .header h1 { font-size: 15px; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ================================================================
+         Header
+         ================================================================ -->
+    <div class="header">
+        <h1>BTC15MinuteBot Dashboard</h1>
+        <div class="connection-status">
+            <div class="status-dot" id="statusDot"></div>
+            <span id="statusText">Disconnected</span>
+        </div>
+    </div>
+
+    <!-- ================================================================
+         Main container
+         ================================================================ -->
+    <div class="container">
+
+        <!-- Overview cards -->
+        <div class="cards-row">
+            <div class="card">
+                <div class="label">Net P&amp;L</div>
+                <div class="value" id="cardPnl">$0.00</div>
+            </div>
+            <div class="card">
+                <div class="label">Total Trades</div>
+                <div class="value blue" id="cardTrades">0</div>
+            </div>
+            <div class="card">
+                <div class="label">Win Rate</div>
+                <div class="value" id="cardWinRate">0.0%</div>
+            </div>
+            <div class="card">
+                <div class="label">Balance</div>
+                <div class="value blue" id="cardBalance">$0.00</div>
+            </div>
+            <div class="card">
+                <div class="label">Exposure</div>
+                <div class="value yellow" id="cardExposure">$0.00</div>
+            </div>
+            <div class="card">
+                <div class="label">Circuit Breaker</div>
+                <div class="value" id="cardCircuitBreaker">OFF</div>
+            </div>
+        </div>
+
+        <!-- Charts -->
+        <div class="section-title">Performance</div>
+        <div class="charts-row">
+            <div class="chart-container chart-equity">
+                <canvas id="equityChart"></canvas>
+            </div>
+            <div class="chart-container chart-strategy">
+                <canvas id="strategyChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Positions table -->
+        <div class="section-title">Open Positions</div>
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Market</th>
+                        <th>Asset</th>
+                        <th>Strategy</th>
+                        <th>YES Shares</th>
+                        <th>NO Shares</th>
+                        <th>Investment</th>
+                        <th>Hedged</th>
+                        <th>Opened</th>
+                    </tr>
+                </thead>
+                <tbody id="positionsBody">
+                    <tr><td colspan="8" class="empty-state">No open positions</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Trade log -->
+        <div class="section-title">Trade Log</div>
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>Market</th>
+                        <th>Strategy</th>
+                        <th>Side</th>
+                        <th>Token</th>
+                        <th>Price</th>
+                        <th>Size</th>
+                        <th>Cost</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="tradesBody">
+                    <tr><td colspan="9" class="empty-state">No trades recorded</td></tr>
+                </tbody>
+            </table>
+            <div class="pagination">
+                <button id="prevBtn" disabled onclick="prevPage()">Prev</button>
+                <span class="page-info" id="pageInfo">Page 1</span>
+                <button id="nextBtn" disabled onclick="nextPage()">Next</button>
+            </div>
+        </div>
+
+        <!-- Orderbook viewer -->
+        <div class="section-title">Orderbook Viewer</div>
+        <div class="panel">
+            <div class="orderbook-controls">
+                <label for="obSelect">Token:</label>
+                <select id="obSelect" onchange="loadOrderbook()">
+                    <option value="">-- Select token --</option>
+                </select>
+            </div>
+            <div class="orderbook-grid">
+                <div class="orderbook-side">
+                    <h4 class="bids-title">Bids</h4>
+                    <div id="obBids">
+                        <div class="empty-state">Select a token</div>
+                    </div>
+                </div>
+                <div class="orderbook-side">
+                    <h4 class="asks-title">Asks</h4>
+                    <div id="obAsks">
+                        <div class="empty-state">Select a token</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Risk & Spot panels -->
+        <div class="section-title">Risk &amp; Spot Prices</div>
+        <div class="panels-row">
+            <div class="panel">
+                <h3>Risk Status</h3>
+                <div id="riskPanel">
+                    <div class="empty-state">Loading...</div>
+                </div>
+            </div>
+            <div class="panel">
+                <h3>Spot Prices (Binance)</h3>
+                <div id="spotPanel">
+                    <div class="empty-state">No spot data</div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ================================================================
+         JavaScript
+         ================================================================ -->
+    <script>
+        /* ----------------------------------------------------------------
+           State
+           ---------------------------------------------------------------- */
+        let ws = null;
+        let wsRetryDelay = 1000;
+        const WS_MAX_RETRY = 30000;
+
+        let tradeOffset = 0;
+        const tradeLimit = 50;
+        let tradeTotal = 0;
+
+        let equityChart = null;
+        let strategyChart = null;
+
+        let allOrderbooks = {};
+
+        /* ----------------------------------------------------------------
+           Number formatting
+           ---------------------------------------------------------------- */
+        function fmtDollars(n) {
+            if (n === null || n === undefined) return '$0.00';
+            const sign = n < 0 ? '-' : '';
+            return sign + '$' + Math.abs(n).toFixed(2);
+        }
+
+        function fmtPrice(n) {
+            if (n === null || n === undefined) return '0.0000';
+            return n.toFixed(4);
+        }
+
+        function fmtPct(n) {
+            if (n === null || n === undefined) return '0.0%';
+            return (n * 100).toFixed(1) + '%';
+        }
+
+        function fmtAgo(isoStr) {
+            if (!isoStr) return '-';
+            const diff = (Date.now() - new Date(isoStr).getTime()) / 1000;
+            if (diff < 60) return Math.round(diff) + 's ago';
+            if (diff < 3600) return Math.round(diff / 60) + 'm ago';
+            if (diff < 86400) return Math.round(diff / 3600) + 'h ago';
+            return Math.round(diff / 86400) + 'd ago';
+        }
+
+        function fmtTimestamp(ts) {
+            if (!ts) return '-';
+            const d = new Date(ts * 1000);
+            return d.toLocaleTimeString();
+        }
+
+        /* ----------------------------------------------------------------
+           Overview card updates (from WS)
+           ---------------------------------------------------------------- */
+        function updateCards(data) {
+            const pnlEl = document.getElementById('cardPnl');
+            pnlEl.textContent = fmtDollars(data.daily_pnl_net);
+            pnlEl.className = 'value ' + (data.daily_pnl_net >= 0 ? 'green' : 'red');
+
+            document.getElementById('cardBalance').textContent = fmtDollars(data.sim_balance);
+            document.getElementById('cardExposure').textContent = fmtDollars(data.total_exposure);
+
+            const cbEl = document.getElementById('cardCircuitBreaker');
+            if (data.circuit_breaker_active) {
+                cbEl.textContent = 'ACTIVE';
+                cbEl.className = 'value red';
+            } else {
+                cbEl.textContent = 'OFF';
+                cbEl.className = 'value green';
+            }
+        }
+
+        /* ----------------------------------------------------------------
+           API fetchers
+           ---------------------------------------------------------------- */
+        async function fetchJSON(url) {
+            try {
+                const resp = await fetch(url);
+                return await resp.json();
+            } catch (e) {
+                console.error('Fetch error:', url, e);
+                return null;
+            }
+        }
+
+        /* -- Metrics (updates trade count + win rate cards) -- */
+        async function fetchMetrics() {
+            const data = await fetchJSON('/api/metrics');
+            if (!data) return;
+            document.getElementById('cardTrades').textContent = Math.round(data.trades);
+            document.getElementById('cardWinRate').textContent = fmtPct(data.win_rate);
+        }
+
+        /* -- Positions table -- */
+        async function fetchPositions() {
+            const data = await fetchJSON('/api/positions');
+            if (!data) return;
+            const tbody = document.getElementById('positionsBody');
+
+            if (data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No open positions</td></tr>';
+                return;
+            }
+
+            let html = '';
+            for (const p of data) {
+                const hedgeBadge = p.is_hedged
+                    ? '<span class="badge badge-green">YES</span>'
+                    : '<span class="badge badge-red">NO</span>';
+                html += '<tr>'
+                    + '<td>' + escHtml(p.slug) + '</td>'
+                    + '<td>' + escHtml(p.asset) + '</td>'
+                    + '<td><span class="badge badge-blue">' + escHtml(p.strategy) + '</span></td>'
+                    + '<td>' + p.yes_shares.toFixed(2) + '</td>'
+                    + '<td>' + p.no_shares.toFixed(2) + '</td>'
+                    + '<td>' + fmtDollars(p.total_investment) + '</td>'
+                    + '<td>' + hedgeBadge + '</td>'
+                    + '<td>' + fmtAgo(p.opened_at) + '</td>'
+                    + '</tr>';
+            }
+            tbody.innerHTML = html;
+        }
+
+        /* -- Trades table -- */
+        async function fetchTrades() {
+            const data = await fetchJSON('/api/trades?limit=' + tradeLimit + '&offset=' + tradeOffset);
+            if (!data) return;
+
+            tradeTotal = data.total;
+            const tbody = document.getElementById('tradesBody');
+
+            if (data.trades.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="9" class="empty-state">No trades recorded</td></tr>';
+            } else {
+                let html = '';
+                for (const t of data.trades) {
+                    const sideBadge = t.side === 'BUY'
+                        ? '<span class="badge badge-green">BUY</span>'
+                        : '<span class="badge badge-red">SELL</span>';
+                    const statusBadge = t.status === 'filled'
+                        ? '<span class="badge badge-green">filled</span>'
+                        : '<span class="badge badge-yellow">' + escHtml(t.status) + '</span>';
+                    html += '<tr>'
+                        + '<td>' + fmtTimestamp(t.timestamp) + '</td>'
+                        + '<td>' + escHtml(t.market_slug) + '</td>'
+                        + '<td><span class="badge badge-blue">' + escHtml(t.strategy) + '</span></td>'
+                        + '<td>' + sideBadge + '</td>'
+                        + '<td>' + escHtml(t.token_side) + '</td>'
+                        + '<td>' + fmtPrice(t.price) + '</td>'
+                        + '<td>' + t.size.toFixed(2) + '</td>'
+                        + '<td>' + fmtDollars(t.cost) + '</td>'
+                        + '<td>' + statusBadge + '</td>'
+                        + '</tr>';
+                }
+                tbody.innerHTML = html;
+            }
+
+            // Update pagination
+            const page = Math.floor(tradeOffset / tradeLimit) + 1;
+            const totalPages = Math.max(1, Math.ceil(tradeTotal / tradeLimit));
+            document.getElementById('pageInfo').textContent = 'Page ' + page + ' of ' + totalPages;
+            document.getElementById('prevBtn').disabled = tradeOffset <= 0;
+            document.getElementById('nextBtn').disabled = tradeOffset + tradeLimit >= tradeTotal;
+        }
+
+        function prevPage() {
+            tradeOffset = Math.max(0, tradeOffset - tradeLimit);
+            fetchTrades();
+        }
+
+        function nextPage() {
+            if (tradeOffset + tradeLimit < tradeTotal) {
+                tradeOffset += tradeLimit;
+                fetchTrades();
+            }
+        }
+
+        /* -- Orderbooks -- */
+        async function fetchOrderbooks() {
+            const data = await fetchJSON('/api/orderbooks');
+            if (!data) return;
+            allOrderbooks = data;
+
+            const select = document.getElementById('obSelect');
+            const currentVal = select.value;
+            const tokens = Object.keys(data);
+
+            // Only rebuild options if tokens changed
+            const existingOpts = Array.from(select.options).map(o => o.value).filter(v => v);
+            if (JSON.stringify(existingOpts) !== JSON.stringify(tokens)) {
+                select.innerHTML = '<option value="">-- Select token --</option>';
+                for (const tid of tokens) {
+                    const opt = document.createElement('option');
+                    opt.value = tid;
+                    opt.textContent = tid.substring(0, 16) + '...';
+                    select.appendChild(opt);
+                }
+                // Restore selection
+                if (currentVal && tokens.includes(currentVal)) {
+                    select.value = currentVal;
+                }
+            }
+
+            // Reload displayed orderbook
+            if (select.value) {
+                renderOrderbook(select.value);
+            }
+        }
+
+        function loadOrderbook() {
+            const tid = document.getElementById('obSelect').value;
+            if (tid) {
+                renderOrderbook(tid);
+            }
+        }
+
+        function renderOrderbook(tokenId) {
+            const book = allOrderbooks[tokenId];
+            if (!book) return;
+
+            const bidsDiv = document.getElementById('obBids');
+            const asksDiv = document.getElementById('obAsks');
+
+            // Find max size for bar scaling
+            const allSizes = [...(book.bids || []), ...(book.asks || [])].map(l => l.size);
+            const maxSize = Math.max(...allSizes, 1);
+
+            // Bids
+            if (!book.bids || book.bids.length === 0) {
+                bidsDiv.innerHTML = '<div class="empty-state">No bids</div>';
+            } else {
+                let html = '';
+                for (const level of book.bids) {
+                    const pct = (level.size / maxSize * 100).toFixed(0);
+                    html += '<div class="ob-row">'
+                        + '<span class="ob-price" style="color:var(--green)">' + fmtPrice(level.price) + '</span>'
+                        + '<span class="ob-size">' + level.size.toFixed(2) + '</span>'
+                        + '<div class="ob-bar ob-bar-bid" style="width:' + pct + '%"></div>'
+                        + '</div>';
+                }
+                bidsDiv.innerHTML = html;
+            }
+
+            // Asks
+            if (!book.asks || book.asks.length === 0) {
+                asksDiv.innerHTML = '<div class="empty-state">No asks</div>';
+            } else {
+                let html = '';
+                for (const level of book.asks) {
+                    const pct = (level.size / maxSize * 100).toFixed(0);
+                    html += '<div class="ob-row">'
+                        + '<span class="ob-price" style="color:var(--red)">' + fmtPrice(level.price) + '</span>'
+                        + '<span class="ob-size">' + level.size.toFixed(2) + '</span>'
+                        + '<div class="ob-bar ob-bar-ask" style="width:' + pct + '%"></div>'
+                        + '</div>';
+                }
+                asksDiv.innerHTML = html;
+            }
+        }
+
+        /* -- Risk panel -- */
+        async function fetchRisk() {
+            const data = await fetchJSON('/api/risk');
+            if (!data) return;
+
+            const panel = document.getElementById('riskPanel');
+
+            const cbColor = data.circuit_breaker_active ? 'var(--red)' : 'var(--green)';
+            const cbText = data.circuit_breaker_active
+                ? 'ACTIVE - ' + escHtml(data.circuit_breaker_reason)
+                : 'Inactive';
+
+            const exposurePct = data.max_total_position > 0
+                ? Math.min(100, data.total_exposure / data.max_total_position * 100)
+                : 0;
+            const exposureColor = exposurePct > 80 ? 'var(--red)' : exposurePct > 50 ? 'var(--yellow)' : 'var(--green)';
+
+            const dailyLossPct = data.max_daily_loss > 0
+                ? Math.min(100, Math.abs(Math.min(0, data.daily_loss)) / data.max_daily_loss * 100)
+                : 0;
+            const lossColor = dailyLossPct > 80 ? 'var(--red)' : dailyLossPct > 50 ? 'var(--yellow)' : 'var(--green)';
+
+            panel.innerHTML = ''
+                + '<div class="risk-item">'
+                +   '<span class="risk-label">Circuit Breaker</span>'
+                +   '<span class="risk-value" style="color:' + cbColor + '">' + cbText + '</span>'
+                + '</div>'
+                + '<div class="risk-item">'
+                +   '<span class="risk-label">Total Exposure</span>'
+                +   '<span class="risk-value">' + fmtDollars(data.total_exposure) + ' / ' + fmtDollars(data.max_total_position) + '</span>'
+                + '</div>'
+                + '<div class="progress-bar"><div class="progress-fill" style="width:' + exposurePct + '%;background:' + exposureColor + '"></div></div>'
+                + '<div class="risk-item">'
+                +   '<span class="risk-label">Unhedged Exposure</span>'
+                +   '<span class="risk-value">' + fmtDollars(data.unhedged_exposure) + ' / ' + fmtDollars(data.max_unhedged_exposure) + '</span>'
+                + '</div>'
+                + '<div class="risk-item">'
+                +   '<span class="risk-label">Per-Market Limit</span>'
+                +   '<span class="risk-value">' + fmtDollars(data.max_position_per_market) + '</span>'
+                + '</div>'
+                + '<div class="risk-item">'
+                +   '<span class="risk-label">Daily P&L</span>'
+                +   '<span class="risk-value" style="color:' + (data.daily_loss >= 0 ? 'var(--green)' : 'var(--red)') + '">' + fmtDollars(data.daily_loss) + ' / -' + fmtDollars(data.max_daily_loss) + '</span>'
+                + '</div>'
+                + '<div class="progress-bar"><div class="progress-fill" style="width:' + dailyLossPct + '%;background:' + lossColor + '"></div></div>';
+        }
+
+        /* -- Spot prices -- */
+        async function fetchSpotPrices() {
+            const data = await fetchJSON('/api/spot-prices');
+            if (!data) return;
+
+            const panel = document.getElementById('spotPanel');
+            const symbols = Object.keys(data);
+
+            if (symbols.length === 0) {
+                panel.innerHTML = '<div class="empty-state">No spot data</div>';
+                return;
+            }
+
+            let html = '';
+            for (const sym of symbols) {
+                const price = data[sym];
+                const displayPrice = price !== null ? '$' + price.toFixed(2) : '-';
+                html += '<div class="spot-item">'
+                    + '<span class="spot-symbol">' + escHtml(sym) + '</span>'
+                    + '<span class="spot-price">' + displayPrice + '</span>'
+                    + '</div>';
+            }
+            panel.innerHTML = html;
+        }
+
+        /* -- Equity curve chart -- */
+        async function fetchEquityCurve() {
+            const data = await fetchJSON('/api/equity-curve');
+            if (!data || data.length === 0) {
+                if (equityChart) {
+                    equityChart.data.labels = [];
+                    equityChart.data.datasets[0].data = [];
+                    equityChart.update();
+                }
+                return;
+            }
+
+            const labels = data.map(d => d.date);
+            const equity = data.map(d => d.equity);
+            const pnl = data.map(d => d.pnl);
+
+            if (equityChart) {
+                equityChart.data.labels = labels;
+                equityChart.data.datasets[0].data = equity;
+                equityChart.data.datasets[1].data = pnl;
+                equityChart.update();
+            }
+        }
+
+        /* -- Strategy breakdown chart -- */
+        async function fetchStrategies() {
+            const data = await fetchJSON('/api/strategies');
+            if (!data) return;
+
+            const breakdown = data.breakdown || {};
+            const labels = [];
+            const counts = [];
+            const colors = ['#74b9ff', '#00b894', '#fdcb6e', '#e74c3c', '#a29bfe'];
+
+            for (const [name, info] of Object.entries(breakdown)) {
+                labels.push(name);
+                counts.push(info.count || 0);
+            }
+
+            // If no breakdown data, show enabled strategies with 0
+            if (labels.length === 0 && data.strategies) {
+                for (const s of data.strategies) {
+                    if (s.enabled) {
+                        labels.push(s.name);
+                        counts.push(0);
+                    }
+                }
+            }
+
+            if (strategyChart) {
+                strategyChart.data.labels = labels;
+                strategyChart.data.datasets[0].data = counts;
+                strategyChart.data.datasets[0].backgroundColor = colors.slice(0, labels.length);
+                strategyChart.update();
+            }
+        }
+
+        /* ----------------------------------------------------------------
+           Chart initialization
+           ---------------------------------------------------------------- */
+        function initCharts() {
+            const equityCtx = document.getElementById('equityChart').getContext('2d');
+            equityChart = new Chart(equityCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        {
+                            label: 'Equity',
+                            data: [],
+                            borderColor: '#74b9ff',
+                            backgroundColor: 'rgba(116,185,255,0.1)',
+                            fill: true,
+                            tension: 0.3,
+                            pointRadius: 2,
+                        },
+                        {
+                            label: 'Daily P&L',
+                            data: [],
+                            borderColor: '#00b894',
+                            backgroundColor: 'rgba(0,184,148,0.1)',
+                            fill: false,
+                            tension: 0.3,
+                            pointRadius: 2,
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            labels: { color: '#e0e0e0' }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: { color: '#8899aa' },
+                            grid: { color: 'rgba(45,58,90,0.5)' }
+                        },
+                        y: {
+                            ticks: { color: '#8899aa' },
+                            grid: { color: 'rgba(45,58,90,0.5)' }
+                        }
+                    }
+                }
+            });
+
+            const stratCtx = document.getElementById('strategyChart').getContext('2d');
+            strategyChart = new Chart(stratCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        data: [],
+                        backgroundColor: ['#74b9ff', '#00b894', '#fdcb6e', '#e74c3c'],
+                        borderWidth: 0,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: { color: '#e0e0e0', padding: 12 }
+                        },
+                        title: {
+                            display: true,
+                            text: 'Strategy Breakdown',
+                            color: '#e0e0e0',
+                        }
+                    }
+                }
+            });
+        }
+
+        /* ----------------------------------------------------------------
+           WebSocket connection with auto-reconnect
+           ---------------------------------------------------------------- */
+        function connectWebSocket() {
+            const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = protocol + '//' + location.host + '/ws';
+
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = function() {
+                wsRetryDelay = 1000;
+                document.getElementById('statusDot').classList.add('connected');
+                document.getElementById('statusText').textContent = 'Connected';
+            };
+
+            ws.onmessage = function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    updateCards(data);
+                } catch (e) {
+                    console.error('WS parse error:', e);
+                }
+            };
+
+            ws.onclose = function() {
+                document.getElementById('statusDot').classList.remove('connected');
+                document.getElementById('statusText').textContent = 'Disconnected';
+                scheduleReconnect();
+            };
+
+            ws.onerror = function() {
+                document.getElementById('statusDot').classList.remove('connected');
+                document.getElementById('statusText').textContent = 'Error';
+            };
+        }
+
+        function scheduleReconnect() {
+            setTimeout(function() {
+                wsRetryDelay = Math.min(wsRetryDelay * 2, WS_MAX_RETRY);
+                connectWebSocket();
+            }, wsRetryDelay);
+        }
+
+        /* ----------------------------------------------------------------
+           Utility: HTML escaping
+           ---------------------------------------------------------------- */
+        function escHtml(str) {
+            if (str === null || str === undefined) return '';
+            const div = document.createElement('div');
+            div.appendChild(document.createTextNode(String(str)));
+            return div.innerHTML;
+        }
+
+        /* ----------------------------------------------------------------
+           Periodic refresh (non-WS data)
+           ---------------------------------------------------------------- */
+        async function refreshAll() {
+            await Promise.all([
+                fetchMetrics(),
+                fetchPositions(),
+                fetchTrades(),
+                fetchOrderbooks(),
+                fetchRisk(),
+                fetchSpotPrices(),
+                fetchEquityCurve(),
+                fetchStrategies(),
+            ]);
+        }
+
+        /* ----------------------------------------------------------------
+           Initialization
+           ---------------------------------------------------------------- */
+        document.addEventListener('DOMContentLoaded', function() {
+            initCharts();
+            connectWebSocket();
+            refreshAll();
+
+            // Refresh non-WS data every 10 seconds
+            setInterval(refreshAll, 10000);
+        });
+    </script>
+</body>
+</html>

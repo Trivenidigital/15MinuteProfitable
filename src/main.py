@@ -37,6 +37,10 @@ from src.utils.fee_verifier import verify_fees
 from src.utils.pid_lock import PidLock
 from src.utils.rate_limiter import RateLimiter
 
+# Dashboard (lazy — only used when dashboard_enabled)
+from src.dashboard.app import configure_dashboard, create_app, start_dashboard
+from src.data.trade_db import DailySnapshot, TradeDatabase
+
 # ---------------------------------------------------------------------------
 # Globals
 # ---------------------------------------------------------------------------
@@ -690,6 +694,45 @@ async def _daily_summary_loop(
 
 
 # ---------------------------------------------------------------------------
+# Dashboard snapshot loop
+# ---------------------------------------------------------------------------
+
+
+async def _snapshot_loop(
+    state_manager: StateManager,
+    trade_db: TradeDatabase,
+    interval: float = 60.0,
+) -> None:
+    """Periodically save daily P&L snapshots to SQLite for the equity curve."""
+    while _shutdown_event is not None and not _shutdown_event.is_set():
+        try:
+            from datetime import date as _date
+
+            pnl = state_manager.daily_pnl()
+            snapshot = DailySnapshot(
+                date=_date.today().isoformat(),
+                trades=pnl.trades,
+                gross_profit=pnl.gross_profit,
+                net_profit=pnl.net_profit,
+                total_fees=pnl.total_fees,
+                win_count=pnl.win_count,
+                loss_count=pnl.loss_count,
+                max_drawdown=pnl.max_drawdown,
+                sim_balance=state_manager.sim_balance,
+                opportunities_seen=pnl.opportunities_seen,
+                opportunities_taken=pnl.opportunities_taken,
+            )
+            trade_db.save_daily_snapshot(snapshot)
+        except Exception as exc:
+            _log.error("snapshot_loop_error", error=str(exc))
+
+        try:
+            await asyncio.wait_for(_shutdown_event.wait(), timeout=interval)
+        except asyncio.TimeoutError:
+            pass
+
+
+# ---------------------------------------------------------------------------
 # Shutdown handling
 # ---------------------------------------------------------------------------
 
@@ -819,6 +862,13 @@ async def _run_bot(settings: Settings, pid_lock: PidLock) -> None:
     rate_limiter = RateLimiter(max_per_minute=55)
     spot_buffer = SpotBuffer(window_seconds=60)
 
+    # Trade database + dashboard (if enabled)
+    trade_db: TradeDatabase | None = None
+    dashboard_server = None
+    if settings.dashboard_enabled:
+        trade_db = TradeDatabase(settings.db_path)
+        state_manager.set_trade_db(trade_db)
+
     # Kelly position sizer
     sizer = PositionSizer(
         kelly_fraction=settings.kelly_fraction,
@@ -875,6 +925,34 @@ async def _run_bot(settings: Settings, pid_lock: PidLock) -> None:
         count=scanner.strategy_count,
         names=scanner.strategy_names,
     )
+
+    # Dashboard setup (if enabled)
+    dashboard_task = None
+    snapshot_task = None
+    if settings.dashboard_enabled:
+        dashboard_app = create_app()
+        configure_dashboard(
+            app=dashboard_app,
+            state_manager=state_manager,
+            book_manager=book_manager,
+            market_manager=market_manager,
+            risk_manager=risk_manager,
+            metrics=metrics,
+            settings=settings,
+            trade_db=trade_db,
+            spot_buffer=spot_buffer,
+        )
+        dashboard_server = await start_dashboard(dashboard_app, settings)
+        dashboard_task = asyncio.create_task(dashboard_server.serve())
+        _log.info(
+            "dashboard_started",
+            url=f"http://{settings.dashboard_host}:{settings.dashboard_port}",
+        )
+
+        if trade_db is not None:
+            snapshot_task = asyncio.create_task(
+                _snapshot_loop(state_manager, trade_db, interval=60.0)
+            )
 
     # Start concurrent tasks
     ws_task = asyncio.create_task(clob_ws.run())
@@ -983,6 +1061,10 @@ async def _run_bot(settings: Settings, pid_lock: PidLock) -> None:
                     error=str(exc),
                 )
 
+    # Shut down dashboard server
+    if dashboard_server is not None:
+        dashboard_server.should_exit = True
+
     # Save state before exiting
     state_manager.save_snapshot(settings.state_snapshot_path)
 
@@ -996,6 +1078,7 @@ async def _run_bot(settings: Settings, pid_lock: PidLock) -> None:
     all_tasks = [
         monitor_task, strategy_task, rollover_task,
         exit_task, gtc_task, summary_task,
+        dashboard_task, snapshot_task,
     ]
     for task in all_tasks:
         if task is not None:
@@ -1004,6 +1087,10 @@ async def _run_bot(settings: Settings, pid_lock: PidLock) -> None:
                 await task
             except asyncio.CancelledError:
                 pass
+
+    # Close trade database
+    if trade_db is not None:
+        trade_db.close()
 
     pnl = state_manager.daily_pnl()
     _log.info(

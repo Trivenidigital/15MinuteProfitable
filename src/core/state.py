@@ -19,6 +19,7 @@ from src.core.models import (
     StrategyType,
     TradeOrder,
 )
+from src.data.trade_db import TradeDatabase, TradeRecord
 from src.monitoring.logger import get_logger
 
 logger = get_logger(__name__)
@@ -47,11 +48,22 @@ class StateManager:
         self._positions: dict[str, Position] = {}
         self._daily_pnl: dict[str, DailyPnL] = {}
         self._sim_balance_value: float = settings.sim_balance
+        self._trade_db: TradeDatabase | None = None
         logger.info(
             "state_manager_initialized",
             sim_balance=self._sim_balance_value,
             dry_run=settings.dry_run,
         )
+
+    def set_trade_db(self, trade_db: TradeDatabase) -> None:
+        """Attach a TradeDatabase for persistent trade recording."""
+        self._trade_db = trade_db
+        logger.info("trade_db_attached")
+
+    @property
+    def trade_db(self) -> TradeDatabase | None:
+        """Return the attached TradeDatabase, if any."""
+        return self._trade_db
 
     # ------------------------------------------------------------------
     # Position tracking (keyed by market condition_id)
@@ -243,12 +255,53 @@ class StateManager:
             if self._settings.dry_run and order.side == Side.BUY:
                 self._sim_balance_value -= cost
 
+        # Persist to SQLite if trade_db is attached
+        if self._trade_db is not None:
+            self._persist_trades(opportunity, filled_orders)
+
         logger.info(
             "trade_recorded",
             condition_id=cid,
             filled_orders=len(filled_orders),
             total_fees=opportunity.total_fees,
         )
+
+    def _persist_trades(
+        self, opportunity: Opportunity, filled_orders: list[TradeOrder]
+    ) -> None:
+        """Write filled orders to the attached TradeDatabase."""
+        import json
+        import time as _time
+
+        assert self._trade_db is not None
+        market = opportunity.market
+        per_order_fee = (
+            opportunity.total_fees / len(filled_orders) if filled_orders else 0.0
+        )
+        for order in filled_orders:
+            is_yes = order.token_id == market.yes_token_id
+            record = TradeRecord(
+                timestamp=_time.time(),
+                condition_id=market.condition_id,
+                market_slug=market.slug,
+                asset=market.asset,
+                strategy=opportunity.strategy.value,
+                side=order.side.value,
+                token_side="YES" if is_yes else "NO",
+                price=order.fill_price,
+                size=order.fill_size,
+                cost=order.fill_price * order.fill_size,
+                order_type=order.order_type,
+                order_id=order.order_id or "",
+                status=order.status.value,
+                fees=per_order_fee,
+                expected_profit=opportunity.expected_profit,
+                metadata_json=json.dumps(opportunity.metadata),
+            )
+            try:
+                self._trade_db.save_trade(record)
+            except Exception as exc:
+                logger.error("trade_persist_failed", error=str(exc))
 
     def record_fee(self, amount: float, fee_type: str) -> None:
         """Record a fee in the daily P&L."""

@@ -89,5 +89,11 @@ class Settings(BaseSettings):
     pid_lock_path: str = "btc15minutebot.pid"
     state_snapshot_path: str = "state_snapshot.json"
 
+    # Dashboard
+    dashboard_enabled: bool = False
+    dashboard_host: str = "127.0.0.1"
+    dashboard_port: int = 8080
+    db_path: str = "data/trades.db"
+
     # Daily Summary
     daily_summary_hour: int = 0  # UTC hour to send daily summary
