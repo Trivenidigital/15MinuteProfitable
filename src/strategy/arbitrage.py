@@ -59,6 +59,11 @@ class ArbitrageStrategy(BaseStrategy):
         """
         size = self._settings.order_size
 
+        # 0. Staleness check
+        if self._is_book_stale(market.yes_token_id) or self._is_book_stale(market.no_token_id):
+            self._log.debug("stale_orderbook", market=market.slug)
+            return None
+
         # 1. Fill estimates for both legs
         yes_fill = self._book_manager.get_fill_estimate(
             market.yes_token_id, Side.BUY, size,

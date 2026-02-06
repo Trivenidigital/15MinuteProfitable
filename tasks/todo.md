@@ -1148,6 +1148,66 @@ Future capability to replay historical orderbook snapshots through strategy logi
 
 ---
 
+## Backlog: Risk Manager Buildout
+
+> **Status:** BACKLOG — Researched 2026-02-06, revisit later
+> **Branch:** feat/risk-manager
+> **Current state:** Pre-trade checks are solid (8 sequential checks, Kelly sizing, circuit breaker). Gaps are in runtime monitoring and forced exits.
+
+### What Exists (src/risk/manager.py, src/risk/sizing.py)
+- [x] 8 pre-trade checks (circuit breaker, daily loss, market/total/unhedged exposure, dead zone, cooldown, time remaining)
+- [x] Size adjustment (caps to market/total/unhedged remaining capacity)
+- [x] Circuit breaker (auto-trips on 3 consecutive failures, daily loss breach, 30s+ disconnect)
+- [x] Kelly criterion sizing (quarter-Kelly default, arb + directional formulas)
+- [x] Emergency unwind (src/execution/unwind.py — partial arb fills, flatten_all on shutdown)
+- [x] Execution success/failure recording with cooldown tracking
+
+### Gap 1: Runtime Position Monitoring
+- [ ] Active position monitoring loop (positions only checked pre-trade, never mid-trade)
+- [ ] Real-time unrealized P&L tracking for open directional positions
+- [ ] Intra-day drawdown measurement (peak-to-trough on open positions, not just at resolution)
+- [ ] Force-close positions that violate limits mid-trade (currently breaker only blocks NEW trades)
+
+### Gap 2: In-Flight Exposure Reservation
+- [ ] Reserve exposure for pending GTC orders (asymmetric) and maker arb pairs
+- [ ] Final risk re-check between order signing (~1s) and submission
+- [ ] Track in-flight orders against exposure limits (currently invisible to risk manager)
+- [ ] Parallel strategy mode can exceed limits if both strategies find opportunities simultaneously
+
+### Gap 3: Smarter Sizing Under Stress
+- [ ] Stress-based Kelly fraction decay (reduce from quarter-Kelly during drawdowns)
+- [ ] Consecutive loss tracking with strategy-specific cooldowns
+- [ ] Per-strategy risk limits (separate caps for arbitrage vs directional)
+- [ ] Volatility-based position sizing (adjust size based on recent spot volatility)
+
+### Gap 4: Consistent Failure Escalation
+- [ ] Rate limiter timeouts don't trigger failure recording (silent fail)
+- [ ] Directional trade fill failures don't call record_execution_failure()
+- [ ] GTC order rejections don't call record_execution_failure()
+- [ ] Fill verification timeouts don't trigger failure tracking
+
+### Gap 5: Risk Event Alerts
+- [ ] Telegram/Discord alert on circuit breaker activation (currently only logged)
+- [ ] Alert on risk limit breach (approaching 80% of any limit)
+- [ ] Alert on drawdown warning thresholds (50%, 75%, 90% of daily loss limit)
+- [ ] Circuit breaker expiry countdown in dashboard /api/risk endpoint
+
+### Gap 6: Unhedged Exposure Calculation Improvement
+- [ ] Current: `abs(net_directional) * avg_price` — doesn't weight by actual loss potential
+- [ ] Better: weight by actual orderbook prices, not average cost basis
+- [ ] Account for worst-case slippage on forced exit
+
+### Key Files
+- `src/risk/manager.py` (377 lines) — RiskManager class
+- `src/risk/sizing.py` (99 lines) — PositionSizer (Kelly)
+- `src/core/state.py` (676 lines) — StateManager (exposure queries, P&L)
+- `src/core/models.py` (184 lines) — Position, DailyPnL dataclasses
+- `src/execution/unwind.py` (181 lines) — EmergencyUnwind
+- `src/config.py` (110 lines) — Risk limit settings
+- `tests/unit/test_risk_manager.py` (472 lines) — Existing test coverage
+
+---
+
 ## Appendix A: Technology Stack
 
 | Component | Library | Version | Purpose |

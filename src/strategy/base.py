@@ -55,3 +55,9 @@ class BaseStrategy(ABC):
     @abstractmethod
     def strategy_type(self) -> StrategyType:
         """The :class:`StrategyType` enum member for this strategy."""
+
+    # -- helpers --------------------------------------------------------------
+
+    def _is_book_stale(self, token_id: str, threshold_s: float = 30.0) -> bool:
+        """Return True if the orderbook for *token_id* is stale or missing."""
+        return self._book_manager.is_stale(token_id, threshold_s)

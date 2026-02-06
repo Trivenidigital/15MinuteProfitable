@@ -42,7 +42,17 @@ logs/
 
 # State snapshots
 state/*.json
+state_snapshot.json
 !state/.gitkeep
+
+# Runtime data (top-level only, not src/data/)
+/data/
+*.pid
+nul
+
+# Sensitive local files
+Cloud.txt
+Instructions.txt
 
 # OS
 .DS_Store

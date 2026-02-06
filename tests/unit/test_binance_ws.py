@@ -310,18 +310,18 @@ class TestProcessMessageEdgeCases:
 class TestStop:
     """Tests for stop()."""
 
-    def test_stop_sets_running_to_false(self) -> None:
+    async def test_stop_sets_running_to_false(self) -> None:
         """stop() sets _running to False."""
         ws, _ = _make_ws()
         ws._running = True
-        ws.stop()
+        await ws.stop()
         assert ws._running is False
 
-    def test_stop_idempotent(self) -> None:
+    async def test_stop_idempotent(self) -> None:
         """Calling stop() multiple times does not raise."""
         ws, _ = _make_ws()
-        ws.stop()
-        ws.stop()
+        await ws.stop()
+        await ws.stop()
         assert ws._running is False
 
 

@@ -43,6 +43,14 @@ class MarketDiscovery:
     ) -> None:
         self._gamma_api_url = gamma_api_url
         self._log = get_logger("market_discovery")
+        self._client = httpx.AsyncClient(
+            timeout=_HTTP_TIMEOUT,
+            headers={"User-Agent": _USER_AGENT},
+        )
+
+    async def close(self) -> None:
+        """Close the reusable HTTP client."""
+        await self._client.aclose()
 
     # -- public API ---------------------------------------------------------
 
@@ -125,13 +133,9 @@ class MarketDiscovery:
         pattern = re.compile(rf"^{asset.lower()}-updown-15m-(\d+)$")
 
         try:
-            async with httpx.AsyncClient(
-                timeout=_HTTP_TIMEOUT,
-                headers={"User-Agent": _USER_AGENT},
-            ) as client:
-                resp = await client.get(url, params=params)
-                resp.raise_for_status()
-                data = resp.json()
+            resp = await self._client.get(url, params=params)
+            resp.raise_for_status()
+            data = resp.json()
         except (httpx.HTTPError, Exception) as exc:
             self._log.warning(
                 "gamma_api_search_failed",
@@ -186,13 +190,9 @@ class MarketDiscovery:
         params = {"slug": slug}
 
         try:
-            async with httpx.AsyncClient(
-                timeout=_HTTP_TIMEOUT,
-                headers={"User-Agent": _USER_AGENT},
-            ) as client:
-                resp = await client.get(url, params=params)
-                resp.raise_for_status()
-                data = resp.json()
+            resp = await self._client.get(url, params=params)
+            resp.raise_for_status()
+            data = resp.json()
         except (httpx.HTTPError, Exception) as exc:
             self._log.warning(
                 "fetch_market_by_slug_failed",

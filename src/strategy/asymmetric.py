@@ -129,6 +129,11 @@ class AsymmetricStrategy(BaseStrategy):
         7. Get fill estimate for the cheap side
         8. Build opportunity with GTC order type in metadata
         """
+        # Staleness check
+        if self._is_book_stale(market.yes_token_id) or self._is_book_stale(market.no_token_id):
+            self._log.debug("stale_orderbook", market=market.slug)
+            return None
+
         # 1. Dead zone check
         start_ts = market.start_time.timestamp()
         end_ts = market.end_time.timestamp()
@@ -355,4 +360,8 @@ class AsymmetricStrategy(BaseStrategy):
 
     def reset_market(self, condition_id: str) -> None:
         """Clear accumulation state for an expired market."""
+        self._accumulations.pop(condition_id, None)
+
+    def cleanup_market(self, condition_id: str) -> None:
+        """Remove accumulation state for an expired market."""
         self._accumulations.pop(condition_id, None)

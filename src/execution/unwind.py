@@ -31,7 +31,7 @@ class EmergencyUnwind:
                 TradeOrder(
                     token_id=market.yes_token_id,
                     side=Side.SELL,
-                    price=0.01,  # Market sell
+                    price=0.02,  # Near-market sell (safety floor above 0.01)
                     size=position.yes_shares,
                     order_type="FOK",
                 )
@@ -42,7 +42,7 @@ class EmergencyUnwind:
                 TradeOrder(
                     token_id=market.no_token_id,
                     side=Side.SELL,
-                    price=0.01,  # Market sell
+                    price=0.02,  # Near-market sell (safety floor above 0.01)
                     size=position.no_shares,
                     order_type="FOK",
                 )

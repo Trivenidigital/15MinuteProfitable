@@ -982,3 +982,159 @@ class TestWinLossAmountTracking:
         assert pnl.loss_count == 1
         assert pnl.total_win_amount == pytest.approx(108.0)
         assert pnl.total_loss_amount == pytest.approx(45.0)
+
+
+# ---------------------------------------------------------------------------
+# resolve_expired_positions
+# ---------------------------------------------------------------------------
+
+
+class TestResolveExpiredPositions:
+    """Tests for resolve_expired_positions with hedged, unhedged, and active markets."""
+
+    def test_hedged_position_resolved_on_expiry(
+        self, state: StateManager, tmp_path: Path
+    ) -> None:
+        """A hedged position on an expired market should be resolved with $1 payout."""
+        now = datetime.utcnow()
+        expired_market = Market(
+            condition_id="cond_hedge_exp",
+            slug="hedge-expired",
+            question="Expired hedge?",
+            yes_token_id="yes_he",
+            no_token_id="no_he",
+            start_time=now - timedelta(hours=2),
+            end_time=now - timedelta(hours=1),  # Expired 1h ago
+            asset="BTC",
+        )
+        pos = _make_position(
+            market=expired_market,
+            yes_shares=100,
+            no_shares=100,
+            yes_cost_basis=45.0,
+            no_cost_basis=47.0,
+            strategy=StrategyType.ARBITRAGE,
+        )
+        state.add_position(pos)
+
+        reports = state.resolve_expired_positions()
+
+        assert len(reports) == 1
+        report = reports[0]
+        assert report["condition_id"] == "cond_hedge_exp"
+        assert report["was_hedged"] is True
+        # Paired shares = min(100, 100) = 100, gross_payout = 100 * 1.0 = 100
+        assert report["gross_payout"] == pytest.approx(100.0)
+        # Investment = 45 + 47 = 92, net profit = 100 - 92 = 8
+        assert report["net_profit"] == pytest.approx(8.0)
+        # Position should be removed
+        assert state.get_position("cond_hedge_exp") is None
+
+    def test_unhedged_position_resolved_with_resolver(
+        self, state: StateManager
+    ) -> None:
+        """An unhedged position with a resolver returning 1.0 should be resolved as YES win."""
+        now = datetime.utcnow()
+        expired_market = Market(
+            condition_id="cond_unhedge_res",
+            slug="unhedge-resolver",
+            question="Unhedged with resolver?",
+            yes_token_id="yes_ur",
+            no_token_id="no_ur",
+            start_time=now - timedelta(hours=2),
+            end_time=now - timedelta(hours=1),
+            asset="BTC",
+        )
+        # Only YES shares -- unhedged
+        pos = _make_position(
+            market=expired_market,
+            yes_shares=100,
+            no_shares=0,
+            yes_cost_basis=45.0,
+            strategy=StrategyType.PRICE_LAG,
+        )
+        state.add_position(pos)
+
+        # Resolver says YES won (payout_rate = 1.0 > 0.5)
+        def resolver(p: Position) -> float:
+            return 1.0
+
+        reports = state.resolve_expired_positions(outcome_resolver=resolver)
+
+        assert len(reports) == 1
+        report = reports[0]
+        assert report["condition_id"] == "cond_unhedge_res"
+        assert report["was_hedged"] is False
+        assert report["outcome"] == "YES"
+        # YES won: gross_payout = 100 * 1.0 = 100, investment = 45, net = 55
+        assert report["gross_payout"] == pytest.approx(100.0)
+        assert report["net_profit"] == pytest.approx(55.0)
+        assert state.get_position("cond_unhedge_res") is None
+
+    def test_unhedged_position_breakeven_without_resolver(
+        self, state: StateManager
+    ) -> None:
+        """Without a resolver, an unhedged position is closed at break-even."""
+        now = datetime.utcnow()
+        expired_market = Market(
+            condition_id="cond_unhedge_be",
+            slug="unhedge-breakeven",
+            question="Unhedged break-even?",
+            yes_token_id="yes_ub",
+            no_token_id="no_ub",
+            start_time=now - timedelta(hours=2),
+            end_time=now - timedelta(hours=1),
+            asset="BTC",
+        )
+        pos = _make_position(
+            market=expired_market,
+            yes_shares=80,
+            no_shares=0,
+            yes_cost_basis=40.0,
+            strategy=StrategyType.PRICE_LAG,
+        )
+        state.add_position(pos)
+
+        reports = state.resolve_expired_positions(outcome_resolver=None)
+
+        assert len(reports) == 1
+        report = reports[0]
+        assert report["condition_id"] == "cond_unhedge_be"
+        assert report["was_hedged"] is False
+        assert report["outcome"] == "unknown_breakeven"
+        # Break-even: gross_payout = total_investment = 40, net_profit = 0
+        assert report["gross_payout"] == pytest.approx(40.0)
+        assert report["net_profit"] == pytest.approx(0.0)
+        assert state.get_position("cond_unhedge_be") is None
+
+    def test_non_expired_position_not_resolved(
+        self, state: StateManager
+    ) -> None:
+        """A position on an active (non-expired) market should not be resolved."""
+        now = datetime.utcnow()
+        active_market = Market(
+            condition_id="cond_active_nr",
+            slug="active-not-resolved",
+            question="Still active?",
+            yes_token_id="yes_anr",
+            no_token_id="no_anr",
+            start_time=now - timedelta(minutes=5),
+            end_time=now + timedelta(minutes=10),  # Still active
+            asset="BTC",
+        )
+        pos = _make_position(
+            market=active_market,
+            yes_shares=100,
+            no_shares=100,
+            yes_cost_basis=45.0,
+            no_cost_basis=47.0,
+            strategy=StrategyType.ARBITRAGE,
+        )
+        state.add_position(pos)
+
+        reports = state.resolve_expired_positions()
+
+        assert len(reports) == 0
+        # Position should still be tracked
+        assert state.get_position("cond_active_nr") is not None
+        assert state.get_position("cond_active_nr").yes_shares == 100

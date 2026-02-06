@@ -544,10 +544,17 @@ async def _execute_directional_trade(
     try:
         await rate_limiter.acquire(2)  # 1 sign + 1 submit
         await executor.sign_order(order)
+        if order.status == OrderStatus.REJECTED:
+            risk_manager.record_execution_failure()
+            _log.warning("directional_sign_rejected", market=market.slug)
+            return
         result = await executor.submit_order(order)
         result = await executor.verify_fill(result)
         state_manager.record_trade(opp, [result])
-        risk_manager.record_execution_success(market.condition_id)
+        if result.status in (OrderStatus.FILLED, OrderStatus.PARTIALLY_FILLED):
+            risk_manager.record_execution_success(market.condition_id)
+        else:
+            risk_manager.record_execution_failure()
         _log.info(
             "directional_complete",
             market=market.slug,
@@ -555,12 +562,13 @@ async def _execute_directional_trade(
             status=result.status.value,
             daily_pnl=round(state_manager.daily_pnl().net_profit, 4),
         )
-        if _alerts and settings.alert_on_trade:
+        if _alerts and settings.alert_on_trade and result.status == OrderStatus.FILLED:
             await _alerts.send_trade(
                 f"Directional: {market.slug} {direction} @{order.price:.2f} "
                 f"x{adjusted_size:.0f}"
             )
     except asyncio.TimeoutError:
+        risk_manager.record_execution_failure()
         _log.warning("rate_limit_timeout", market=market.slug)
     except Exception as exc:
         risk_manager.record_execution_failure()
@@ -1236,7 +1244,7 @@ async def _resolution_loop(
         end_ts = pos.market.end_time.timestamp()
 
         # Get historical prices from buffer
-        history = spot_buffer.get_history(symbol)
+        history = spot_buffer.get_price_history(symbol)
         if not history:
             _log.warning(
                 "no_spot_history_for_resolution",
@@ -1356,8 +1364,8 @@ async def async_main() -> None:
         try:
             loop.add_signal_handler(sig, _request_shutdown)
         except NotImplementedError:
-            # Windows doesn't support add_signal_handler for SIGTERM
-            pass
+            # Windows: fall back to signal.signal for graceful shutdown
+            signal.signal(sig, lambda s, f: _request_shutdown())
 
     # Load configuration
     try:
@@ -1624,8 +1632,8 @@ async def _run_bot(settings: Settings, pid_lock: PidLock) -> None:
 
     # Graceful shutdown
     _log.info("shutting_down")
-    clob_ws.stop()
-    binance_ws.stop()
+    await clob_ws.stop()
+    await binance_ws.stop()
 
     # Cancel all pending GTC orders (asymmetric)
     for entry in _pending_gtc_orders:
@@ -1671,16 +1679,7 @@ async def _run_bot(settings: Settings, pid_lock: PidLock) -> None:
     if dashboard_server is not None:
         dashboard_server.should_exit = True
 
-    # Save state before exiting
-    state_manager.save_snapshot(settings.state_snapshot_path)
-
-    # Cancel tasks
-    for ws in [ws_task, binance_task]:
-        try:
-            await asyncio.wait_for(ws, timeout=5.0)
-        except asyncio.TimeoutError:
-            ws.cancel()
-
+    # Cancel non-WS tasks first so no trades are in-flight during snapshot
     all_tasks = [
         monitor_task, strategy_task, rollover_task,
         exit_task, gtc_task, maker_arb_task, summary_task,
@@ -1694,7 +1693,18 @@ async def _run_bot(settings: Settings, pid_lock: PidLock) -> None:
             except asyncio.CancelledError:
                 pass
 
-    # Close trade database
+    # Save state after all strategy/execution tasks are cancelled
+    state_manager.save_snapshot(settings.state_snapshot_path)
+
+    # Close WS connections
+    for ws in [ws_task, binance_task]:
+        try:
+            await asyncio.wait_for(ws, timeout=5.0)
+        except asyncio.TimeoutError:
+            ws.cancel()
+
+    # Close HTTP clients and trade database
+    await discovery.close()
     if trade_db is not None:
         trade_db.close()
 

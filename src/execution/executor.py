@@ -9,11 +9,14 @@ from __future__ import annotations
 
 import asyncio
 import uuid
-from typing import Any
+from typing import TYPE_CHECKING
 
 from src.config import Settings
 from src.core.models import OrderStatus, Side, TradeOrder
 from src.monitoring.logger import get_logger
+
+if TYPE_CHECKING:
+    from py_clob_client.client import ClobClient
 
 
 class OrderExecutor:
@@ -23,13 +26,13 @@ class OrderExecutor:
         self._settings = settings
         self._dry_run = settings.dry_run
         self._log = get_logger("executor")
-        self._client: Any = None  # Lazily initialized ClobClient
+        self._client: ClobClient | None = None  # Lazily initialized
 
     # ------------------------------------------------------------------
     # Client initialization
     # ------------------------------------------------------------------
 
-    def _get_client(self) -> Any:
+    def _get_client(self) -> ClobClient:
         """Lazily create py-clob-client ``ClobClient`` instance."""
         if self._client is None:
             from py_clob_client.client import ClobClient
@@ -97,10 +100,11 @@ class OrderExecutor:
             "side": BUY if order.side == Side.BUY else SELL,
         }
 
-        # Pre-provide tick_size and neg_risk to skip HTTP lookups
+        # Pre-provide tick_size and neg_risk to skip HTTP lookups.
+        # neg_risk MUST be True for all BTC/ETH/SOL/XRP 15-min markets.
         options = {
             "tick_size": str(tick_size),
-            "neg_risk": self._settings.neg_risk,
+            "neg_risk": True,
         }
 
         try:
@@ -221,8 +225,10 @@ class OrderExecutor:
         if not order.order_id:
             return order
 
-        elapsed = 0.0
-        while elapsed < timeout:
+        import time as _time
+
+        start = _time.monotonic()
+        while (_time.monotonic() - start) < timeout:
             try:
                 status = await asyncio.to_thread(
                     self._get_client().get_order, order.order_id
@@ -253,7 +259,6 @@ class OrderExecutor:
                 )
 
             await asyncio.sleep(poll_interval)
-            elapsed += poll_interval
 
         # Timeout — assume not filled for FOK orders
         if order.order_type == "FOK":

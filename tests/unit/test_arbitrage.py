@@ -83,7 +83,9 @@ def settings() -> Settings:
 
 @pytest.fixture()
 def book_manager() -> MagicMock:
-    return MagicMock(spec=OrderBookManager)
+    bm = MagicMock(spec=OrderBookManager)
+    bm.is_stale.return_value = False  # default: books are fresh
+    return bm
 
 
 @pytest.fixture()

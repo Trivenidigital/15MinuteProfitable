@@ -81,9 +81,9 @@ class Settings(BaseSettings):
     sim_balance: float = 1000.0
 
     # Monitoring
-    telegram_bot_token: str = ""
+    telegram_bot_token: SecretStr = SecretStr("")
     telegram_chat_id: str = ""
-    discord_webhook_url: str = ""
+    discord_webhook_url: SecretStr = SecretStr("")
     alert_on_trade: bool = True
     alert_on_error: bool = True
 
@@ -103,6 +103,8 @@ class Settings(BaseSettings):
     dashboard_enabled: bool = False
     dashboard_host: str = "127.0.0.1"
     dashboard_port: int = 8080
+    dashboard_username: str = "admin"
+    dashboard_password: SecretStr = SecretStr("")  # empty = auth disabled
     db_path: str = "data/trades.db"
 
     # Daily Summary

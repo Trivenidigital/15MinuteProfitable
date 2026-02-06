@@ -74,6 +74,11 @@ class PriceLagStrategy(BaseStrategy):
         9. Apply time-aware sizing multiplier
         10. Build and return Opportunity
         """
+        # Staleness check
+        if self._is_book_stale(market.yes_token_id) or self._is_book_stale(market.no_token_id):
+            self._log.debug("stale_orderbook", market=market.slug)
+            return None
+
         # 1. Dead zone check (custom for price-lag: wider zones)
         now_ts = time.time()
         start_ts = market.start_time.timestamp()
@@ -320,6 +325,11 @@ class PriceLagStrategy(BaseStrategy):
             return True
 
         return False
+
+    def cleanup_market(self, condition_id: str) -> None:
+        """Remove tracking data for an expired market."""
+        self._consecutive_signals.pop(condition_id, None)
+        self._last_signal_direction.pop(condition_id, None)
 
     def _time_aware_sizing(self, time_to_close: float) -> float:
         """Return sizing multiplier based on time remaining.

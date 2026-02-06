@@ -7,6 +7,7 @@ channels. Uses httpx.AsyncClient for non-blocking HTTP requests.
 from __future__ import annotations
 
 import asyncio
+import html
 from enum import Enum
 
 import httpx
@@ -35,9 +36,10 @@ class TelegramSink:
     async def send(self, text: str, level: AlertLevel = AlertLevel.INFO) -> bool:
         """Send a message. Returns True on success."""
         prefix = f"[{level.value}] " if level != AlertLevel.INFO else ""
+        safe_text = html.escape(text)
         payload = {
             "chat_id": self._chat_id,
-            "text": f"{prefix}{text}",
+            "text": f"{prefix}{safe_text}",
             "parse_mode": "HTML",
         }
         try:
@@ -122,13 +124,24 @@ class AlertDispatcher:
         """
         dispatcher = cls()
 
-        tg_token = getattr(settings, "telegram_bot_token", "")
+        tg_token_field = getattr(settings, "telegram_bot_token", "")
         tg_chat = getattr(settings, "telegram_chat_id", "")
+        # Support both str and SecretStr
+        tg_token = (
+            tg_token_field.get_secret_value()
+            if hasattr(tg_token_field, "get_secret_value")
+            else str(tg_token_field)
+        )
         if tg_token and tg_chat:
             dispatcher.add_sink(TelegramSink(tg_token, tg_chat))
             logger.info("alert_sink_added", sink="telegram")
 
-        discord_url = getattr(settings, "discord_webhook_url", "")
+        discord_url_field = getattr(settings, "discord_webhook_url", "")
+        discord_url = (
+            discord_url_field.get_secret_value()
+            if hasattr(discord_url_field, "get_secret_value")
+            else str(discord_url_field)
+        )
         if discord_url:
             dispatcher.add_sink(DiscordSink(discord_url))
             logger.info("alert_sink_added", sink="discord")

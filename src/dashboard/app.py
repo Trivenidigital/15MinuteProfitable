@@ -13,9 +13,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
+import secrets
+
 import uvicorn
-from fastapi import FastAPI, Query, Request, WebSocket
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request, WebSocket, status
 from fastapi.responses import JSONResponse
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.templating import Jinja2Templates
 from pydantic import SecretStr
 from starlette.websockets import WebSocketDisconnect
@@ -56,20 +59,62 @@ _SECRET_FIELD_NAMES = frozenset({
 # ---------------------------------------------------------------------------
 
 
+_security = HTTPBasic(auto_error=False)
+
+# Module-level reference to the app instance for the auth dependency.
+# Set by create_app() before any requests are served.
+_app_ref: FastAPI | None = None
+
+
+async def _verify_credentials(
+    credentials: HTTPBasicCredentials | None = Depends(_security),
+) -> None:
+    """Verify HTTP Basic credentials if auth is configured."""
+    assert _app_ref is not None
+    settings: Settings = _app_ref.state.settings
+    expected_password = settings.dashboard_password.get_secret_value()
+    if not expected_password:
+        return  # auth disabled
+    if credentials is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required",
+            headers={"WWW-Authenticate": "Basic"},
+        )
+    username_ok = secrets.compare_digest(
+        credentials.username.encode(), settings.dashboard_username.encode()
+    )
+    password_ok = secrets.compare_digest(
+        credentials.password.encode(), expected_password.encode()
+    )
+    if not (username_ok and password_ok):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid credentials",
+            headers={"WWW-Authenticate": "Basic"},
+        )
+
+
 def create_app() -> FastAPI:
     """Create the FastAPI application instance with all route handlers."""
+    global _app_ref
 
     app = FastAPI(
         title="BTC15MinuteBot Dashboard",
         description="Polymarket 15-minute crypto trading bot monitoring dashboard",
         version="1.0.0",
     )
+    _app_ref = app
+
+    # Router with auth for all HTTP endpoints (WebSocket is registered
+    # directly on the app to avoid HTTPBasic dependency resolution issues).
+    router = APIRouter(dependencies=[Depends(_verify_credentials)])
 
     # ------------------------------------------------------------------
     # HTML dashboard
     # ------------------------------------------------------------------
 
-    @app.get("/")
+    @router.get("/")
     async def root(request: Request):  # type: ignore[no-untyped-def]
         """Serve the main HTML dashboard."""
         return templates.TemplateResponse(request, "dashboard.html")
@@ -78,7 +123,7 @@ def create_app() -> FastAPI:
     # /api/status
     # ------------------------------------------------------------------
 
-    @app.get("/api/status")
+    @router.get("/api/status")
     async def api_status() -> JSONResponse:
         """Return bot uptime and mode information."""
         settings: Settings = app.state.settings
@@ -94,7 +139,7 @@ def create_app() -> FastAPI:
     # /api/positions
     # ------------------------------------------------------------------
 
-    @app.get("/api/positions")
+    @router.get("/api/positions")
     async def api_positions() -> JSONResponse:
         """Return all open positions."""
         state: StateManager = app.state.state_manager
@@ -119,7 +164,7 @@ def create_app() -> FastAPI:
     # /api/pnl
     # ------------------------------------------------------------------
 
-    @app.get("/api/pnl")
+    @router.get("/api/pnl")
     async def api_pnl() -> JSONResponse:
         """Return today's P&L and historical daily snapshots."""
         state: StateManager = app.state.state_manager
@@ -155,7 +200,7 @@ def create_app() -> FastAPI:
     # /api/orderbooks
     # ------------------------------------------------------------------
 
-    @app.get("/api/orderbooks")
+    @router.get("/api/orderbooks")
     async def api_orderbooks() -> JSONResponse:
         """Return top 5 bid/ask levels for each active token."""
         market_mgr: MarketManager = app.state.market_manager
@@ -186,7 +231,7 @@ def create_app() -> FastAPI:
     # /api/trades
     # ------------------------------------------------------------------
 
-    @app.get("/api/trades")
+    @router.get("/api/trades")
     async def api_trades(
         limit: int = Query(default=50, ge=1, le=500),
         offset: int = Query(default=0, ge=0),
@@ -237,7 +282,7 @@ def create_app() -> FastAPI:
     # /api/strategies
     # ------------------------------------------------------------------
 
-    @app.get("/api/strategies")
+    @router.get("/api/strategies")
     async def api_strategies() -> JSONResponse:
         """Return strategy names and enabled/disabled flags."""
         settings: Settings = app.state.settings
@@ -265,7 +310,7 @@ def create_app() -> FastAPI:
     # /api/risk
     # ------------------------------------------------------------------
 
-    @app.get("/api/risk")
+    @router.get("/api/risk")
     async def api_risk() -> JSONResponse:
         """Return circuit breaker status, exposure limits and current values."""
         risk_mgr: RiskManager = app.state.risk_manager
@@ -290,7 +335,7 @@ def create_app() -> FastAPI:
     # /api/markets
     # ------------------------------------------------------------------
 
-    @app.get("/api/markets")
+    @router.get("/api/markets")
     async def api_markets() -> JSONResponse:
         """Return active markets with expiry countdown."""
         market_mgr: MarketManager = app.state.market_manager
@@ -322,7 +367,7 @@ def create_app() -> FastAPI:
     # /api/config
     # ------------------------------------------------------------------
 
-    @app.get("/api/config")
+    @router.get("/api/config")
     async def api_config() -> JSONResponse:
         """Return safe configuration fields (no secrets)."""
         settings: Settings = app.state.settings
@@ -347,7 +392,7 @@ def create_app() -> FastAPI:
     # /api/metrics
     # ------------------------------------------------------------------
 
-    @app.get("/api/metrics")
+    @router.get("/api/metrics")
     async def api_metrics() -> JSONResponse:
         """Return MetricsCollector dashboard dict."""
         metrics_collector: MetricsCollector = app.state.metrics
@@ -360,7 +405,7 @@ def create_app() -> FastAPI:
     # /api/equity-curve
     # ------------------------------------------------------------------
 
-    @app.get("/api/equity-curve")
+    @router.get("/api/equity-curve")
     async def api_equity_curve() -> JSONResponse:
         """Return time-series equity data from SQLite."""
         trade_db: Optional[TradeDatabase] = getattr(app.state, "trade_db", None)
@@ -373,7 +418,7 @@ def create_app() -> FastAPI:
     # /api/spot-prices
     # ------------------------------------------------------------------
 
-    @app.get("/api/spot-prices")
+    @router.get("/api/spot-prices")
     async def api_spot_prices() -> JSONResponse:
         """Return current spot prices from SpotBuffer for all tracked symbols."""
         spot: Optional[SpotBuffer] = getattr(app.state, "spot_buffer", None)
@@ -385,8 +430,11 @@ def create_app() -> FastAPI:
             prices[symbol] = spot.get_price(symbol)
         return JSONResponse(prices)
 
+    # Register all HTTP routes
+    app.include_router(router)
+
     # ------------------------------------------------------------------
-    # WebSocket /ws
+    # WebSocket /ws (no auth dependency — WS doesn't support HTTP Basic)
     # ------------------------------------------------------------------
 
     @app.websocket("/ws")

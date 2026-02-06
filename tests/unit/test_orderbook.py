@@ -269,3 +269,132 @@ class TestOrderBookManager:
         """get_fill_estimate returns None for an untracked token."""
         mgr = OrderBookManager()
         assert mgr.get_fill_estimate("unknown_token", Side.BUY, 10.0) is None
+
+
+# ---------------------------------------------------------------------------
+# Staleness checks
+# ---------------------------------------------------------------------------
+
+
+class TestStaleness:
+    """Tests for L2BookState.is_stale and related timestamp updates."""
+
+    def test_book_is_stale_when_never_updated(self) -> None:
+        """A newly created L2BookState should be stale (never updated)."""
+        book = L2BookState(TOKEN_ID)
+        assert book.is_stale() is True
+
+    def test_book_not_stale_after_snapshot(self) -> None:
+        """Applying a snapshot should update the last-update timestamp,
+        making the book non-stale."""
+        book = L2BookState(TOKEN_ID)
+        book.apply_snapshot(SAMPLE_BIDS, SAMPLE_ASKS)
+        # With default 30s threshold, a just-updated book should not be stale
+        assert book.is_stale() is False
+
+    def test_book_not_stale_after_delta(self) -> None:
+        """Applying a delta should update the last-update timestamp,
+        making the book non-stale."""
+        book = L2BookState(TOKEN_ID)
+        # Start fresh -- the book is stale
+        assert book.is_stale() is True
+        # Apply a delta
+        book.apply_delta([
+            {"asset_id": TOKEN_ID, "price": "0.55", "size": "100", "side": "BUY"},
+        ])
+        assert book.is_stale() is False
+
+
+# ---------------------------------------------------------------------------
+# remove_book
+# ---------------------------------------------------------------------------
+
+
+class TestRemoveBook:
+    """Tests for OrderBookManager.remove_book."""
+
+    def test_remove_book(self) -> None:
+        """Adding a book then removing it should make it unavailable via get_book."""
+        mgr = OrderBookManager()
+        state = mgr.ensure_book(TOKEN_ID)
+        state.apply_snapshot(SAMPLE_BIDS, SAMPLE_ASKS)
+
+        # Book exists before removal
+        assert mgr.get_book(TOKEN_ID) is not None
+
+        result = mgr.remove_book(TOKEN_ID)
+        assert result is True
+
+        # Book should be gone
+        assert mgr.get_book(TOKEN_ID) is None
+
+        # Removing a second time should return False
+        assert mgr.remove_book(TOKEN_ID) is False
+
+
+# ---------------------------------------------------------------------------
+# Price validation
+# ---------------------------------------------------------------------------
+
+
+class TestPriceValidation:
+    """Tests for invalid price/size filtering in apply_snapshot."""
+
+    def test_invalid_price_nan_rejected(self) -> None:
+        """apply_snapshot with NaN price should not add that level."""
+        book = L2BookState(TOKEN_ID)
+        book.apply_snapshot(
+            bids=[{"price": "nan", "size": "100"}],
+            asks=[{"price": "0.55", "size": "50"}],
+        )
+        ob = book.to_orderbook()
+        # NaN bid should be filtered out
+        assert len(ob.bids) == 0
+        # Valid ask should remain
+        assert len(ob.asks) == 1
+        assert ob.asks[0].price == pytest.approx(0.55)
+
+    def test_invalid_price_negative_rejected(self) -> None:
+        """apply_snapshot with negative price should not add that level."""
+        book = L2BookState(TOKEN_ID)
+        book.apply_snapshot(
+            bids=[{"price": "-0.10", "size": "100"}],
+            asks=[{"price": "0.60", "size": "80"}],
+        )
+        ob = book.to_orderbook()
+        # Negative price bid should be filtered out
+        assert len(ob.bids) == 0
+        # Valid ask should remain
+        assert len(ob.asks) == 1
+        assert ob.asks[0].price == pytest.approx(0.60)
+
+
+# ---------------------------------------------------------------------------
+# Cached orderbook invalidation
+# ---------------------------------------------------------------------------
+
+
+class TestCachedOrderbook:
+    """Tests for orderbook caching and invalidation on delta."""
+
+    def test_cached_orderbook_invalidated_on_delta(self) -> None:
+        """get_book called twice without changes should return the same object;
+        after a delta it should return a new object."""
+        book = L2BookState(TOKEN_ID)
+        book.apply_snapshot(SAMPLE_BIDS, SAMPLE_ASKS)
+
+        ob1 = book.to_orderbook()
+        ob2 = book.to_orderbook()
+        # Same cached object
+        assert ob1 is ob2
+
+        # Apply a delta to invalidate cache
+        book.apply_delta([
+            {"asset_id": TOKEN_ID, "price": "0.52", "size": "25", "side": "BUY"},
+        ])
+
+        ob3 = book.to_orderbook()
+        # Should be a new object after delta
+        assert ob3 is not ob1
+        # Verify the delta is reflected
+        assert len(ob3.bids) == 4

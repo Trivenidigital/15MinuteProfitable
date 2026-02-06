@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Optional
+from typing import Optional  # kept for backward compat; new code uses X | None
 
 
 # ---------------------------------------------------------------------------
@@ -115,7 +115,7 @@ class Opportunity:
     expected_profit_pct: float = 0.0
     total_fees: float = 0.0
     confidence: float = 0.0
-    metadata: dict = field(default_factory=dict)
+    metadata: dict[str, str | float | int | bool] = field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------

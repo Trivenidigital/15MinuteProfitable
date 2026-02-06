@@ -6,7 +6,24 @@ representation of each token's order book.
 
 from __future__ import annotations
 
+import time
+
 from src.core.models import FillEstimate, OrderBook, OrderBookLevel, Side
+
+# Maximum age in seconds before an orderbook is considered stale
+_DEFAULT_STALE_THRESHOLD_S: float = 30.0
+
+import math
+
+
+def _is_valid_price(price: float) -> bool:
+    """Return True if price is a finite positive number."""
+    return math.isfinite(price) and price > 0
+
+
+def _is_valid_size(size: float) -> bool:
+    """Return True if size is a finite positive number."""
+    return math.isfinite(size) and size > 0
 
 
 # ---------------------------------------------------------------------------
@@ -23,6 +40,8 @@ class L2BookState:
         self._asks: dict[float, float] = {}
         self.last_timestamp_ms: int = 0
         self.last_hash: str = ""
+        self._last_update_epoch: float = 0.0  # monotonic time of last update
+        self._cached_orderbook: OrderBook | None = None
 
     # -- mutations -----------------------------------------------------------
 
@@ -38,14 +57,17 @@ class L2BookState:
         for level in bids:
             price = float(level["price"])
             size = float(level["size"])
-            if size > 0:
+            if _is_valid_price(price) and _is_valid_size(size):
                 self._bids[price] = size
 
         for level in asks:
             price = float(level["price"])
             size = float(level["size"])
-            if size > 0:
+            if _is_valid_price(price) and _is_valid_size(size):
                 self._asks[price] = size
+
+        self._last_update_epoch = time.monotonic()
+        self._cached_orderbook = None
 
     def apply_delta(self, changes: list[dict]) -> None:
         """Apply incremental updates to the book.
@@ -57,11 +79,15 @@ class L2BookState:
         - ``side`` ("BUY" | "SELL")
 
         If the resulting size is ``<= 0`` the level is removed.
+        Entries with NaN/inf/negative prices are silently dropped.
         """
         for change in changes:
             price = float(change["price"])
             size = float(change["size"])
             side = change["side"]
+
+            if not _is_valid_price(price):
+                continue
 
             book = self._bids if side == "BUY" else self._asks
 
@@ -70,6 +96,9 @@ class L2BookState:
             else:
                 book[price] = size
 
+        self._last_update_epoch = time.monotonic()
+        self._cached_orderbook = None
+
     # -- queries -------------------------------------------------------------
 
     def to_orderbook(self) -> OrderBook:
@@ -77,7 +106,11 @@ class L2BookState:
 
         Bids are sorted descending by price (best bid first).
         Asks are sorted ascending by price (best ask first).
+        Uses a cached result that is invalidated on snapshot/delta updates.
         """
+        if self._cached_orderbook is not None:
+            return self._cached_orderbook
+
         sorted_bids = [
             OrderBookLevel(price=p, size=s)
             for p, s in sorted(self._bids.items(), key=lambda x: x[0], reverse=True)
@@ -87,13 +120,21 @@ class L2BookState:
             for p, s in sorted(self._asks.items(), key=lambda x: x[0])
         ]
 
-        return OrderBook(
+        ob = OrderBook(
             token_id=self.token_id,
             bids=sorted_bids,
             asks=sorted_asks,
             timestamp_ms=self.last_timestamp_ms,
             hash=self.last_hash,
         )
+        self._cached_orderbook = ob
+        return ob
+
+    def is_stale(self, threshold_s: float = _DEFAULT_STALE_THRESHOLD_S) -> bool:
+        """Return True if the book has not been updated within *threshold_s* seconds."""
+        if self._last_update_epoch == 0.0:
+            return True  # never updated
+        return (time.monotonic() - self._last_update_epoch) > threshold_s
 
     def compute_fill(self, side: Side, target_size: float) -> FillEstimate:
         """Walk the book to estimate filling *target_size* shares.
@@ -178,3 +219,14 @@ class OrderBookManager:
         if state is None:
             return None
         return state.compute_fill(side, size)
+
+    def remove_book(self, token_id: str) -> bool:
+        """Remove a book from the registry. Returns True if it existed."""
+        return self._books.pop(token_id, None) is not None
+
+    def is_stale(self, token_id: str, threshold_s: float = _DEFAULT_STALE_THRESHOLD_S) -> bool:
+        """Check if a specific book is stale. Returns True if not tracked or stale."""
+        state = self._books.get(token_id)
+        if state is None:
+            return True
+        return state.is_stale(threshold_s)

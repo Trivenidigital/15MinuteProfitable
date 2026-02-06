@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import math
 
 import websockets
 
@@ -115,9 +116,14 @@ class BinanceWebSocket:
 
         self._log.info("binance_run_loop_exited")
 
-    def stop(self) -> None:
-        """Signal the run loop to stop."""
+    async def stop(self) -> None:
+        """Signal the run loop to stop and close the active connection."""
         self._running = False
+        if self._ws is not None:
+            try:
+                await self._ws.close()
+            except Exception:
+                pass
 
     def _process_message(self, raw: str | bytes) -> None:
         """Parse a Binance combined stream message and feed to buffer.
@@ -150,6 +156,9 @@ class BinanceWebSocket:
             price = float(price_str)
             timestamp = trade_time / 1000.0 if trade_time > 1_000_000_000_000 else float(trade_time)
         except (ValueError, TypeError):
+            return
+
+        if not math.isfinite(price) or price <= 0:
             return
 
         update = SpotPriceUpdate(

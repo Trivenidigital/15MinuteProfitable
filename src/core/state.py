@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
+from collections.abc import Callable
 from dataclasses import asdict
 from datetime import date, datetime, timezone
 from pathlib import Path
@@ -49,11 +51,17 @@ class StateManager:
         self._daily_pnl: dict[str, DailyPnL] = {}
         self._sim_balance_value: float = settings.sim_balance
         self._trade_db: TradeDatabase | None = None
+        self._lock = asyncio.Lock()
         logger.info(
             "state_manager_initialized",
             sim_balance=self._sim_balance_value,
             dry_run=settings.dry_run,
         )
+
+    @property
+    def lock(self) -> asyncio.Lock:
+        """Async lock for protecting position mutations from concurrent tasks."""
+        return self._lock
 
     def set_trade_db(self, trade_db: TradeDatabase) -> None:
         """Attach a TradeDatabase for persistent trade recording."""
@@ -315,11 +323,22 @@ class StateManager:
         return self._get_or_create_daily_pnl()
 
     def _get_or_create_daily_pnl(self) -> DailyPnL:
-        """Get or lazily create today's DailyPnL record."""
-        today = date.today().isoformat()
+        """Get or lazily create today's DailyPnL record (UTC-based)."""
+        today = datetime.now(timezone.utc).date().isoformat()
         if today not in self._daily_pnl:
             self._daily_pnl[today] = DailyPnL(date=today)
+            # Prune entries older than 30 days to prevent unbounded growth
+            self._prune_daily_pnl()
         return self._daily_pnl[today]
+
+    def _prune_daily_pnl(self, keep_days: int = 30) -> None:
+        """Remove DailyPnL entries older than *keep_days*."""
+        if len(self._daily_pnl) <= keep_days:
+            return
+        sorted_dates = sorted(self._daily_pnl.keys())
+        excess = len(sorted_dates) - keep_days
+        for d in sorted_dates[:excess]:
+            del self._daily_pnl[d]
 
     # ------------------------------------------------------------------
     # Simulation balance
@@ -357,11 +376,18 @@ class StateManager:
     # ------------------------------------------------------------------
 
     def save_snapshot(self, path: str = "state_snapshot.json") -> None:
-        """Save current state to a JSON file."""
+        """Save current state to a JSON file (atomic write via temp + rename)."""
         snapshot = self._to_dict()
         filepath = Path(path)
-        filepath.write_text(json.dumps(snapshot, indent=2, default=str))
-        logger.info("snapshot_saved", path=str(filepath))
+        tmp_path = filepath.with_suffix(".tmp")
+        try:
+            tmp_path.write_text(json.dumps(snapshot, indent=2, default=str))
+            tmp_path.replace(filepath)
+            logger.info("snapshot_saved", path=str(filepath))
+        except Exception:
+            # Clean up temp file on failure
+            tmp_path.unlink(missing_ok=True)
+            raise
 
     def load_snapshot(self, path: str = "state_snapshot.json") -> bool:
         """Load state from a JSON file. Returns False if file not found or invalid."""
@@ -441,7 +467,7 @@ class StateManager:
 
     def resolve_expired_positions(
         self,
-        outcome_resolver: "Callable[[Position], float | None] | None" = None,
+        outcome_resolver: Callable[[Position], float | None] | None = None,
     ) -> list[dict[str, Any]]:
         """Check for positions on expired markets and resolve them.
 

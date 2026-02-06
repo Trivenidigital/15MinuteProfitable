@@ -83,6 +83,9 @@ class MockOrderBookManager:
     ) -> FillEstimate | None:
         return self.fill_estimate
 
+    def is_stale(self, token_id: str, threshold_s: float = 30.0) -> bool:
+        return False  # default: books are fresh in tests
+
 
 # ---------------------------------------------------------------------------
 # Helpers

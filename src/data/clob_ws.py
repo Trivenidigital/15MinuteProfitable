@@ -129,9 +129,14 @@ class ClobWebSocket:
 
         self._log.info("run_loop_exited")
 
-    def stop(self) -> None:
-        """Signal the run loop to stop."""
+    async def stop(self) -> None:
+        """Signal the run loop to stop and close the active connection."""
         self._running = False
+        if self._ws is not None:
+            try:
+                await self._ws.close()
+            except Exception:
+                pass
 
     # -- message processing -----------------------------------------------------
 

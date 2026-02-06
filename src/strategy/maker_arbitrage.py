@@ -126,6 +126,11 @@ class MakerArbitrageStrategy(BaseStrategy):
         7. Reject if the market is in a dead zone.
         8. Return the Opportunity with GTC metadata.
         """
+        # Staleness check
+        if self._is_book_stale(market.yes_token_id) or self._is_book_stale(market.no_token_id):
+            self._log.debug("stale_orderbook", market=market.slug)
+            return None
+
         # 1. Check pending pairs limit
         active_pairs = sum(
             1 for p in self._pending_pairs.values()
@@ -347,6 +352,13 @@ class MakerArbitrageStrategy(BaseStrategy):
             p for p in self._pending_pairs.values()
             if p.status in ("pending", "partial") and p.age_seconds > timeout
         ]
+
+    def cleanup_completed_pairs(self) -> int:
+        """Remove completed/cancelled pairs. Returns count removed."""
+        dead = [pid for pid, p in self._pending_pairs.items() if p.status in ("complete", "cancelled", "timed_out")]
+        for pid in dead:
+            del self._pending_pairs[pid]
+        return len(dead)
 
     # -- exit logic -----------------------------------------------------------
 

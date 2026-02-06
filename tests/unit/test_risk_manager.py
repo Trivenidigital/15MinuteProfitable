@@ -396,8 +396,8 @@ class TestKellySizing:
         rm = RiskManager(settings, state)
         opp = _make_opportunity()
         size = rm.kelly_adjusted_size(opp, bankroll=10_000.0)
-        # Should fall back to adjust_size with settings.order_size (50.0)
-        assert size == 50.0
+        # Should fall back to adjust_size with settings.order_size (250.0)
+        assert size == 250.0
 
     def test_arb_with_sizer(self, settings: Settings) -> None:
         from src.risk.sizing import PositionSizer
@@ -440,8 +440,8 @@ class TestKellySizing:
         opp = _make_opportunity(strategy=StrategyType.ARBITRAGE)
         opp.expected_profit_pct = 0.0  # No edge
         size = rm.kelly_adjusted_size(opp, bankroll=10_000.0)
-        # Falls back to adjust_size
-        assert size == 50.0
+        # Falls back to adjust_size with settings.order_size (250.0)
+        assert size == 250.0
 
     def test_directional_no_stats_falls_back(self, settings: Settings) -> None:
         from src.risk.sizing import PositionSizer
@@ -453,8 +453,9 @@ class TestKellySizing:
 
         opp = _make_opportunity(strategy=StrategyType.PRICE_LAG)
         size = rm.kelly_adjusted_size(opp, bankroll=10_000.0)
-        # No win_rate/avg_win/avg_loss → falls back
-        assert size == 50.0
+        # No win_rate/avg_win/avg_loss → falls back to settings.order_size (250.0)
+        # But capped by max_unhedged_exposure (100.0) for directional strategy
+        assert size == 100.0
 
     def test_kelly_respects_risk_limits(self, settings: Settings) -> None:
         from src.risk.sizing import PositionSizer
@@ -469,3 +470,52 @@ class TestKellySizing:
         size = rm.kelly_adjusted_size(opp, bankroll=100_000.0)
         # Capped by market remaining (10)
         assert size == pytest.approx(10.0)
+
+
+# ---------------------------------------------------------------------------
+# Rate limit timeout recording (behavioral test for execution fix)
+# ---------------------------------------------------------------------------
+
+
+class TestRateLimitTimeoutRecording:
+    """Documents the fix: rate limit timeouts (asyncio.TimeoutError) must
+    trigger record_execution_failure() so they count toward the circuit
+    breaker threshold.
+
+    Previously, some code paths caught TimeoutError without recording the
+    failure, meaning repeated rate-limit timeouts would never trip the
+    circuit breaker.  The fix ensures record_execution_failure() is called
+    in every TimeoutError handler.
+    """
+
+    def test_rate_limit_timeout_records_failure(self, settings: Settings) -> None:
+        """Verify that calling record_execution_failure (as the timeout handler
+        now does) increments the failure counter and eventually trips the
+        circuit breaker after 3 consecutive timeouts."""
+        state = MockState()
+        rm = RiskManager(settings, state)
+
+        # Simulate 3 consecutive rate-limit timeouts, each calling
+        # record_execution_failure as the fixed code does.
+        assert rm.is_circuit_breaker_active() is False
+
+        rm.record_execution_failure()  # timeout 1
+        assert rm._consecutive_failures == 1
+        assert rm.is_circuit_breaker_active() is False
+
+        rm.record_execution_failure()  # timeout 2
+        assert rm._consecutive_failures == 2
+        assert rm.is_circuit_breaker_active() is False
+
+        rm.record_execution_failure()  # timeout 3 -- should trip breaker
+        assert rm._consecutive_failures == 3
+        assert rm.is_circuit_breaker_active() is True
+
+        # The circuit breaker reason should mention consecutive failures
+        assert "3 consecutive failures" in rm._circuit_breaker_reason
+
+        # New opportunities should now be rejected
+        opp = _make_opportunity()
+        approved, reason = rm.check_opportunity(opp)
+        assert approved is False
+        assert "circuit breaker" in reason
