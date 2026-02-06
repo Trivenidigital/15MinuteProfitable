@@ -697,6 +697,407 @@ src/
             </div>
         </div>
 
+        <!-- High-Value Strategy Deep Dive -->
+        <h2>High-Value Strategy Deep Dive</h2>
+        <p style="color: #a1a1aa; margin-bottom: 1.5rem;">Detailed analysis of the most promising strategies from PolyMarketAlphaBot that could be ported to enhance profitability.</p>
+
+        <!-- Strategy 1: Multi-Condition Arbitrage -->
+        <div class="card" style="margin-bottom: 1.5rem; border-left: 4px solid #4ade80;">
+            <div class="card-title" style="font-size: 1.3rem;">
+                #1 Multi-Condition Arbitrage (LONG NO)
+                <span class="badge badge-green">HIGHEST VALUE</span>
+                <span class="badge badge-purple">$28.6M Paper Profit</span>
+            </div>
+
+            <div class="two-col" style="margin-top: 1rem;">
+                <div>
+                    <h4 style="color: #4ade80; margin-bottom: 0.5rem;">The Overlooked Insight</h4>
+                    <p style="color: #a1a1aa; font-size: 0.95rem;">Everyone focuses on YES arbitrage. NO positions are systematically underpriced because traders ignore them.</p>
+
+                    <div style="background: rgba(0,0,0,0.3); padding: 1rem; border-radius: 8px; margin-top: 1rem; font-family: monospace; font-size: 0.85rem;">
+                        <div style="color: #f87171;">Traditional: Buy all YES when sum &lt; $1.00</div>
+                        <div style="color: #4ade80; margin-top: 0.5rem;">OVERLOOKED: Buy all NO when sum &lt; (N-1)</div>
+                    </div>
+                </div>
+                <div>
+                    <h4 style="color: #22d3ee; margin-bottom: 0.5rem;">Example: 3-Way Election</h4>
+                    <div style="background: rgba(0,0,0,0.3); padding: 1rem; border-radius: 8px; font-size: 0.9rem;">
+                        <div><span style="color: #a1a1aa;">Trump NO:</span> <span style="color: #22d3ee;">$0.52</span></div>
+                        <div><span style="color: #a1a1aa;">Biden NO:</span> <span style="color: #22d3ee;">$0.62</span></div>
+                        <div><span style="color: #a1a1aa;">Other NO:</span> <span style="color: #22d3ee;">$0.82</span></div>
+                        <div style="border-top: 1px solid rgba(255,255,255,0.1); margin-top: 0.5rem; padding-top: 0.5rem;">
+                            <span style="color: #a1a1aa;">Sum of NO:</span> <span style="color: #facc15;">$1.96</span> <span style="color: #a1a1aa;">(should be $2.00)</span>
+                        </div>
+                        <div style="color: #4ade80; margin-top: 0.5rem;">→ Buy all NO for $1.96, get $2.00 = <strong>2% guaranteed</strong></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="metric-grid" style="margin-top: 1.5rem;">
+                <div class="metric">
+                    <div class="metric-value" style="font-size: 1.5rem;">1-4%</div>
+                    <div class="metric-label">ROI Per Trade</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-value" style="font-size: 1.5rem;">Weekly</div>
+                    <div class="metric-label">Opportunity Frequency</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-value" style="font-size: 1.5rem; color: #4ade80;">Near Zero</div>
+                    <div class="metric-label">Risk Level</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-value" style="font-size: 1.5rem;">Medium</div>
+                    <div class="metric-label">Implementation Effort</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Strategy 2: Smart Money Tracking -->
+        <div class="card" style="margin-bottom: 1.5rem; border-left: 4px solid #22d3ee;">
+            <div class="card-title" style="font-size: 1.3rem;">
+                #2 Smart Money Tracking
+                <span class="badge badge-blue">HIGH VALUE</span>
+                <span class="badge badge-yellow">Proven Edge</span>
+            </div>
+
+            <div class="two-col" style="margin-top: 1rem;">
+                <div>
+                    <h4 style="color: #4ade80; margin-bottom: 0.5rem;">The Concept</h4>
+                    <p style="color: #a1a1aa; font-size: 0.95rem;">Track wallets with proven track records. When a whale with 60%+ win rate makes a large trade, follow them.</p>
+
+                    <div style="background: rgba(0,0,0,0.3); padding: 1rem; border-radius: 8px; margin-top: 1rem; font-size: 0.85rem;">
+                        <div style="color: #a1a1aa;">Smart Money Criteria:</div>
+                        <ul style="margin-top: 0.5rem; padding-left: 1rem;">
+                            <li style="padding: 0.25rem 0;">Trades: &gt;10 historical</li>
+                            <li style="padding: 0.25rem 0;">Win Rate: &gt;55%</li>
+                            <li style="padding: 0.25rem 0;">Volume: &gt;$10,000 total</li>
+                            <li style="padding: 0.25rem 0;">Trade Size: &gt;$10k to trigger signal</li>
+                        </ul>
+                    </div>
+                </div>
+                <div>
+                    <h4 style="color: #22d3ee; margin-bottom: 0.5rem;">Example Signal</h4>
+                    <div style="background: rgba(0,0,0,0.3); padding: 1rem; border-radius: 8px; font-size: 0.9rem;">
+                        <div style="color: #facc15; font-weight: 600;">WHALE ALERT</div>
+                        <div style="margin-top: 0.5rem;">
+                            <span style="color: #a1a1aa;">Wallet:</span> <span style="color: #22d3ee;">0x7a3...f92</span>
+                        </div>
+                        <div><span style="color: #a1a1aa;">Win Rate:</span> <span style="color: #4ade80;">68%</span> (47 trades)</div>
+                        <div><span style="color: #a1a1aa;">Action:</span> <span style="color: #4ade80;">BUY YES</span> $15,000</div>
+                        <div><span style="color: #a1a1aa;">Market:</span> "Trump wins 2024"</div>
+                        <div style="border-top: 1px solid rgba(255,255,255,0.1); margin-top: 0.5rem; padding-top: 0.5rem; color: #4ade80;">
+                            → Follow with smaller position
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="metric-grid" style="margin-top: 1.5rem;">
+                <div class="metric">
+                    <div class="metric-value" style="font-size: 1.5rem;">~60%</div>
+                    <div class="metric-label">Expected Win Rate</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-value" style="font-size: 1.5rem;">Daily</div>
+                    <div class="metric-label">Signal Frequency</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-value" style="font-size: 1.5rem; color: #facc15;">Medium</div>
+                    <div class="metric-label">Risk Level</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-value" style="font-size: 1.5rem;">Medium</div>
+                    <div class="metric-label">Implementation Effort</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Strategy 3: Event Calendar -->
+        <div class="card" style="margin-bottom: 1.5rem; border-left: 4px solid #a855f7;">
+            <div class="card-title" style="font-size: 1.3rem;">
+                #3 Event Calendar / Catalyst Trading
+                <span class="badge badge-purple">HIGH VALUE</span>
+                <span class="badge badge-green">LOW EFFORT</span>
+            </div>
+
+            <div class="two-col" style="margin-top: 1rem;">
+                <div>
+                    <h4 style="color: #4ade80; margin-bottom: 0.5rem;">The Edge</h4>
+                    <p style="color: #a1a1aa; font-size: 0.95rem;">Markets are slow to price in upcoming events. Pre-position before known catalysts when odds are stale.</p>
+
+                    <div style="background: rgba(0,0,0,0.3); padding: 1rem; border-radius: 8px; margin-top: 1rem; font-size: 0.85rem;">
+                        <div style="color: #a855f7; font-weight: 600;">Upcoming Catalysts</div>
+                        <div style="margin-top: 0.5rem;">
+                            <div style="padding: 0.25rem 0;"><span style="color: #f87171;">Feb 12:</span> CPI Data Release</div>
+                            <div style="padding: 0.25rem 0;"><span style="color: #facc15;">Feb 15:</span> FOMC Minutes</div>
+                            <div style="padding: 0.25rem 0;"><span style="color: #4ade80;">Mar 1:</span> Super Tuesday</div>
+                            <div style="padding: 0.25rem 0;"><span style="color: #22d3ee;">Mar 15:</span> Fed Rate Decision</div>
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <h4 style="color: #22d3ee; margin-bottom: 0.5rem;">Example Trade</h4>
+                    <div style="background: rgba(0,0,0,0.3); padding: 1rem; border-radius: 8px; font-size: 0.9rem;">
+                        <div style="color: #a855f7; font-weight: 600;">FOMC Rate Decision</div>
+                        <div style="margin-top: 0.5rem;">
+                            <div><span style="color: #a1a1aa;">Market:</span> "Fed cuts rates in March"</div>
+                            <div><span style="color: #a1a1aa;">Day Before:</span> YES at <span style="color: #f87171;">$0.35</span></div>
+                            <div><span style="color: #a1a1aa;">CME FedWatch:</span> <span style="color: #4ade80;">80%</span> probability</div>
+                        </div>
+                        <div style="border-top: 1px solid rgba(255,255,255,0.1); margin-top: 0.5rem; padding-top: 0.5rem;">
+                            <div style="color: #4ade80;">→ Buy YES at $0.35</div>
+                            <div style="color: #4ade80;">→ After announcement: $0.85</div>
+                            <div style="color: #facc15; font-weight: 600;">→ Profit: +143%</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="metric-grid" style="margin-top: 1.5rem;">
+                <div class="metric">
+                    <div class="metric-value" style="font-size: 1.5rem;">5-20%</div>
+                    <div class="metric-label">ROI Per Catalyst</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-value" style="font-size: 1.5rem;">Weekly</div>
+                    <div class="metric-label">Event Frequency</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-value" style="font-size: 1.5rem; color: #facc15;">Medium</div>
+                    <div class="metric-label">Risk Level</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-value" style="font-size: 1.5rem; color: #4ade80;">Low</div>
+                    <div class="metric-label">Implementation Effort</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Strategy 4: Expert Consensus -->
+        <div class="card" style="margin-bottom: 1.5rem; border-left: 4px solid #facc15;">
+            <div class="card-title" style="font-size: 1.3rem;">
+                #4 Expert Consensus Divergence
+                <span class="badge badge-yellow">HIGH VALUE</span>
+            </div>
+
+            <div class="two-col" style="margin-top: 1rem;">
+                <div>
+                    <h4 style="color: #4ade80; margin-bottom: 0.5rem;">The Edge</h4>
+                    <p style="color: #a1a1aa; font-size: 0.95rem;">Superforecasters consistently beat prediction markets by 10-15%. Aggregate expert predictions and trade divergences.</p>
+
+                    <div style="background: rgba(0,0,0,0.3); padding: 1rem; border-radius: 8px; margin-top: 1rem; font-size: 0.85rem;">
+                        <div style="color: #facc15; font-weight: 600;">Sources to Aggregate</div>
+                        <ul style="margin-top: 0.5rem; padding-left: 1rem;">
+                            <li style="padding: 0.25rem 0;"><span style="color: #4ade80;">Metaculus</span> - Superforecasters</li>
+                            <li style="padding: 0.25rem 0;"><span style="color: #22d3ee;">FiveThirtyEight</span> - Statistical models</li>
+                            <li style="padding: 0.25rem 0;"><span style="color: #a855f7;">CME FedWatch</span> - Rate probabilities</li>
+                            <li style="padding: 0.25rem 0;"><span style="color: #f87171;">PredictIt</span> - Alternative market</li>
+                        </ul>
+                    </div>
+                </div>
+                <div>
+                    <h4 style="color: #22d3ee; margin-bottom: 0.5rem;">Example Divergence</h4>
+                    <div style="background: rgba(0,0,0,0.3); padding: 1rem; border-radius: 8px; font-size: 0.9rem;">
+                        <div style="color: #facc15; font-weight: 600;">Market: "Trump wins 2024"</div>
+                        <table style="width: 100%; margin-top: 0.5rem; font-size: 0.85rem;">
+                            <tr>
+                                <td style="color: #a1a1aa; padding: 0.25rem 0;">Polymarket:</td>
+                                <td style="color: #f87171;">48%</td>
+                            </tr>
+                            <tr>
+                                <td style="color: #a1a1aa; padding: 0.25rem 0;">Metaculus avg:</td>
+                                <td style="color: #4ade80;">62%</td>
+                            </tr>
+                            <tr>
+                                <td style="color: #a1a1aa; padding: 0.25rem 0;">FiveThirtyEight:</td>
+                                <td style="color: #4ade80;">58%</td>
+                            </tr>
+                            <tr style="border-top: 1px solid rgba(255,255,255,0.1);">
+                                <td style="color: #facc15; padding-top: 0.5rem;">Divergence:</td>
+                                <td style="color: #4ade80; padding-top: 0.5rem; font-weight: 600;">+12%</td>
+                            </tr>
+                        </table>
+                        <div style="color: #4ade80; margin-top: 0.5rem;">→ BUY signal (market underpricing)</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="metric-grid" style="margin-top: 1.5rem;">
+                <div class="metric">
+                    <div class="metric-value" style="font-size: 1.5rem;">10-15%</div>
+                    <div class="metric-label">Expert Edge</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-value" style="font-size: 1.5rem;">Daily</div>
+                    <div class="metric-label">Signal Frequency</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-value" style="font-size: 1.5rem; color: #4ade80;">Low</div>
+                    <div class="metric-label">Risk Level</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-value" style="font-size: 1.5rem;">Medium</div>
+                    <div class="metric-label">Implementation Effort</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Strategy 5: Sentiment Divergence -->
+        <div class="card" style="margin-bottom: 1.5rem; border-left: 4px solid #f87171;">
+            <div class="card-title" style="font-size: 1.3rem;">
+                #5 Sentiment Divergence
+                <span class="badge badge-red">MEDIUM VALUE</span>
+                <span class="badge badge-yellow">HIGH EFFORT</span>
+            </div>
+
+            <div class="two-col" style="margin-top: 1rem;">
+                <div>
+                    <h4 style="color: #4ade80; margin-bottom: 0.5rem;">The Concept</h4>
+                    <p style="color: #a1a1aa; font-size: 0.95rem;">Social sentiment often leads market prices. When Twitter/Reddit diverges significantly from Polymarket, trade the gap.</p>
+
+                    <div style="background: rgba(0,0,0,0.3); padding: 1rem; border-radius: 8px; margin-top: 1rem; font-size: 0.85rem;">
+                        <div style="color: #f87171; font-weight: 600;">Divergence Thresholds</div>
+                        <div style="margin-top: 0.5rem;">
+                            <div style="padding: 0.25rem 0;"><span style="color: #a1a1aa;">5%:</span> Small (watch)</div>
+                            <div style="padding: 0.25rem 0;"><span style="color: #facc15;">10%:</span> Medium (consider)</div>
+                            <div style="padding: 0.25rem 0;"><span style="color: #4ade80;">15%:</span> Large (trade)</div>
+                            <div style="padding: 0.25rem 0;"><span style="color: #22d3ee;">20%:</span> Extreme (strong signal)</div>
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <h4 style="color: #22d3ee; margin-bottom: 0.5rem;">Caution</h4>
+                    <div style="background: rgba(248, 113, 113, 0.1); border: 1px solid rgba(248, 113, 113, 0.3); padding: 1rem; border-radius: 8px; font-size: 0.9rem;">
+                        <div style="color: #f87171; font-weight: 600;">⚠️ Risks</div>
+                        <ul style="margin-top: 0.5rem; padding-left: 1rem; color: #a1a1aa;">
+                            <li style="padding: 0.25rem 0;">Social media can be manipulated</li>
+                            <li style="padding: 0.25rem 0;">Bots can skew sentiment</li>
+                            <li style="padding: 0.25rem 0;">Requires volume filters</li>
+                            <li style="padding: 0.25rem 0;">Needs multiple source confirmation</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div class="metric-grid" style="margin-top: 1.5rem;">
+                <div class="metric">
+                    <div class="metric-value" style="font-size: 1.5rem;">Variable</div>
+                    <div class="metric-label">ROI Potential</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-value" style="font-size: 1.5rem;">Daily</div>
+                    <div class="metric-label">Signal Frequency</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-value" style="font-size: 1.5rem; color: #f87171;">High</div>
+                    <div class="metric-label">Risk Level</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-value" style="font-size: 1.5rem; color: #f87171;">High</div>
+                    <div class="metric-label">Implementation Effort</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Value vs Effort Matrix -->
+        <h3>Value vs Effort Matrix</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Strategy</th>
+                    <th>Potential Value</th>
+                    <th>Effort</th>
+                    <th>Data Needs</th>
+                    <th>Risk</th>
+                    <th>Priority</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Multi-Condition Arb</strong></td>
+                    <td><span style="color: #4ade80;">Very High ($28M)</span></td>
+                    <td><span style="color: #facc15;">Medium</span></td>
+                    <td>Polymarket API</td>
+                    <td><span style="color: #4ade80;">Low</span></td>
+                    <td><span class="badge badge-green">#1</span></td>
+                </tr>
+                <tr>
+                    <td><strong>Event Calendar</strong></td>
+                    <td><span style="color: #4ade80;">High</span></td>
+                    <td><span style="color: #4ade80;">Low</span></td>
+                    <td>Manual + calendar</td>
+                    <td><span style="color: #facc15;">Medium</span></td>
+                    <td><span class="badge badge-green">#2</span></td>
+                </tr>
+                <tr>
+                    <td><strong>Smart Money Tracking</strong></td>
+                    <td><span style="color: #4ade80;">High</span></td>
+                    <td><span style="color: #facc15;">Medium</span></td>
+                    <td>Trade history</td>
+                    <td><span style="color: #facc15;">Medium</span></td>
+                    <td><span class="badge badge-blue">#3</span></td>
+                </tr>
+                <tr>
+                    <td><strong>Expert Consensus</strong></td>
+                    <td><span style="color: #4ade80;">High</span></td>
+                    <td><span style="color: #facc15;">Medium</span></td>
+                    <td>External APIs</td>
+                    <td><span style="color: #4ade80;">Low</span></td>
+                    <td><span class="badge badge-blue">#4</span></td>
+                </tr>
+                <tr>
+                    <td><strong>Sentiment Divergence</strong></td>
+                    <td><span style="color: #facc15;">Medium</span></td>
+                    <td><span style="color: #f87171;">High</span></td>
+                    <td>Sentiment APIs</td>
+                    <td><span style="color: #f87171;">High</span></td>
+                    <td><span class="badge badge-yellow">#5</span></td>
+                </tr>
+                <tr>
+                    <td><strong>Cross-Market Inference</strong></td>
+                    <td><span style="color: #facc15;">Medium</span></td>
+                    <td><span style="color: #f87171;">High</span></td>
+                    <td>Complex logic</td>
+                    <td><span style="color: #facc15;">Medium</span></td>
+                    <td><span class="badge badge-yellow">#6</span></td>
+                </tr>
+                <tr>
+                    <td><strong>Brier Calibration</strong></td>
+                    <td><span style="color: #a1a1aa;">Low (long-term)</span></td>
+                    <td><span style="color: #4ade80;">Low</span></td>
+                    <td>Internal tracking</td>
+                    <td><span style="color: #4ade80;">None</span></td>
+                    <td><span class="badge badge-purple">#7</span></td>
+                </tr>
+            </tbody>
+        </table>
+
+        <!-- Implementation Roadmap -->
+        <div class="recommendation" style="margin-top: 2rem;">
+            <h3>Recommended Implementation Roadmap</h3>
+            <div class="two-col" style="margin-top: 1rem;">
+                <div>
+                    <h4 style="color: #4ade80;">Phase 1: Quick Wins (1-2 weeks)</h4>
+                    <ul>
+                        <li>Enable existing price-lag strategy</li>
+                        <li>Enable existing asymmetric strategy</li>
+                        <li>Create manual event calendar</li>
+                        <li>Set up alerts for upcoming catalysts</li>
+                    </ul>
+                </div>
+                <div>
+                    <h4 style="color: #22d3ee;">Phase 2: High-Value Ports (2-4 weeks)</h4>
+                    <ul>
+                        <li>Port multi-condition arbitrage (LONG NO)</li>
+                        <li>Build smart money tracking system</li>
+                        <li>Integrate Metaculus/FiveThirtyEight APIs</li>
+                        <li>Expand to non-crypto markets</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
         <!-- Next Steps -->
         <h2>Recommended Next Steps</h2>
         <div class="grid">
