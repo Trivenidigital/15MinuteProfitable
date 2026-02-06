@@ -86,14 +86,19 @@ class ArbitrageStrategy(BaseStrategy):
         no_vwap = no_fill.vwap
         combined_cost = yes_vwap + no_vwap
 
+        # Log every evaluation at INFO level for visibility
+        self._log.info(
+            "arb_eval",
+            market=market.slug,
+            yes_ask=round(yes_vwap, 4),
+            no_ask=round(no_vwap, 4),
+            combined=round(combined_cost, 4),
+            target=self._settings.target_pair_cost,
+            gap=round(combined_cost - self._settings.target_pair_cost, 4),
+        )
+
         # 4. Hard ceiling check
         if combined_cost >= self._settings.target_pair_cost:
-            self._log.debug(
-                "combined_cost_too_high",
-                market=market.slug,
-                combined=combined_cost,
-                target=self._settings.target_pair_cost,
-            )
             return None
 
         # 5. Net profit after all fees
