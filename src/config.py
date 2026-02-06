@@ -40,11 +40,11 @@ class Settings(BaseSettings):
     enable_parallel_strategies: bool = False  # A/B test mode: execute best opp from each strategy
 
     # Price-Lag Strategy Parameters
-    spot_move_threshold: float = 0.0015  # 0.15% minimum spot move to trigger
+    spot_move_threshold: float = 0.001  # 0.10% minimum spot move to trigger (more sensitive)
     spot_window_seconds: int = 15  # window to measure spot movement
-    odds_lag_threshold: float = 0.03  # min discrepancy between implied direction and PM odds
-    lag_entry_dead_zone_start: float = 60.0  # seconds after market open to wait
-    lag_entry_dead_zone_end: float = 30.0  # seconds before market close to stop
+    odds_lag_threshold: float = 0.02  # min discrepancy between implied direction and PM odds (more sensitive)
+    lag_entry_dead_zone_start: float = 45.0  # seconds after market open to wait (reduced)
+    lag_entry_dead_zone_end: float = 20.0  # seconds before market close to stop (reduced)
     stop_loss_pct: float = 0.05  # 5% per-position stop loss
     take_profit_pct: float = 0.10  # 10% per-position take profit
     time_exit_seconds: float = 60.0  # force close N seconds before expiry
@@ -59,14 +59,15 @@ class Settings(BaseSettings):
     stale_order_seconds: float = 120.0  # cancel GTC orders older than this
 
     # Maker Arbitrage Strategy Parameters
-    maker_target_pair_cost: float = 0.98  # higher threshold (no taker fee)
-    maker_price_offset: float = 0.005  # place limit below best ask
+    maker_target_pair_cost: float = 0.985  # aggressive threshold (higher fill rate)
+    maker_price_offset: float = 0.01  # place limit below best ask (more aggressive)
     maker_pair_timeout_seconds: float = 180.0  # cancel if not filled in 3 min
     maker_max_pending_pairs: int = 5  # max concurrent arb attempts
-    maker_min_profit_margin: float = 0.005  # 0.5% min profit per share
+    maker_min_profit_margin: float = 0.002  # 0.2% min profit per share (lower bar)
 
-    # Markets
-    markets: list[str] = ["BTC", "ETH", "SOL", "XRP"]
+    # Markets (expanded for more opportunities)
+    markets: list[str] = ["BTC", "ETH", "SOL", "XRP", "DOGE", "AVAX", "LINK", "MATIC"]
+    market_intervals: list[str] = ["15m"]  # Future: add "1h", "4h" for hourly markets
     market_slug_override: str = ""
 
     # Risk Limits
