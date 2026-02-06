@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Strategy Comparison: BTC15MinuteBot vs PolyMarketAlphaBot</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #e4e4e7;
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 3rem;
+            padding: 2rem;
+            background: rgba(255,255,255,0.05);
+            border-radius: 16px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            background: linear-gradient(90deg, #4ade80, #22d3ee);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+        }
+
+        .subtitle {
+            color: #a1a1aa;
+            font-size: 1.1rem;
+        }
+
+        .date {
+            color: #71717a;
+            font-size: 0.9rem;
+            margin-top: 0.5rem;
+        }
+
+        h2 {
+            color: #4ade80;
+            font-size: 1.5rem;
+            margin: 2rem 0 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid rgba(74, 222, 128, 0.3);
+        }
+
+        h3 {
+            color: #22d3ee;
+            font-size: 1.2rem;
+            margin: 1.5rem 0 0.75rem;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin: 1.5rem 0;
+        }
+
+        .card {
+            background: rgba(255,255,255,0.05);
+            border-radius: 12px;
+            padding: 1.5rem;
+            border: 1px solid rgba(255,255,255,0.1);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+        }
+
+        .card-title {
+            font-size: 1.1rem;
+            color: #f4f4f5;
+            margin-bottom: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .badge-green { background: rgba(74, 222, 128, 0.2); color: #4ade80; }
+        .badge-blue { background: rgba(34, 211, 238, 0.2); color: #22d3ee; }
+        .badge-yellow { background: rgba(250, 204, 21, 0.2); color: #facc15; }
+        .badge-red { background: rgba(248, 113, 113, 0.2); color: #f87171; }
+        .badge-purple { background: rgba(168, 85, 247, 0.2); color: #a855f7; }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+            background: rgba(255,255,255,0.03);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        th, td {
+            padding: 0.75rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        th {
+            background: rgba(255,255,255,0.05);
+            color: #a1a1aa;
+            font-weight: 600;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        tr:hover {
+            background: rgba(255,255,255,0.02);
+        }
+
+        .status-implemented { color: #4ade80; }
+        .status-partial { color: #facc15; }
+        .status-missing { color: #f87171; }
+
+        .check { color: #4ade80; }
+        .cross { color: #f87171; }
+        .partial { color: #facc15; }
+
+        .summary-box {
+            background: linear-gradient(135deg, rgba(74, 222, 128, 0.1), rgba(34, 211, 238, 0.1));
+            border: 1px solid rgba(74, 222, 128, 0.3);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin: 2rem 0;
+        }
+
+        .summary-box h3 {
+            margin-top: 0;
+        }
+
+        .metric-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .metric {
+            text-align: center;
+            padding: 1rem;
+            background: rgba(0,0,0,0.2);
+            border-radius: 8px;
+        }
+
+        .metric-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #4ade80;
+        }
+
+        .metric-label {
+            font-size: 0.85rem;
+            color: #a1a1aa;
+            margin-top: 0.25rem;
+        }
+
+        .recommendation {
+            background: rgba(168, 85, 247, 0.1);
+            border: 1px solid rgba(168, 85, 247, 0.3);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin: 2rem 0;
+        }
+
+        .recommendation h3 {
+            color: #a855f7;
+            margin-top: 0;
+        }
+
+        ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        ul li {
+            padding: 0.5rem 0;
+            padding-left: 1.5rem;
+            position: relative;
+        }
+
+        ul li::before {
+            content: "→";
+            position: absolute;
+            left: 0;
+            color: #4ade80;
+        }
+
+        .code {
+            font-family: 'Monaco', 'Menlo', monospace;
+            background: rgba(0,0,0,0.3);
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            color: #22d3ee;
+        }
+
+        .two-col {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+        }
+
+        @media (max-width: 768px) {
+            .two-col, .metric-grid {
+                grid-template-columns: 1fr;
+            }
+
+            h1 {
+                font-size: 1.8rem;
+            }
+        }
+
+        .strategy-card {
+            border-left: 4px solid;
+        }
+
+        .strategy-card.alpha { border-color: #a855f7; }
+        .strategy-card.btc { border-color: #4ade80; }
+        .strategy-card.shared { border-color: #22d3ee; }
+        .strategy-card.missing { border-color: #f87171; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Strategy Comparison Report</h1>
+            <p class="subtitle">BTC15MinuteBot vs PolyMarketAlphaBot</p>
+            <p class="date">Generated: February 5, 2026</p>
+        </header>
+
+        <!-- Executive Summary -->
+        <div class="summary-box">
+            <h3>Executive Summary</h3>
+            <p>Analysis of two Polymarket trading bots with different approaches: <strong>BTC15MinuteBot</strong> focuses on high-frequency 15-minute crypto arbitrage, while <strong>PolyMarketAlphaBot</strong> emphasizes research-driven alpha across all market types.</p>
+
+            <div class="metric-grid">
+                <div class="metric">
+                    <div class="metric-value">12</div>
+                    <div class="metric-label">Strategies in AlphaBot</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-value">4</div>
+                    <div class="metric-label">Strategies in BTC15Min</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-value">3</div>
+                    <div class="metric-label">Shared Concepts</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-value">9</div>
+                    <div class="metric-label">Portability Candidates</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Comparison Table -->
+        <h2>High-Level Comparison</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Dimension</th>
+                    <th>BTC15MinuteBot</th>
+                    <th>PolyMarketAlphaBot</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Primary Focus</strong></td>
+                    <td>15-minute crypto arbitrage</td>
+                    <td>Research-driven alpha detection</td>
+                </tr>
+                <tr>
+                    <td><strong>Timeframe</strong></td>
+                    <td>Minutes to hours</td>
+                    <td>Days to months</td>
+                </tr>
+                <tr>
+                    <td><strong>Market Types</strong></td>
+                    <td>BTC/ETH/SOL/XRP 15-min only</td>
+                    <td>Any prediction market</td>
+                </tr>
+                <tr>
+                    <td><strong>Execution Speed</strong></td>
+                    <td>Milliseconds (WebSocket)</td>
+                    <td>Seconds-minutes (REST)</td>
+                </tr>
+                <tr>
+                    <td><strong>Data Sources</strong></td>
+                    <td>CLOB WS, Binance WS</td>
+                    <td>REST APIs, Web research, Expert consensus</td>
+                </tr>
+                <tr>
+                    <td><strong>Risk Management</strong></td>
+                    <td>Circuit breaker, Kelly sizing</td>
+                    <td>Multi-factor Kelly, Brier calibration</td>
+                </tr>
+                <tr>
+                    <td><strong>Deployment</strong></td>
+                    <td>VPS + systemd (24/7)</td>
+                    <td>Local + scheduled scans</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <!-- Strategies Comparison -->
+        <h2>Strategy-by-Strategy Analysis</h2>
+
+        <h3>Strategies in BOTH Bots</h3>
+        <div class="grid">
+            <div class="card strategy-card shared">
+                <div class="card-title">
+                    <span class="check">✓</span> Single-Condition Arbitrage
+                    <span class="badge badge-green">SHARED</span>
+                </div>
+                <p><strong>BTC15MinuteBot:</strong> <span class="code">src/strategy/arbitrage.py</span></p>
+                <p><strong>AlphaBot:</strong> <span class="code">src/arbitrage/single_condition.py</span></p>
+                <p style="margin-top: 0.5rem; color: #a1a1aa;">Buy YES + NO when combined &lt; $1.00 after fees. Both implement similar logic but BTC15MinuteBot focuses on exact fee calculation for 15-min markets.</p>
+            </div>
+
+            <div class="card strategy-card shared">
+                <div class="card-title">
+                    <span class="check">✓</span> Kelly Criterion Sizing
+                    <span class="badge badge-green">SHARED</span>
+                </div>
+                <p><strong>BTC15MinuteBot:</strong> <span class="code">src/risk/sizing.py</span></p>
+                <p><strong>AlphaBot:</strong> <span class="code">src/signals/position_sizer.py</span></p>
+                <p style="margin-top: 0.5rem; color: #a1a1aa;">Both use fractional Kelly (0.25x default) with bankroll management. AlphaBot has more sophisticated category-adaptive sizing.</p>
+            </div>
+
+            <div class="card strategy-card shared">
+                <div class="card-title">
+                    <span class="check">✓</span> Liquidity-Aware Execution
+                    <span class="badge badge-green">SHARED</span>
+                </div>
+                <p><strong>BTC15MinuteBot:</strong> <span class="code">src/data/orderbook.py</span></p>
+                <p><strong>AlphaBot:</strong> <span class="code">src/analysis/liquidity_edge.py</span></p>
+                <p style="margin-top: 0.5rem; color: #a1a1aa;">Both walk the order book to estimate fill prices. AlphaBot adds slippage and market impact modeling.</p>
+            </div>
+        </div>
+
+        <h3>Strategies ONLY in BTC15MinuteBot</h3>
+        <div class="grid">
+            <div class="card strategy-card btc">
+                <div class="card-title">
+                    <span class="check">✓</span> Price-Lag Exploitation
+                    <span class="badge badge-blue">BTC15MIN ONLY</span>
+                </div>
+                <p><strong>File:</strong> <span class="code">src/strategy/price_lag.py</span></p>
+                <p style="margin-top: 0.5rem; color: #a1a1aa;">Trades when Binance spot price moves before Polymarket odds adjust. Time-aware sizing (>5min=100%, 2-5min=50%, 30s-2min=25%).</p>
+            </div>
+
+            <div class="card strategy-card btc">
+                <div class="card-title">
+                    <span class="check">✓</span> Asymmetric Entry (Accumulation)
+                    <span class="badge badge-blue">BTC15MIN ONLY</span>
+                </div>
+                <p><strong>File:</strong> <span class="code">src/strategy/asymmetric.py</span></p>
+                <p style="margin-top: 0.5rem; color: #a1a1aa;">Places GTC limit orders at cheap prices (0% maker fee) and accumulates shares over time. Completes pairs when average cost is profitable.</p>
+            </div>
+
+            <div class="card strategy-card btc">
+                <div class="card-title">
+                    <span class="check">✓</span> Real-Time WebSocket Streaming
+                    <span class="badge badge-blue">BTC15MIN ONLY</span>
+                </div>
+                <p><strong>Files:</strong> <span class="code">src/data/clob_ws.py</span>, <span class="code">src/data/binance_ws.py</span></p>
+                <p style="margin-top: 0.5rem; color: #a1a1aa;">Sub-second orderbook updates via WebSocket. Critical for 15-minute market timing. AlphaBot uses REST polling.</p>
+            </div>
+        </div>
+
+        <h3>Strategies ONLY in PolyMarketAlphaBot <span class="badge badge-yellow">PORTABILITY CANDIDATES</span></h3>
+        <div class="grid">
+            <div class="card strategy-card alpha">
+                <div class="card-title">
+                    <span class="cross">✗</span> Multi-Condition Arbitrage
+                    <span class="badge badge-purple">ALPHA ONLY</span>
+                </div>
+                <p><strong>File:</strong> <span class="code">src/arbitrage/multi_condition.py</span></p>
+                <p style="margin-top: 0.5rem; color: #a1a1aa;">For markets with 3+ mutually exclusive outcomes. Academic paper: $28.6M profit potential. <strong>LONG NO strategy often overlooked!</strong></p>
+                <p style="margin-top: 0.5rem;"><span class="badge badge-yellow">HIGH VALUE</span> Could port to general markets</p>
+            </div>
+
+            <div class="card strategy-card alpha">
+                <div class="card-title">
+                    <span class="cross">✗</span> Sentiment Divergence
+                    <span class="badge badge-purple">ALPHA ONLY</span>
+                </div>
+                <p><strong>File:</strong> <span class="code">src/analysis/sentiment_divergence.py</span></p>
+                <p style="margin-top: 0.5rem; color: #a1a1aa;">Detects when market prices diverge from social sentiment (Twitter, Reddit, news, expert polls). Thresholds: 5-20% divergence.</p>
+                <p style="margin-top: 0.5rem;"><span class="badge badge-yellow">MEDIUM VALUE</span> Requires external data feeds</p>
+            </div>
+
+            <div class="card strategy-card alpha">
+                <div class="card-title">
+                    <span class="cross">✗</span> Expert Consensus Tracking
+                    <span class="badge badge-purple">ALPHA ONLY</span>
+                </div>
+                <p><strong>File:</strong> <span class="code">src/edge/expert_tracker.py</span></p>
+                <p style="margin-top: 0.5rem; color: #a1a1aa;">Aggregates superforecaster, domain expert, and quant model predictions. Signals when experts diverge >15% from market.</p>
+                <p style="margin-top: 0.5rem;"><span class="badge badge-green">HIGH VALUE</span> Strong alpha source</p>
+            </div>
+
+            <div class="card strategy-card alpha">
+                <div class="card-title">
+                    <span class="cross">✗</span> Smart Money Tracking
+                    <span class="badge badge-purple">ALPHA ONLY</span>
+                </div>
+                <p><strong>File:</strong> <span class="code">src/tracker/smart_money.py</span></p>
+                <p style="margin-top: 0.5rem; color: #a1a1aa;">Monitors whale trades (>$10k), tracks wallet win rates, identifies accumulation patterns. Smart money: >55% win rate, >$10k volume.</p>
+                <p style="margin-top: 0.5rem;"><span class="badge badge-green">HIGH VALUE</span> Proven edge source</p>
+            </div>
+
+            <div class="card strategy-card alpha">
+                <div class="card-title">
+                    <span class="cross">✗</span> Cross-Market Inference
+                    <span class="badge badge-purple">ALPHA ONLY</span>
+                </div>
+                <p><strong>File:</strong> <span class="code">src/analysis/cross_market_inference.py</span></p>
+                <p style="margin-top: 0.5rem; color: #a1a1aa;">Links related markets (e.g., "Will Biden run?" → "Will Biden win?"). Propagates information across correlated events.</p>
+                <p style="margin-top: 0.5rem;"><span class="badge badge-yellow">MEDIUM VALUE</span> Complex implementation</p>
+            </div>
+
+            <div class="card strategy-card alpha">
+                <div class="card-title">
+                    <span class="cross">✗</span> Event Calendar & Catalysts
+                    <span class="badge badge-purple">ALPHA ONLY</span>
+                </div>
+                <p><strong>File:</strong> <span class="code">src/edge/event_calendar.py</span></p>
+                <p style="margin-top: 0.5rem; color: #a1a1aa;">Tracks scheduled events (Fed meetings, elections, earnings). Pre-positions before catalysts with information asymmetry.</p>
+                <p style="margin-top: 0.5rem;"><span class="badge badge-green">HIGH VALUE</span> Clear edge source</p>
+            </div>
+
+            <div class="card strategy-card alpha">
+                <div class="card-title">
+                    <span class="cross">✗</span> Brier Score Calibration
+                    <span class="badge badge-purple">ALPHA ONLY</span>
+                </div>
+                <p><strong>File:</strong> <span class="code">src/performance/brier_tracker.py</span></p>
+                <p style="margin-top: 0.5rem; color: #a1a1aa;">Tracks probabilistic accuracy. Adjusts future confidence based on historical calibration. Category-specific curves.</p>
+                <p style="margin-top: 0.5rem;"><span class="badge badge-yellow">MEDIUM VALUE</span> Improves over time</p>
+            </div>
+
+            <div class="card strategy-card alpha">
+                <div class="card-title">
+                    <span class="cross">✗</span> Research-Driven Alpha Scoring
+                    <span class="badge badge-purple">ALPHA ONLY</span>
+                </div>
+                <p><strong>File:</strong> <span class="code">src/analyzer/alpha_scorer.py</span></p>
+                <p style="margin-top: 0.5rem; color: #a1a1aa;">Multi-factor scoring: Information Asymmetry (30%), Market Inefficiency (25%), Research Tractability (20%), Time Edge (15%), Liquidity (10%).</p>
+                <p style="margin-top: 0.5rem;"><span class="badge badge-yellow">MEDIUM VALUE</span> For longer-term markets</p>
+            </div>
+
+            <div class="card strategy-card alpha">
+                <div class="card-title">
+                    <span class="cross">✗</span> Contrarian Filter
+                    <span class="badge badge-purple">ALPHA ONLY</span>
+                </div>
+                <p><strong>File:</strong> <span class="code">src/signals/contrarian_filter.py</span></p>
+                <p style="margin-top: 0.5rem; color: #a1a1aa;">Applies "second-order thinking" to avoid obvious traps. Detects when consensus is too strong (potential mean reversion).</p>
+                <p style="margin-top: 0.5rem;"><span class="badge badge-yellow">LOW VALUE</span> Subjective logic</p>
+            </div>
+        </div>
+
+        <!-- Feature Comparison Matrix -->
+        <h2>Feature Comparison Matrix</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Feature</th>
+                    <th>BTC15MinuteBot</th>
+                    <th>PolyMarketAlphaBot</th>
+                    <th>Notes</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Single-condition arbitrage</td>
+                    <td class="check">✓ Implemented</td>
+                    <td class="check">✓ Implemented</td>
+                    <td>Core strategy in both</td>
+                </tr>
+                <tr>
+                    <td>Multi-condition arbitrage</td>
+                    <td class="cross">✗ Missing</td>
+                    <td class="check">✓ Implemented</td>
+                    <td>$28.6M paper profit</td>
+                </tr>
+                <tr>
+                    <td>Price-lag exploitation</td>
+                    <td class="check">✓ Implemented</td>
+                    <td class="cross">✗ Missing</td>
+                    <td>Binance spot → Polymarket</td>
+                </tr>
+                <tr>
+                    <td>Asymmetric/GTC accumulation</td>
+                    <td class="check">✓ Implemented</td>
+                    <td class="cross">✗ Missing</td>
+                    <td>0% maker fee strategy</td>
+                </tr>
+                <tr>
+                    <td>Smart money tracking</td>
+                    <td class="cross">✗ Missing</td>
+                    <td class="check">✓ Implemented</td>
+                    <td>Whale wallet analysis</td>
+                </tr>
+                <tr>
+                    <td>Sentiment analysis</td>
+                    <td class="cross">✗ Missing</td>
+                    <td class="check">✓ Implemented</td>
+                    <td>Twitter/Reddit/News</td>
+                </tr>
+                <tr>
+                    <td>Expert consensus</td>
+                    <td class="cross">✗ Missing</td>
+                    <td class="check">✓ Implemented</td>
+                    <td>Superforecasters, models</td>
+                </tr>
+                <tr>
+                    <td>Event calendar</td>
+                    <td class="cross">✗ Missing</td>
+                    <td class="check">✓ Implemented</td>
+                    <td>Catalyst tracking</td>
+                </tr>
+                <tr>
+                    <td>Cross-market inference</td>
+                    <td class="cross">✗ Missing</td>
+                    <td class="check">✓ Implemented</td>
+                    <td>Related market linking</td>
+                </tr>
+                <tr>
+                    <td>WebSocket real-time</td>
+                    <td class="check">✓ Implemented</td>
+                    <td class="cross">✗ Missing</td>
+                    <td>Sub-second updates</td>
+                </tr>
+                <tr>
+                    <td>Brier calibration</td>
+                    <td class="cross">✗ Missing</td>
+                    <td class="check">✓ Implemented</td>
+                    <td>Probability accuracy</td>
+                </tr>
+                <tr>
+                    <td>Web dashboard</td>
+                    <td class="check">✓ Implemented</td>
+                    <td class="check">✓ Implemented</td>
+                    <td>FastAPI in both</td>
+                </tr>
+                <tr>
+                    <td>Telegram alerts</td>
+                    <td class="partial">◐ Partial</td>
+                    <td class="check">✓ Implemented</td>
+                    <td>BTC15Min has config, not wired</td>
+                </tr>
+                <tr>
+                    <td>Paper trading DB</td>
+                    <td class="check">✓ Implemented</td>
+                    <td class="check">✓ Implemented</td>
+                    <td>SQLite in both</td>
+                </tr>
+                <tr>
+                    <td>Circuit breaker</td>
+                    <td class="check">✓ Implemented</td>
+                    <td class="cross">✗ Missing</td>
+                    <td>Daily loss limit</td>
+                </tr>
+                <tr>
+                    <td>Emergency unwind</td>
+                    <td class="check">✓ Implemented</td>
+                    <td class="cross">✗ Missing</td>
+                    <td>Position flattening</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <!-- Recommendations -->
+        <div class="recommendation">
+            <h3>Recommended Strategy Ports</h3>
+            <p>Based on effort vs. value analysis, these strategies from PolyMarketAlphaBot could enhance BTC15MinuteBot:</p>
+
+            <div class="two-col" style="margin-top: 1rem;">
+                <div>
+                    <h4 style="color: #4ade80;">Quick Wins (Low Effort)</h4>
+                    <ul>
+                        <li><strong>Multi-Condition Arbitrage</strong> - Port the LONG NO logic for markets with 3+ outcomes</li>
+                        <li><strong>Telegram Alerts</strong> - Already have config, just wire up the sender</li>
+                        <li><strong>Contrarian Filter</strong> - Simple logic to avoid obvious traps</li>
+                    </ul>
+                </div>
+                <div>
+                    <h4 style="color: #22d3ee;">High Value (More Effort)</h4>
+                    <ul>
+                        <li><strong>Smart Money Tracking</strong> - Monitor whale wallets for accumulation signals</li>
+                        <li><strong>Event Calendar</strong> - Pre-position before known catalysts</li>
+                        <li><strong>Expert Consensus</strong> - Aggregate superforecaster predictions</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Architecture Comparison -->
+        <h2>Architecture Comparison</h2>
+        <div class="two-col">
+            <div class="card">
+                <div class="card-title">BTC15MinuteBot</div>
+                <pre style="font-size: 0.8rem; color: #a1a1aa; overflow-x: auto;">
+src/
+├── config.py           # Pydantic settings
+├── core/
+│   ├── models.py       # Market, OrderBook, Position
+│   └── state.py        # Global state manager
+├── data/
+│   ├── clob_ws.py      # CLOB WebSocket
+│   ├── binance_ws.py   # Binance spot feed
+│   ├── orderbook.py    # L2 book state
+│   └── market_discovery.py
+├── strategy/
+│   ├── arbitrage.py    # YES+NO arbitrage
+│   ├── asymmetric.py   # GTC accumulation
+│   ├── price_lag.py    # Spot-based directional
+│   └── scanner.py      # Multi-market scanner
+├── execution/
+│   ├── executor.py     # Order signing/submission
+│   └── unwind.py       # Emergency flatten
+├── risk/
+│   ├── manager.py      # Position limits
+│   └── sizing.py       # Kelly criterion
+├── monitoring/
+│   ├── alerts.py       # Telegram/Discord
+│   └── metrics.py      # Performance tracking
+└── dashboard/
+    └── app.py          # FastAPI dashboard
+                </pre>
+            </div>
+            <div class="card">
+                <div class="card-title">PolyMarketAlphaBot</div>
+                <pre style="font-size: 0.8rem; color: #a1a1aa; overflow-x: auto;">
+src/
+├── scanner/            # Market data fetching
+├── analyzer/           # Alpha scoring
+│   └── alpha_scorer.py # Multi-factor scoring
+├── arbitrage/
+│   ├── single_condition.py
+│   └── multi_condition.py
+├── researcher/         # Web research
+│   └── web_researcher.py
+├── signals/
+│   ├── signal_generator.py
+│   ├── position_sizer.py
+│   └── contrarian_filter.py
+├── edge/
+│   ├── expert_tracker.py
+│   ├── event_calendar.py
+│   └── news_monitor.py
+├── tracker/
+│   ├── smart_money.py
+│   └── resolution_edge.py
+├── analysis/
+│   ├── sentiment_divergence.py
+│   ├── cross_market_inference.py
+│   └── liquidity_edge.py
+├── performance/
+│   └── brier_tracker.py
+├── trading/            # Paper trading
+└── dashboard/          # Web UI
+                </pre>
+            </div>
+        </div>
+
+        <!-- Next Steps -->
+        <h2>Recommended Next Steps</h2>
+        <div class="grid">
+            <div class="card">
+                <div class="card-title">1. Enable Existing Strategies</div>
+                <p style="color: #a1a1aa;">BTC15MinuteBot has price-lag and asymmetric strategies built but disabled. Enable them:</p>
+                <pre style="margin-top: 0.5rem; font-size: 0.85rem; color: #22d3ee;">
+BOT_ENABLE_PRICE_LAG=true
+BOT_ENABLE_ASYMMETRIC=true</pre>
+            </div>
+
+            <div class="card">
+                <div class="card-title">2. Port Multi-Condition Arb</div>
+                <p style="color: #a1a1aa;">Copy LONG NO strategy from AlphaBot for markets with 3+ outcomes. Academic paper shows $17.3M profit from this alone.</p>
+            </div>
+
+            <div class="card">
+                <div class="card-title">3. Add Smart Money Tracking</div>
+                <p style="color: #a1a1aa;">Monitor large trades ($10k+) and track wallet win rates. Trade alongside proven winners.</p>
+            </div>
+
+            <div class="card">
+                <div class="card-title">4. Expand Market Coverage</div>
+                <p style="color: #a1a1aa;">Move beyond 15-min crypto to daily/weekly markets or other categories (politics, sports) with less competition.</p>
+            </div>
+        </div>
+
+        <footer style="text-align: center; margin-top: 3rem; padding: 2rem; color: #71717a; border-top: 1px solid rgba(255,255,255,0.1);">
+            <p>Generated by Claude | BTC15MinuteBot Analysis</p>
+            <p style="font-size: 0.85rem; margin-top: 0.5rem;">Source: C:\Projects\BTC15MinuteBot & C:\Projects\PolyMarketAlphaBot</p>
+        </footer>
+    </div>
+</body>
+</html>
