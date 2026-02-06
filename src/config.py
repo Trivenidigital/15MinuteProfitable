@@ -37,6 +37,7 @@ class Settings(BaseSettings):
     enable_price_lag: bool = False
     enable_maker_arbitrage: bool = False
     enable_multi_market: bool = True
+    enable_parallel_strategies: bool = False  # A/B test mode: execute best opp from each strategy
 
     # Price-Lag Strategy Parameters
     spot_move_threshold: float = 0.0015  # 0.15% minimum spot move to trigger

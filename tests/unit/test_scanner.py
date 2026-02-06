@@ -413,6 +413,100 @@ class TestExceptionHandling:
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# Tests: scan_best_per_strategy (A/B test mode)
+# ---------------------------------------------------------------------------
+
+
+class TestScanBestPerStrategy:
+    """Tests for scan_best_per_strategy() - A/B testing mode."""
+
+    async def test_returns_empty_dict_when_no_opportunities(self, market: Market) -> None:
+        """Returns empty dict when no strategies find opportunities."""
+        s1 = MockStrategy("arb", result=None)
+        scanner = MarketScanner(strategies=[s1])
+
+        result = await scanner.scan_best_per_strategy([market])
+
+        assert result == {}
+
+    async def test_returns_empty_dict_for_empty_markets(self) -> None:
+        """Returns empty dict when markets list is empty."""
+        opp = _make_opportunity(_make_market(), expected_profit_pct=0.05)
+        s1 = MockStrategy("arb", result=opp)
+        scanner = MarketScanner(strategies=[s1])
+
+        result = await scanner.scan_best_per_strategy([])
+
+        assert result == {}
+
+    async def test_returns_one_opp_per_strategy_type(
+        self, market: Market, market_b: Market
+    ) -> None:
+        """Returns best opportunity for each strategy type."""
+        opp_arb = _make_opportunity(market, expected_profit_pct=0.05, strategy_type=StrategyType.ARBITRAGE)
+        opp_asym = _make_opportunity(market_b, expected_profit_pct=0.03, strategy_type=StrategyType.ASYMMETRIC)
+
+        s_arb = MockStrategyPerMarket("arb", {market.slug: opp_arb}, strategy_type=StrategyType.ARBITRAGE)
+        s_asym = MockStrategyPerMarket("asym", {market_b.slug: opp_asym}, strategy_type=StrategyType.ASYMMETRIC)
+        scanner = MarketScanner(strategies=[s_arb, s_asym])
+
+        result = await scanner.scan_best_per_strategy([market, market_b])
+
+        assert len(result) == 2
+        assert result[StrategyType.ARBITRAGE] is opp_arb
+        assert result[StrategyType.ASYMMETRIC] is opp_asym
+
+    async def test_picks_best_within_each_strategy_type(
+        self, market: Market, market_b: Market
+    ) -> None:
+        """When multiple opportunities exist for same strategy type, picks best."""
+        opp_arb_low = _make_opportunity(market, expected_profit_pct=0.02, strategy_type=StrategyType.ARBITRAGE)
+        opp_arb_high = _make_opportunity(market_b, expected_profit_pct=0.08, strategy_type=StrategyType.ARBITRAGE)
+
+        s_arb = MockStrategyPerMarket(
+            "arb",
+            {market.slug: opp_arb_low, market_b.slug: opp_arb_high},
+            strategy_type=StrategyType.ARBITRAGE,
+        )
+        scanner = MarketScanner(strategies=[s_arb])
+
+        result = await scanner.scan_best_per_strategy([market, market_b])
+
+        assert len(result) == 1
+        assert result[StrategyType.ARBITRAGE] is opp_arb_high
+
+    async def test_maker_vs_taker_arbitrage_parallel(
+        self, market: Market, market_b: Market
+    ) -> None:
+        """Test A/B mode with both arbitrage and maker_arbitrage strategies."""
+        opp_taker = _make_opportunity(market, expected_profit_pct=0.04, strategy_type=StrategyType.ARBITRAGE)
+        opp_maker = _make_opportunity(market, expected_profit_pct=0.06, strategy_type=StrategyType.MAKER_ARBITRAGE)
+
+        s_taker = MockStrategyPerMarket("arbitrage", {market.slug: opp_taker}, strategy_type=StrategyType.ARBITRAGE)
+        s_maker = MockStrategyPerMarket("maker_arbitrage", {market.slug: opp_maker}, strategy_type=StrategyType.MAKER_ARBITRAGE)
+        scanner = MarketScanner(strategies=[s_taker, s_maker])
+
+        result = await scanner.scan_best_per_strategy([market])
+
+        # Both strategies should return their best
+        assert len(result) == 2
+        assert result[StrategyType.ARBITRAGE] is opp_taker
+        assert result[StrategyType.MAKER_ARBITRAGE] is opp_maker
+
+    async def test_handles_failing_strategy(self, market: Market) -> None:
+        """Failing strategies are skipped, others still return."""
+        opp = _make_opportunity(market, expected_profit_pct=0.05, strategy_type=StrategyType.ARBITRAGE)
+        s_good = MockStrategyPerMarket("arb", {market.slug: opp}, strategy_type=StrategyType.ARBITRAGE)
+        s_fail = FailingStrategy("bad")
+        scanner = MarketScanner(strategies=[s_fail, s_good])
+
+        result = await scanner.scan_best_per_strategy([market])
+
+        assert len(result) == 1
+        assert result[StrategyType.ARBITRAGE] is opp
+
+
 class TestProperties:
     """Tests for strategy_count and strategy_names properties."""
 

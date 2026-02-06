@@ -68,13 +68,17 @@ async def _strategy_loop(
     settings: Settings,
     strategies: list[BaseStrategy] | None = None,
 ) -> None:
-    """Continuously scan all active markets for the best opportunity.
+    """Continuously scan all active markets for opportunities.
 
     Each cycle:
     1. Get current active markets from MarketManager
-    2. Use MarketScanner to find the single best opportunity
-    3. Risk-check and size-adjust
-    4. Acquire rate limiter tokens and execute
+    2. Use MarketScanner to find opportunities
+    3. Risk-check and size-adjust each opportunity
+    4. Execute approved opportunities
+
+    In normal mode: executes only the single best opportunity.
+    In parallel mode (enable_parallel_strategies=True): executes
+    the best opportunity from EACH strategy type for A/B testing.
 
     Runs every 2 seconds until the shutdown event is set.
     """
@@ -83,8 +87,20 @@ async def _strategy_loop(
 
         if not markets:
             _log.debug("no_active_markets")
+        elif settings.enable_parallel_strategies:
+            # A/B test mode: execute best opportunity from each strategy type
+            await _execute_parallel_strategies(
+                scanner=scanner,
+                markets=markets,
+                risk_manager=risk_manager,
+                executor=executor,
+                state_manager=state_manager,
+                rate_limiter=rate_limiter,
+                settings=settings,
+                strategies=strategies or [],
+            )
         else:
-            # Scanner picks the best opportunity across all markets + strategies
+            # Normal mode: execute only the single best opportunity
             opp = await scanner.scan(markets)
 
             if opp is not None:
@@ -125,6 +141,76 @@ async def _strategy_loop(
             )
         except asyncio.TimeoutError:
             pass
+
+
+async def _execute_parallel_strategies(
+    scanner: MarketScanner,
+    markets: list,
+    risk_manager: RiskManager,
+    executor: OrderExecutor,
+    state_manager: StateManager,
+    rate_limiter: RateLimiter,
+    settings: Settings,
+    strategies: list[BaseStrategy],
+) -> None:
+    """Execute the best opportunity from each strategy type (A/B test mode).
+
+    This allows multiple strategies to trade in the same cycle, enabling
+    fair comparison of strategy performance over time.
+    """
+    best_per_strategy = await scanner.scan_best_per_strategy(markets)
+
+    if not best_per_strategy:
+        return
+
+    _log.info(
+        "parallel_strategies_found",
+        strategies=[s.value for s in best_per_strategy.keys()],
+        count=len(best_per_strategy),
+    )
+
+    # Execute each strategy's best opportunity
+    for strat_type, opp in best_per_strategy.items():
+        market = opp.market
+
+        # Risk check
+        approved, reason = risk_manager.check_opportunity(opp)
+        if not approved:
+            _log.debug(
+                "opportunity_rejected",
+                strategy=strat_type.value,
+                market=market.slug,
+                reason=reason,
+            )
+            continue
+
+        # Adjust size
+        adjusted_size = risk_manager.adjust_size(opp, settings.order_size)
+        if adjusted_size <= 0:
+            _log.debug(
+                "size_adjusted_to_zero",
+                strategy=strat_type.value,
+                market=market.slug,
+            )
+            continue
+
+        _log.info(
+            "executing_parallel_strategy",
+            strategy=strat_type.value,
+            market=market.slug,
+            profit_pct=round(opp.expected_profit_pct, 6),
+        )
+
+        await _execute_opportunity(
+            opp=opp,
+            adjusted_size=adjusted_size,
+            executor=executor,
+            state_manager=state_manager,
+            risk_manager=risk_manager,
+            rate_limiter=rate_limiter,
+            settings=settings,
+            strategies=strategies,
+        )
 
 
 async def _execute_opportunity(
@@ -1320,6 +1406,7 @@ async def _run_bot(settings: Settings, pid_lock: PidLock) -> None:
         enable_asymmetric=settings.enable_asymmetric,
         enable_maker_arbitrage=settings.enable_maker_arbitrage,
         enable_multi_market=settings.enable_multi_market,
+        enable_parallel_strategies=settings.enable_parallel_strategies,
     )
 
     # Alert dispatcher

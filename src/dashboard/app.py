@@ -243,6 +243,7 @@ def create_app() -> FastAPI:
         settings: Settings = app.state.settings
         strategies = [
             {"name": "arbitrage", "enabled": settings.enable_arbitrage},
+            {"name": "maker_arbitrage", "enabled": settings.enable_maker_arbitrage},
             {"name": "asymmetric", "enabled": settings.enable_asymmetric},
             {"name": "price_lag", "enabled": settings.enable_price_lag},
             {"name": "multi_market", "enabled": settings.enable_multi_market},
@@ -257,6 +258,7 @@ def create_app() -> FastAPI:
         return JSONResponse({
             "strategies": strategies,
             "breakdown": breakdown,
+            "parallel_mode": settings.enable_parallel_strategies,
         })
 
     # ------------------------------------------------------------------
