@@ -733,6 +733,103 @@ async def _snapshot_loop(
 
 
 # ---------------------------------------------------------------------------
+# Position Resolution loop
+# ---------------------------------------------------------------------------
+
+
+async def _resolution_loop(
+    state_manager: StateManager,
+    spot_buffer: SpotBuffer | None = None,
+    interval: float = 15.0,
+) -> None:
+    """Periodically check for and resolve expired positions.
+
+    Runs every *interval* seconds (default 15s) to detect positions
+    whose markets have expired and resolve them appropriately.
+
+    For hedged positions: guaranteed $1 per share pair.
+    For unhedged positions: uses spot price data to infer outcome.
+    """
+
+    def _outcome_resolver(pos: Position) -> float | None:
+        """Determine if YES or NO won based on spot price movement.
+
+        Returns >0.5 if YES won (price went up), <0.5 if NO won (price went down).
+        Returns None if unable to determine.
+        """
+        if spot_buffer is None:
+            return None
+
+        asset = pos.market.asset
+        symbol = f"{asset}USDT"
+
+        # Get price at market start and end
+        start_ts = pos.market.start_time.timestamp()
+        end_ts = pos.market.end_time.timestamp()
+
+        # Get historical prices from buffer
+        history = spot_buffer.get_history(symbol)
+        if not history:
+            _log.warning(
+                "no_spot_history_for_resolution",
+                symbol=symbol,
+                condition_id=pos.market.condition_id,
+            )
+            return None
+
+        # Find prices closest to start and end times
+        start_price = None
+        end_price = None
+
+        for ts, price in history:
+            if start_price is None or abs(ts - start_ts) < abs(start_price[0] - start_ts):
+                start_price = (ts, price)
+            if end_price is None or abs(ts - end_ts) < abs(end_price[0] - end_ts):
+                end_price = (ts, price)
+
+        if start_price is None or end_price is None:
+            _log.warning(
+                "incomplete_spot_history",
+                symbol=symbol,
+                has_start=start_price is not None,
+                has_end=end_price is not None,
+            )
+            return None
+
+        # Determine outcome: YES wins if price went up
+        price_went_up = end_price[1] > start_price[1]
+
+        _log.debug(
+            "outcome_resolved_from_spot",
+            symbol=symbol,
+            start_price=start_price[1],
+            end_price=end_price[1],
+            outcome="YES" if price_went_up else "NO",
+        )
+
+        return 1.0 if price_went_up else 0.0
+
+    while _shutdown_event is not None and not _shutdown_event.is_set():
+        try:
+            resolved = state_manager.resolve_expired_positions(
+                outcome_resolver=_outcome_resolver,
+            )
+            if resolved:
+                _log.info(
+                    "resolution_loop_completed",
+                    resolved_count=len(resolved),
+                    positions_remaining=len(state_manager.get_all_positions()),
+                )
+        except Exception as exc:
+            _log.error("resolution_loop_error", error=str(exc))
+
+        try:
+            await asyncio.wait_for(_shutdown_event.wait(), timeout=interval)
+        except asyncio.TimeoutError:
+            pass
+
+
+# ---------------------------------------------------------------------------
 # Shutdown handling
 # ---------------------------------------------------------------------------
 
@@ -1015,6 +1112,15 @@ async def _run_bot(settings: Settings, pid_lock: PidLock) -> None:
             metrics=metrics,
             settings=settings,
             interval=60.0,
+        ),
+    )
+
+    # Position resolution loop (handles expired markets)
+    resolution_task = asyncio.create_task(
+        _resolution_loop(
+            state_manager=state_manager,
+            spot_buffer=spot_buffer,
+            interval=15.0,  # Check every 15 seconds
         ),
     )
 

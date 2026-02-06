@@ -436,6 +436,191 @@ class StateManager:
             self._daily_pnl[d] = DailyPnL(**pnl_data)
 
     # ------------------------------------------------------------------
+    # Position Resolution (for expired markets)
+    # ------------------------------------------------------------------
+
+    def resolve_expired_positions(
+        self,
+        outcome_resolver: "Callable[[Position], float | None] | None" = None,
+    ) -> list[dict[str, Any]]:
+        """Check for positions on expired markets and resolve them.
+
+        For hedged (arbitrage) positions, the outcome is deterministic:
+        one side wins $1, net profit = $1 - total_cost.
+
+        For unhedged (directional) positions, uses the provided
+        ``outcome_resolver`` callback to determine the payout. If no
+        resolver is provided, unhedged positions on expired markets
+        are closed with their cost basis returned (break-even assumption
+        for paper trading).
+
+        Args:
+            outcome_resolver: Optional callback that takes a Position and
+                returns the payout per winning share (1.0 if YES wins,
+                0.0 if NO wins), or None to skip resolution.
+
+        Returns:
+            List of resolution reports with keys:
+                condition_id, slug, strategy, was_hedged, payout,
+                investment, net_profit
+        """
+        from datetime import datetime, timezone
+
+        now = datetime.now(timezone.utc)
+        resolved: list[dict[str, Any]] = []
+
+        # Find expired positions
+        expired_cids = [
+            cid for cid, pos in self._positions.items()
+            if pos.market.end_time <= now
+        ]
+
+        for cid in expired_cids:
+            pos = self._positions[cid]
+            report: dict[str, Any] = {
+                "condition_id": cid,
+                "slug": pos.market.slug,
+                "strategy": pos.strategy.value,
+                "was_hedged": pos.is_hedged,
+                "yes_shares": pos.yes_shares,
+                "no_shares": pos.no_shares,
+                "investment": pos.total_investment,
+            }
+
+            if pos.is_hedged:
+                # Hedged position: guaranteed $1 per share pair
+                # The winning side gets $1, losing side gets $0
+                # Net payout = min(yes_shares, no_shares) * $1
+                paired_shares = min(pos.yes_shares, pos.no_shares)
+                gross_payout = paired_shares * 1.0
+
+                # Handle any unpaired shares (shouldn't happen in pure arb)
+                unpaired_yes = pos.yes_shares - paired_shares
+                unpaired_no = pos.no_shares - paired_shares
+
+                # For unpaired shares, assume 50/50 for paper trading
+                if unpaired_yes > 0 or unpaired_no > 0:
+                    # Use resolver if available, else assume loss
+                    if outcome_resolver is not None:
+                        payout_rate = outcome_resolver(pos)
+                        if payout_rate is not None:
+                            if payout_rate > 0.5:  # YES won
+                                gross_payout += unpaired_yes * 1.0
+                            else:  # NO won
+                                gross_payout += unpaired_no * 1.0
+                    else:
+                        # Conservative: assume unpaired shares lost
+                        logger.warning(
+                            "unpaired_shares_in_hedged_position",
+                            condition_id=cid,
+                            unpaired_yes=unpaired_yes,
+                            unpaired_no=unpaired_no,
+                        )
+
+                net_profit = gross_payout - pos.total_investment
+                report["gross_payout"] = gross_payout
+                report["net_profit"] = net_profit
+
+                # Update daily P&L
+                pnl = self._get_or_create_daily_pnl()
+                pnl.gross_profit += net_profit
+                pnl.net_profit += net_profit
+                if net_profit >= 0:
+                    pnl.win_count += 1
+                    pnl.total_win_amount += net_profit
+                else:
+                    pnl.loss_count += 1
+                    pnl.total_loss_amount += abs(net_profit)
+
+                # Credit sim balance
+                if self._settings.dry_run:
+                    self._sim_balance_value += gross_payout
+
+                del self._positions[cid]
+                logger.info(
+                    "position_resolved_hedged",
+                    condition_id=cid,
+                    slug=pos.market.slug,
+                    paired_shares=paired_shares,
+                    gross_payout=round(gross_payout, 4),
+                    net_profit=round(net_profit, 4),
+                )
+
+            else:
+                # Unhedged (directional) position
+                if outcome_resolver is not None:
+                    payout_rate = outcome_resolver(pos)
+                    if payout_rate is None:
+                        # Resolver couldn't determine outcome, skip
+                        logger.warning(
+                            "unhedged_resolution_skipped",
+                            condition_id=cid,
+                            reason="resolver_returned_none",
+                        )
+                        continue
+
+                    # Calculate payout based on which side won
+                    if payout_rate > 0.5:  # YES won
+                        gross_payout = pos.yes_shares * 1.0
+                    else:  # NO won
+                        gross_payout = pos.no_shares * 1.0
+
+                    net_profit = gross_payout - pos.total_investment
+                    report["outcome"] = "YES" if payout_rate > 0.5 else "NO"
+                else:
+                    # No resolver: for paper trading, use simple heuristic
+                    # Return the investment (break-even) to avoid fake P&L
+                    gross_payout = pos.total_investment
+                    net_profit = 0.0
+                    report["outcome"] = "unknown_breakeven"
+                    logger.warning(
+                        "unhedged_position_breakeven",
+                        condition_id=cid,
+                        slug=pos.market.slug,
+                        reason="no_outcome_resolver",
+                    )
+
+                report["gross_payout"] = gross_payout
+                report["net_profit"] = net_profit
+
+                # Update daily P&L
+                pnl = self._get_or_create_daily_pnl()
+                pnl.gross_profit += net_profit
+                pnl.net_profit += net_profit
+                if net_profit > 0:
+                    pnl.win_count += 1
+                    pnl.total_win_amount += net_profit
+                elif net_profit < 0:
+                    pnl.loss_count += 1
+                    pnl.total_loss_amount += abs(net_profit)
+
+                # Credit sim balance
+                if self._settings.dry_run:
+                    self._sim_balance_value += gross_payout
+
+                del self._positions[cid]
+                logger.info(
+                    "position_resolved_unhedged",
+                    condition_id=cid,
+                    slug=pos.market.slug,
+                    yes_shares=pos.yes_shares,
+                    no_shares=pos.no_shares,
+                    gross_payout=round(gross_payout, 4),
+                    net_profit=round(net_profit, 4),
+                )
+
+            resolved.append(report)
+
+        if resolved:
+            logger.info(
+                "positions_resolved",
+                count=len(resolved),
+                total_net_profit=round(sum(r["net_profit"] for r in resolved), 4),
+            )
+
+        return resolved
+
+    # ------------------------------------------------------------------
     # Startup recovery
     # ------------------------------------------------------------------
 
