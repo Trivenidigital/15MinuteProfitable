@@ -24,12 +24,12 @@ class Settings(BaseSettings):
     gamma_api_url: str = "https://gamma-api.polymarket.com"
     binance_ws_url: str = "wss://stream.binance.com:9443/ws"
 
-    # Trading Parameters
-    order_size: float = 50.0
+    # Trading Parameters (AGGRESSIVE MODE)
+    order_size: float = 250.0  # 5x increase from $50
     order_type: str = "FOK"
     target_pair_cost: float = 0.94
-    min_profit_margin: float = 0.005
-    cooldown_seconds: float = 5.0
+    min_profit_margin: float = 0.003  # lowered from 0.005
+    cooldown_seconds: float = 2.0  # faster cycling
 
     # Strategy Toggles
     enable_arbitrage: bool = True
@@ -39,16 +39,16 @@ class Settings(BaseSettings):
     enable_multi_market: bool = True
     enable_parallel_strategies: bool = False  # A/B test mode: execute best opp from each strategy
 
-    # Price-Lag Strategy Parameters
-    spot_move_threshold: float = 0.001  # 0.10% minimum spot move to trigger (more sensitive)
-    spot_window_seconds: int = 15  # window to measure spot movement
-    odds_lag_threshold: float = 0.02  # min discrepancy between implied direction and PM odds (more sensitive)
-    lag_entry_dead_zone_start: float = 45.0  # seconds after market open to wait (reduced)
-    lag_entry_dead_zone_end: float = 20.0  # seconds before market close to stop (reduced)
-    stop_loss_pct: float = 0.05  # 5% per-position stop loss
-    take_profit_pct: float = 0.10  # 10% per-position take profit
-    time_exit_seconds: float = 60.0  # force close N seconds before expiry
-    lag_confirmations: int = 2  # N consecutive spot confirmations before acting
+    # Price-Lag Strategy Parameters (AGGRESSIVE MODE)
+    spot_move_threshold: float = 0.0005  # 0.05% - ultra sensitive to spot moves
+    spot_window_seconds: int = 10  # shorter window for faster signals
+    odds_lag_threshold: float = 0.01  # 1% discrepancy triggers trade
+    lag_entry_dead_zone_start: float = 30.0  # trade earlier after open
+    lag_entry_dead_zone_end: float = 15.0  # trade later before close
+    stop_loss_pct: float = 0.08  # 8% stop loss (wider to avoid whipsaws)
+    take_profit_pct: float = 0.15  # 15% take profit (let winners run)
+    time_exit_seconds: float = 45.0  # exit 45s before expiry
+    lag_confirmations: int = 1  # react immediately, no confirmation wait
 
     # Asymmetric Entry Strategy Parameters
     yes_cheap_threshold: float = 0.42  # buy YES when ask < this
@@ -70,11 +70,11 @@ class Settings(BaseSettings):
     market_intervals: list[str] = ["15m"]  # Future: add "1h", "4h" for hourly markets
     market_slug_override: str = ""
 
-    # Risk Limits
-    max_position_per_market: float = 500.0
-    max_total_position: float = 2000.0
-    max_daily_loss: float = 50.0
-    max_unhedged_exposure: float = 100.0
+    # Risk Limits (AGGRESSIVE MODE)
+    max_position_per_market: float = 1000.0  # 2x increase
+    max_total_position: float = 5000.0  # 2.5x increase
+    max_daily_loss: float = 250.0  # 5x increase (matches position size)
+    max_unhedged_exposure: float = 500.0  # 5x increase for directional trades
 
     # Simulation
     dry_run: bool = False
