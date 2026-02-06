@@ -35,6 +35,7 @@ class Settings(BaseSettings):
     enable_arbitrage: bool = True
     enable_asymmetric: bool = False
     enable_price_lag: bool = False
+    enable_maker_arbitrage: bool = False
     enable_multi_market: bool = True
 
     # Price-Lag Strategy Parameters
@@ -55,6 +56,13 @@ class Settings(BaseSettings):
     max_accumulation_per_side: float = 200.0  # max shares before completing pair
     target_avg_combined: float = 0.90  # target avg combined cost for profit
     stale_order_seconds: float = 120.0  # cancel GTC orders older than this
+
+    # Maker Arbitrage Strategy Parameters
+    maker_target_pair_cost: float = 0.98  # higher threshold (no taker fee)
+    maker_price_offset: float = 0.005  # place limit below best ask
+    maker_pair_timeout_seconds: float = 180.0  # cancel if not filled in 3 min
+    maker_max_pending_pairs: int = 5  # max concurrent arb attempts
+    maker_min_profit_margin: float = 0.005  # 0.5% min profit per share
 
     # Markets
     markets: list[str] = ["BTC", "ETH", "SOL", "XRP"]

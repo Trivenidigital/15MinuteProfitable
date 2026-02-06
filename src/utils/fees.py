@@ -80,6 +80,30 @@ def net_arb_profit(
     return gross - taker_yes - taker_no - winner_cost
 
 
+def net_maker_arb_profit(
+    yes_price: float,
+    no_price: float,
+    size: float,
+) -> float:
+    """Return the net profit for a maker YES + NO arbitrage after winner fee.
+
+    Maker orders have 0% taker fee, so only the winner fee is deducted.
+
+    Strategy: buy *size* YES shares at ``yes_price`` and *size* NO shares
+    at ``no_price`` using GTC limit orders (maker).  Regardless of outcome,
+    one side pays out $1/share.
+
+    Deductions:
+      1. Winner fee on the profitable (cheaper) leg at resolution.
+    """
+    gross = (1.0 - yes_price - no_price) * size
+
+    # The winning side is whichever was bought cheaper (higher profit margin).
+    winner_cost = winner_fee_amount(min(yes_price, no_price), 1.0) * size
+
+    return gross - winner_cost
+
+
 def min_combined_cost_for_profit(
     target_profit_per_share: float = 0.0,
 ) -> float:

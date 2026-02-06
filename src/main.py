@@ -13,7 +13,7 @@ import signal
 import time
 
 from src.config import Settings
-from src.core.models import OrderStatus, Side, StrategyType, TradeOrder
+from src.core.models import OrderStatus, Position, Side, StrategyType, TradeOrder
 from src.core.state import StateManager
 from src.data.binance_ws import BinanceWebSocket
 from src.data.clob_ws import ClobWebSocket
@@ -31,6 +31,7 @@ from src.risk.sizing import PositionSizer
 from src.strategy.arbitrage import ArbitrageStrategy
 from src.strategy.asymmetric import AsymmetricStrategy
 from src.strategy.base import BaseStrategy
+from src.strategy.maker_arbitrage import ArbPair, MakerArbitrageStrategy
 from src.strategy.price_lag import ASSET_TO_BINANCE_SYMBOL, PriceLagStrategy
 from src.strategy.scanner import MarketScanner
 from src.utils.fee_verifier import verify_fees
@@ -48,6 +49,7 @@ from src.data.trade_db import DailySnapshot, TradeDatabase
 _shutdown_event: asyncio.Event | None = None
 _log = get_logger("main")
 _pending_gtc_orders: list[dict] = []
+_pending_maker_arb_pairs: list[dict] = []
 _alerts: AlertDispatcher | None = None
 
 
@@ -137,14 +139,19 @@ async def _execute_opportunity(
 ) -> None:
     """Build orders, acquire rate limit tokens, and execute.
 
-    Handles arbitrage (two-leg YES+NO), asymmetric (GTC limit), and
-    directional (single-leg FOK) strategies.
+    Handles arbitrage (two-leg YES+NO), asymmetric (GTC limit),
+    maker arbitrage (paired GTC), and directional (single-leg FOK) strategies.
     """
-    market = opp.market
     is_arb = opp.yes_fill is not None and opp.no_fill is not None
-    is_asymmetric = opp.metadata.get("order_type") == "GTC"
+    is_maker_arb = opp.metadata.get("paired", False)
+    is_asymmetric = opp.metadata.get("order_type") == "GTC" and not is_maker_arb
 
-    if is_arb:
+    if is_maker_arb:
+        await _execute_maker_arb_trade(
+            opp, adjusted_size, executor, state_manager,
+            risk_manager, rate_limiter, settings, strategies or [],
+        )
+    elif is_arb:
         await _execute_arb_trade(
             opp, adjusted_size, executor, state_manager,
             risk_manager, rate_limiter, settings,
@@ -245,6 +252,168 @@ async def _execute_arb_trade(
         _log.error("execution_error", market=market.slug, error=str(exc))
         if _alerts and settings.alert_on_error:
             await _alerts.send_error(f"Arb exec error {market.slug}: {exc}")
+
+
+async def _execute_maker_arb_trade(
+    opp,
+    adjusted_size: float,
+    executor: OrderExecutor,
+    state_manager: StateManager,
+    risk_manager: RiskManager,
+    rate_limiter: RateLimiter,
+    settings: Settings,
+    strategies: list[BaseStrategy],
+) -> None:
+    """Execute a paired GTC limit order arbitrage (0% maker fee).
+
+    Places YES and NO limit orders below best ask. Orders are tracked
+    and monitored by _maker_arb_monitor_loop().
+    """
+    market = opp.market
+    yes_price = opp.metadata.get("yes_price", 0.0)
+    no_price = opp.metadata.get("no_price", 0.0)
+
+    if yes_price <= 0 or no_price <= 0:
+        _log.error("maker_arb_invalid_prices", market=market.slug)
+        return
+
+    # Find the MakerArbitrageStrategy to register the pair
+    maker_strat: MakerArbitrageStrategy | None = None
+    for strat in strategies:
+        if isinstance(strat, MakerArbitrageStrategy):
+            maker_strat = strat
+            break
+
+    if maker_strat is None:
+        _log.error("maker_arb_strategy_not_found", market=market.slug)
+        return
+
+    # Create YES and NO orders with GTC type
+    yes_order = TradeOrder(
+        token_id=market.yes_token_id,
+        side=Side.BUY,
+        price=yes_price,
+        size=adjusted_size,
+        order_type="GTC",
+    )
+    no_order = TradeOrder(
+        token_id=market.no_token_id,
+        side=Side.BUY,
+        price=no_price,
+        size=adjusted_size,
+        order_type="GTC",
+    )
+
+    _log.info(
+        "executing_maker_arb",
+        market=market.slug,
+        yes_price=yes_price,
+        no_price=no_price,
+        size=adjusted_size,
+        combined=round(yes_price + no_price, 4),
+        expected_profit=round(opp.expected_profit, 4),
+        dry_run=settings.dry_run,
+    )
+
+    try:
+        # Acquire rate limit tokens (4: 2 signs + 2 submits)
+        await rate_limiter.acquire(4)
+
+        # Sign both orders in parallel
+        yes_order, no_order = await executor.sign_orders_parallel(
+            [yes_order, no_order]
+        )
+
+        # Check both signed successfully
+        if (
+            yes_order.status != OrderStatus.SIGNED
+            or no_order.status != OrderStatus.SIGNED
+        ):
+            _log.warning(
+                "maker_arb_sign_failed",
+                market=market.slug,
+                yes_status=yes_order.status.value,
+                no_status=no_order.status.value,
+            )
+            risk_manager.record_execution_failure()
+            return
+
+        # Submit YES order first
+        yes_result = await executor.submit_order(yes_order)
+        if yes_result.status == OrderStatus.REJECTED:
+            _log.warning("maker_arb_yes_rejected", market=market.slug)
+            risk_manager.record_execution_failure()
+            return
+
+        # Submit NO order
+        no_result = await executor.submit_order(no_order)
+        if no_result.status == OrderStatus.REJECTED:
+            # YES was submitted but NO rejected - need to cancel YES
+            _log.warning(
+                "maker_arb_no_rejected_cancelling_yes",
+                market=market.slug,
+                yes_order_id=yes_result.order_id,
+            )
+            if yes_result.order_id:
+                await executor.cancel_order(yes_result.order_id)
+            risk_manager.record_execution_failure()
+            return
+
+        # Create and track the arb pair
+        pair = maker_strat.create_pair(
+            condition_id=market.condition_id,
+            yes_price=yes_price,
+            no_price=no_price,
+            size=adjusted_size,
+        )
+        pair.yes_order_id = yes_result.order_id
+        pair.no_order_id = no_result.order_id
+
+        # Handle dry-run immediate fills
+        if settings.dry_run:
+            pair.yes_filled = True
+            pair.no_filled = True
+            pair.yes_fill_size = adjusted_size
+            pair.no_fill_size = adjusted_size
+            pair.status = "complete"
+            state_manager.record_trade(opp, [yes_result, no_result])
+            risk_manager.record_execution_success(market.condition_id)
+            _log.info(
+                "maker_arb_complete_dry",
+                market=market.slug,
+                pair_id=pair.pair_id,
+            )
+            if _alerts and settings.alert_on_trade:
+                await _alerts.send_trade(
+                    f"MakerArb: {market.slug} YES@{yes_price:.2f}+NO@{no_price:.2f} "
+                    f"x{adjusted_size:.0f} profit={opp.expected_profit:.4f}"
+                )
+            return
+
+        # Live mode: track for monitoring
+        _pending_maker_arb_pairs.append({
+            "pair": pair,
+            "yes_order": yes_result,
+            "no_order": no_result,
+            "opportunity": opp,
+            "market": market,
+        })
+
+        _log.info(
+            "maker_arb_submitted",
+            market=market.slug,
+            pair_id=pair.pair_id,
+            yes_order_id=yes_result.order_id,
+            no_order_id=no_result.order_id,
+        )
+
+    except asyncio.TimeoutError:
+        _log.warning("rate_limit_timeout", market=market.slug)
+    except Exception as exc:
+        risk_manager.record_execution_failure()
+        _log.error("maker_arb_execution_error", market=market.slug, error=str(exc))
+        if _alerts and settings.alert_on_error:
+            await _alerts.send_error(f"Maker arb exec error {market.slug}: {exc}")
 
 
 async def _execute_directional_trade(
@@ -467,6 +636,219 @@ async def _gtc_monitor_loop(
             await asyncio.wait_for(_shutdown_event.wait(), timeout=interval)
         except asyncio.TimeoutError:
             pass
+
+
+# ---------------------------------------------------------------------------
+# Maker arbitrage monitoring loop
+# ---------------------------------------------------------------------------
+
+
+async def _maker_arb_monitor_loop(
+    executor: OrderExecutor,
+    state_manager: StateManager,
+    risk_manager: RiskManager,
+    strategies: list[BaseStrategy],
+    settings: Settings,
+    interval: float = 5.0,
+) -> None:
+    """Monitor pending maker arb pairs for fills and handle timeouts.
+
+    Checks each pending pair every interval seconds:
+    - If both legs filled: complete, record trade
+    - If timeout with no fills: cancel both orders
+    - If timeout with partial fill: cancel unfilled, unwind filled
+    """
+    # Find the MakerArbitrageStrategy instance
+    maker_strat: MakerArbitrageStrategy | None = None
+    for strat in strategies:
+        if isinstance(strat, MakerArbitrageStrategy):
+            maker_strat = strat
+            break
+
+    if maker_strat is None:
+        _log.debug("maker_arb_monitor_no_strategy")
+        return
+
+    while _shutdown_event is not None and not _shutdown_event.is_set():
+        try:
+            to_remove: list[dict] = []
+
+            for entry in _pending_maker_arb_pairs:
+                pair: ArbPair = entry["pair"]
+                yes_order: TradeOrder = entry["yes_order"]
+                no_order: TradeOrder = entry["no_order"]
+                opp = entry["opportunity"]
+                market = entry["market"]
+
+                # Check YES fill status
+                if not pair.yes_filled and yes_order.order_id:
+                    checked = await executor.verify_fill(
+                        yes_order, timeout=1.0, poll_interval=0.5
+                    )
+                    if checked.status == OrderStatus.FILLED:
+                        maker_strat.record_fill(
+                            pair.pair_id, "YES",
+                            checked.fill_size or pair.size,
+                        )
+                        yes_order.status = OrderStatus.FILLED
+                        yes_order.fill_size = checked.fill_size or pair.size
+                        yes_order.fill_price = checked.fill_price or pair.yes_price
+
+                # Check NO fill status
+                if not pair.no_filled and no_order.order_id:
+                    checked = await executor.verify_fill(
+                        no_order, timeout=1.0, poll_interval=0.5
+                    )
+                    if checked.status == OrderStatus.FILLED:
+                        maker_strat.record_fill(
+                            pair.pair_id, "NO",
+                            checked.fill_size or pair.size,
+                        )
+                        no_order.status = OrderStatus.FILLED
+                        no_order.fill_size = checked.fill_size or pair.size
+                        no_order.fill_price = checked.fill_price or pair.no_price
+
+                # If both filled: complete
+                if pair.is_complete:
+                    to_remove.append(entry)
+                    state_manager.record_trade(opp, [yes_order, no_order])
+                    risk_manager.record_execution_success(market.condition_id)
+                    _log.info(
+                        "maker_arb_complete",
+                        market=market.slug,
+                        pair_id=pair.pair_id,
+                        daily_pnl=round(state_manager.daily_pnl().net_profit, 4),
+                    )
+                    if _alerts and settings.alert_on_trade:
+                        await _alerts.send_trade(
+                            f"MakerArb: {market.slug} "
+                            f"YES@{pair.yes_price:.2f}+NO@{pair.no_price:.2f} "
+                            f"x{pair.size:.0f} profit={opp.expected_profit:.4f}"
+                        )
+                    continue
+
+                # Check for timeout
+                if pair.age_seconds > settings.maker_pair_timeout_seconds:
+                    to_remove.append(entry)
+                    await _handle_maker_arb_timeout(
+                        pair, yes_order, no_order, executor,
+                        maker_strat, state_manager, risk_manager, market,
+                    )
+
+            # Clean up processed entries
+            for entry in to_remove:
+                _pending_maker_arb_pairs.remove(entry)
+                maker_strat.remove_pair(entry["pair"].pair_id)
+
+        except Exception as exc:
+            _log.error("maker_arb_monitor_error", error=str(exc))
+
+        try:
+            await asyncio.wait_for(_shutdown_event.wait(), timeout=interval)
+        except asyncio.TimeoutError:
+            pass
+
+
+async def _handle_maker_arb_timeout(
+    pair: ArbPair,
+    yes_order: TradeOrder,
+    no_order: TradeOrder,
+    executor: OrderExecutor,
+    maker_strat: MakerArbitrageStrategy,
+    state_manager: StateManager,
+    risk_manager: RiskManager,
+    market,
+) -> None:
+    """Handle a timed-out maker arb pair.
+
+    Scenarios:
+    - Neither filled: cancel both
+    - YES filled, NO not: cancel NO, sell YES (unwind)
+    - NO filled, YES not: cancel YES, sell NO (unwind)
+    """
+    _log.warning(
+        "maker_arb_timeout",
+        pair_id=pair.pair_id,
+        market=market.slug,
+        yes_filled=pair.yes_filled,
+        no_filled=pair.no_filled,
+        age=round(pair.age_seconds, 1),
+    )
+
+    if not pair.yes_filled and not pair.no_filled:
+        # Neither filled - just cancel both
+        if yes_order.order_id:
+            await executor.cancel_order(yes_order.order_id)
+        if no_order.order_id:
+            await executor.cancel_order(no_order.order_id)
+        maker_strat.cancel_pair(pair.pair_id, status="cancelled")
+        _log.info("maker_arb_cancelled_no_fills", pair_id=pair.pair_id)
+        return
+
+    # Partial fill - need to unwind
+    if pair.yes_filled and not pair.no_filled:
+        # YES filled, NO not filled - cancel NO, sell YES
+        if no_order.order_id:
+            await executor.cancel_order(no_order.order_id)
+        filled_side = "YES"
+        filled_token_id = market.yes_token_id
+        filled_size = pair.yes_fill_size or pair.size
+    else:
+        # NO filled, YES not filled - cancel YES, sell NO
+        if yes_order.order_id:
+            await executor.cancel_order(yes_order.order_id)
+        filled_side = "NO"
+        filled_token_id = market.no_token_id
+        filled_size = pair.no_fill_size or pair.size
+
+    _log.warning(
+        "maker_arb_partial_unwind",
+        pair_id=pair.pair_id,
+        market=market.slug,
+        filled_side=filled_side,
+        filled_size=filled_size,
+    )
+
+    # Create FOK sell order to unwind
+    sell_order = TradeOrder(
+        token_id=filled_token_id,
+        side=Side.SELL,
+        price=0.01,  # Market sell (lowest acceptable)
+        size=filled_size,
+        order_type="FOK",
+    )
+
+    try:
+        await executor.sign_order(sell_order)
+        if sell_order.status == OrderStatus.SIGNED:
+            result = await executor.submit_order(sell_order)
+            result = await executor.verify_fill(result)
+
+            if result.status == OrderStatus.FILLED:
+                _log.info(
+                    "maker_arb_unwind_complete",
+                    pair_id=pair.pair_id,
+                    filled_side=filled_side,
+                )
+            else:
+                _log.error(
+                    "maker_arb_unwind_failed",
+                    pair_id=pair.pair_id,
+                    status=result.status.value,
+                )
+                if _alerts:
+                    await _alerts.send_error(
+                        f"Maker arb unwind failed: {market.slug} {filled_side}"
+                    )
+    except Exception as exc:
+        _log.error(
+            "maker_arb_unwind_error",
+            pair_id=pair.pair_id,
+            error=str(exc),
+        )
+
+    maker_strat.cancel_pair(pair.pair_id, status="unwound")
+    risk_manager.record_execution_failure()
 
 
 # ---------------------------------------------------------------------------
@@ -865,6 +1247,9 @@ def _build_strategies(
     if settings.enable_asymmetric:
         strategies.append(AsymmetricStrategy(settings=settings, book_manager=book_manager))
 
+    if settings.enable_maker_arbitrage:
+        strategies.append(MakerArbitrageStrategy(settings=settings, book_manager=book_manager))
+
     return strategies
 
 
@@ -933,6 +1318,7 @@ async def _run_bot(settings: Settings, pid_lock: PidLock) -> None:
         enable_arbitrage=settings.enable_arbitrage,
         enable_price_lag=settings.enable_price_lag,
         enable_asymmetric=settings.enable_asymmetric,
+        enable_maker_arbitrage=settings.enable_maker_arbitrage,
         enable_multi_market=settings.enable_multi_market,
     )
 
@@ -1092,6 +1478,18 @@ async def _run_bot(settings: Settings, pid_lock: PidLock) -> None:
         ),
     )
 
+    # Maker arbitrage monitoring (paired GTC orders)
+    maker_arb_task = asyncio.create_task(
+        _maker_arb_monitor_loop(
+            executor=executor,
+            state_manager=state_manager,
+            risk_manager=risk_manager,
+            strategies=strategies,
+            settings=settings,
+            interval=5.0,
+        ),
+    )
+
     # Exit-check loop for directional positions (price-lag, etc.)
     exit_task = asyncio.create_task(
         _exit_check_loop(
@@ -1142,7 +1540,7 @@ async def _run_bot(settings: Settings, pid_lock: PidLock) -> None:
     clob_ws.stop()
     binance_ws.stop()
 
-    # Cancel all pending GTC orders
+    # Cancel all pending GTC orders (asymmetric)
     for entry in _pending_gtc_orders:
         try:
             order = entry["order"]
@@ -1151,6 +1549,21 @@ async def _run_bot(settings: Settings, pid_lock: PidLock) -> None:
         except Exception as exc:
             _log.warning("gtc_cancel_error", error=str(exc))
     _pending_gtc_orders.clear()
+
+    # Cancel all pending maker arb pairs
+    for entry in _pending_maker_arb_pairs:
+        try:
+            pair: ArbPair = entry["pair"]
+            yes_order = entry["yes_order"]
+            no_order = entry["no_order"]
+            if yes_order.order_id:
+                await executor.cancel_order(yes_order.order_id)
+            if no_order.order_id:
+                await executor.cancel_order(no_order.order_id)
+            _log.info("maker_arb_shutdown_cancel", pair_id=pair.pair_id)
+        except Exception as exc:
+            _log.warning("maker_arb_cancel_error", error=str(exc))
+    _pending_maker_arb_pairs.clear()
 
     # Flatten unhedged directional positions on shutdown
     unhedged = [p for p in state_manager.get_all_positions() if not p.is_hedged]
@@ -1183,8 +1596,8 @@ async def _run_bot(settings: Settings, pid_lock: PidLock) -> None:
 
     all_tasks = [
         monitor_task, strategy_task, rollover_task,
-        exit_task, gtc_task, summary_task,
-        dashboard_task, snapshot_task,
+        exit_task, gtc_task, maker_arb_task, summary_task,
+        dashboard_task, snapshot_task, resolution_task,
     ]
     for task in all_tasks:
         if task is not None:
