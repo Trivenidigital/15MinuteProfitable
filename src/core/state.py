@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -464,15 +464,20 @@ class StateManager:
                 condition_id, slug, strategy, was_hedged, payout,
                 investment, net_profit
         """
-        from datetime import datetime, timezone
-
         now = datetime.now(timezone.utc)
         resolved: list[dict[str, Any]] = []
+
+        def _is_expired(pos: Position) -> bool:
+            """Check if position's market has expired, handling tz-naive datetimes."""
+            end_time = pos.market.end_time
+            if end_time.tzinfo is None:
+                end_time = end_time.replace(tzinfo=timezone.utc)
+            return end_time <= now
 
         # Find expired positions
         expired_cids = [
             cid for cid, pos in self._positions.items()
-            if pos.market.end_time <= now
+            if _is_expired(pos)
         ]
 
         for cid in expired_cids:
@@ -644,10 +649,14 @@ class StateManager:
             return report
 
         # Detect orphaned positions whose markets have already expired
-        now = datetime.utcnow()  # naive UTC, matches Market.end_time format
+        now = datetime.now(timezone.utc)
         orphaned: list[str] = []
         for cid, pos in list(self._positions.items()):
-            if pos.market.end_time < now:
+            # Handle both naive and aware datetimes
+            end_time = pos.market.end_time
+            if end_time.tzinfo is None:
+                end_time = end_time.replace(tzinfo=timezone.utc)
+            if end_time < now:
                 orphaned.append(cid)
 
         for cid in orphaned:
