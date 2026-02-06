@@ -65,8 +65,8 @@ class Settings(BaseSettings):
     maker_max_pending_pairs: int = 5  # max concurrent arb attempts
     maker_min_profit_margin: float = 0.002  # 0.2% min profit per share (lower bar)
 
-    # Markets (expanded for more opportunities)
-    markets: list[str] = ["BTC", "ETH", "SOL", "XRP", "DOGE", "AVAX", "LINK", "MATIC"]
+    # Markets (only assets with 15-min up/down markets on Polymarket)
+    markets: list[str] = ["BTC", "ETH", "SOL", "XRP"]
     market_intervals: list[str] = ["15m"]  # Future: add "1h", "4h" for hourly markets
     market_slug_override: str = ""
 
