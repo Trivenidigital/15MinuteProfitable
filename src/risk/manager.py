@@ -38,6 +38,10 @@ class StateProvider(Protocol):
 
 _HEDGED_STRATEGIES: frozenset[StrategyType] = frozenset({StrategyType.ARBITRAGE})
 
+# Minimum trade size in shares.  Sizes below this are rejected to prevent
+# dust trades caused by floating-point capacity drift.
+_MIN_TRADE_SIZE: float = 5.0
+
 _MIN_TIME_REMAINING: float = 30.0  # seconds
 
 _CIRCUIT_BREAKER_FAILURE_THRESHOLD: int = 3
@@ -225,7 +229,14 @@ class RiskManager:
                 return 0.0
             size = min(size, unhedged_remaining)
 
-        return max(size, 0.0)
+        size = max(size, 0.0)
+
+        # Reject dust trades — sizes below the minimum are not worth executing
+        # and can arise from floating-point drift in capacity calculations.
+        if size < _MIN_TRADE_SIZE:
+            return 0.0
+
+        return size
 
     # ------------------------------------------------------------------
     # Execution recording

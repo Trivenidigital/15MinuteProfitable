@@ -215,7 +215,8 @@ class TestClosePosition:
 
     def test_profitable_close(self, state: StateManager, market_btc: Market) -> None:
         """Hedged position: 100 YES @ 0.45 + 100 NO @ 0.47 = $92 cost.
-        Payout at $1/share for 200 shares = $200. Profit = $108."""
+        Payout at $1/share for 200 shares = $200. Raw profit = $108.
+        Winner fee = 2% * $108 = $2.16. Net = $105.84."""
         pos = _make_position(
             market=market_btc,
             yes_shares=100,
@@ -226,7 +227,8 @@ class TestClosePosition:
         state.add_position(pos)
 
         net = state.close_position("cond_btc", payout_per_share=1.0)
-        assert net == pytest.approx(108.0)
+        # 108 raw - 2.16 winner fee = 105.84
+        assert net == pytest.approx(105.84)
         assert state.get_position("cond_btc") is None
 
     def test_losing_close(self, state: StateManager, market_btc: Market) -> None:
@@ -255,8 +257,11 @@ class TestClosePosition:
         state.close_position("cond_btc", payout_per_share=1.0)
 
         pnl = state.daily_pnl()
+        # gross_profit tracks raw profit (before winner fee)
         assert pnl.gross_profit == pytest.approx(108.0)
-        assert pnl.net_profit == pytest.approx(108.0)
+        # net_profit = raw - winner_fee (2% of 108 = 2.16)
+        assert pnl.net_profit == pytest.approx(105.84)
+        assert pnl.total_fees == pytest.approx(2.16)
 
     def test_close_missing_raises(self, state: StateManager) -> None:
         with pytest.raises(KeyError, match="No position found"):
@@ -396,13 +401,13 @@ class TestRecordTrade:
             fill_price=fill_price,
         )
 
-    def test_record_trade_creates_position(self, state: StateManager, market_btc: Market) -> None:
+    async def test_record_trade_creates_position(self, state: StateManager, market_btc: Market) -> None:
         opp = self._make_opportunity(market_btc)
         orders = [
             self._make_filled_order(market_btc.yes_token_id, Side.BUY, 100, 0.45),
             self._make_filled_order(market_btc.no_token_id, Side.BUY, 100, 0.47),
         ]
-        state.record_trade(opp, orders)
+        await state.record_trade(opp, orders)
 
         pos = state.get_position("cond_btc")
         assert pos is not None
@@ -411,7 +416,7 @@ class TestRecordTrade:
         assert pos.yes_cost_basis == pytest.approx(45.0)
         assert pos.no_cost_basis == pytest.approx(47.0)
 
-    def test_record_trade_increments_counters(
+    async def test_record_trade_increments_counters(
         self, state: StateManager, market_btc: Market
     ) -> None:
         opp = self._make_opportunity(market_btc)
@@ -419,24 +424,26 @@ class TestRecordTrade:
             self._make_filled_order(market_btc.yes_token_id),
             self._make_filled_order(market_btc.no_token_id),
         ]
-        state.record_trade(opp, orders)
+        await state.record_trade(opp, orders)
 
         pnl = state.daily_pnl()
         assert pnl.trades == 2
         assert pnl.opportunities_seen == 1
         assert pnl.opportunities_taken == 1
 
-    def test_record_trade_records_fees(self, state: StateManager, market_btc: Market) -> None:
+    async def test_record_trade_records_fees(self, state: StateManager, market_btc: Market) -> None:
+        """Fees are no longer deducted at entry; total_fees stays 0 until resolution."""
         opp = self._make_opportunity(market_btc)
         opp.total_fees = 2.50
         orders = [self._make_filled_order(market_btc.yes_token_id)]
-        state.record_trade(opp, orders)
+        await state.record_trade(opp, orders)
 
         pnl = state.daily_pnl()
-        assert pnl.total_fees == pytest.approx(2.50)
-        assert pnl.net_profit == pytest.approx(-2.50)
+        # Fees are now tracked at resolution, not at entry
+        assert pnl.total_fees == pytest.approx(0.0)
+        assert pnl.net_profit == pytest.approx(0.0)
 
-    def test_record_trade_no_filled_orders(
+    async def test_record_trade_no_filled_orders(
         self, state: StateManager, market_btc: Market
     ) -> None:
         """Unfilled orders should still increment opportunities_seen but not trades."""
@@ -448,14 +455,14 @@ class TestRecordTrade:
             size=100,
             status=OrderStatus.CANCELLED,
         )
-        state.record_trade(opp, [cancelled_order])
+        await state.record_trade(opp, [cancelled_order])
 
         pnl = state.daily_pnl()
         assert pnl.opportunities_seen == 1
         assert pnl.opportunities_taken == 0
         assert pnl.trades == 0
 
-    def test_record_trade_sell_order(self, state: StateManager, market_btc: Market) -> None:
+    async def test_record_trade_sell_order(self, state: StateManager, market_btc: Market) -> None:
         """SELL orders should reduce shares."""
         # First create a position with shares
         pos = _make_position(
@@ -470,13 +477,13 @@ class TestRecordTrade:
         sell_order = self._make_filled_order(
             market_btc.yes_token_id, Side.SELL, 50, 0.50
         )
-        state.record_trade(opp, [sell_order])
+        await state.record_trade(opp, [sell_order])
 
         updated = state.get_position("cond_btc")
         assert updated.yes_shares == 50
         assert updated.yes_cost_basis == pytest.approx(20.0)  # 45.0 - (0.50 * 50)
 
-    def test_record_trade_debits_sim_balance(
+    async def test_record_trade_debits_sim_balance(
         self, state: StateManager, market_btc: Market
     ) -> None:
         """In dry_run mode, buying should debit sim balance."""
@@ -484,7 +491,7 @@ class TestRecordTrade:
         opp = self._make_opportunity(market_btc)
         opp.total_fees = 0.0
         orders = [self._make_filled_order(market_btc.yes_token_id, Side.BUY, 100, 0.45)]
-        state.record_trade(opp, orders)
+        await state.record_trade(opp, orders)
 
         assert state.sim_balance == pytest.approx(initial - 45.0)
 
@@ -916,7 +923,7 @@ class TestWinLossAmountTracking:
     def test_close_position_tracks_win_amount(
         self, state: StateManager, market_btc: Market
     ) -> None:
-        """Profitable close should accumulate total_win_amount."""
+        """Profitable close should accumulate total_win_amount (after winner fee)."""
         pos = _make_position(
             market=market_btc,
             yes_shares=100,
@@ -925,12 +932,13 @@ class TestWinLossAmountTracking:
             no_cost_basis=47.0,
         )
         state.add_position(pos)
-        # Payout = 200 * 1.0 = 200, cost = 92, profit = 108
+        # Payout = 200 * 1.0 = 200, cost = 92, raw profit = 108
+        # Winner fee = 2% * 108 = 2.16, net = 105.84
         state.close_position("cond_btc", payout_per_share=1.0)
 
         pnl = state.daily_pnl()
         assert pnl.win_count == 1
-        assert pnl.total_win_amount == pytest.approx(108.0)
+        assert pnl.total_win_amount == pytest.approx(105.84)
         assert pnl.total_loss_amount == pytest.approx(0.0)
 
     def test_close_position_tracks_loss_amount(
@@ -956,7 +964,7 @@ class TestWinLossAmountTracking:
         self, state: StateManager, market_btc: Market, market_eth: Market
     ) -> None:
         """Multiple closes should sum win and loss amounts correctly."""
-        # Win: cost 92, payout 200, profit = 108
+        # Win: cost 92, payout 200, raw profit = 108, winner fee = 2.16, net = 105.84
         pos1 = _make_position(
             market=market_btc,
             yes_shares=100,
@@ -964,7 +972,7 @@ class TestWinLossAmountTracking:
             yes_cost_basis=45.0,
             no_cost_basis=47.0,
         )
-        # Loss: cost 45, payout 0, loss = -45
+        # Loss: cost 45, payout 0, loss = -45 (no winner fee on losses)
         pos2 = _make_position(
             market=market_eth,
             yes_shares=50,
@@ -974,13 +982,13 @@ class TestWinLossAmountTracking:
         state.add_position(pos1)
         state.add_position(pos2)
 
-        state.close_position("cond_btc", payout_per_share=1.0)  # win +108
+        state.close_position("cond_btc", payout_per_share=1.0)  # win +105.84
         state.close_position("cond_eth", payout_per_share=0.0)  # loss -45
 
         pnl = state.daily_pnl()
         assert pnl.win_count == 1
         assert pnl.loss_count == 1
-        assert pnl.total_win_amount == pytest.approx(108.0)
+        assert pnl.total_win_amount == pytest.approx(105.84)
         assert pnl.total_loss_amount == pytest.approx(45.0)
 
 
@@ -992,7 +1000,7 @@ class TestWinLossAmountTracking:
 class TestResolveExpiredPositions:
     """Tests for resolve_expired_positions with hedged, unhedged, and active markets."""
 
-    def test_hedged_position_resolved_on_expiry(
+    async def test_hedged_position_resolved_on_expiry(
         self, state: StateManager, tmp_path: Path
     ) -> None:
         """A hedged position on an expired market should be resolved with $1 payout."""
@@ -1017,7 +1025,7 @@ class TestResolveExpiredPositions:
         )
         state.add_position(pos)
 
-        reports = state.resolve_expired_positions()
+        reports = await state.resolve_expired_positions()
 
         assert len(reports) == 1
         report = reports[0]
@@ -1025,12 +1033,13 @@ class TestResolveExpiredPositions:
         assert report["was_hedged"] is True
         # Paired shares = min(100, 100) = 100, gross_payout = 100 * 1.0 = 100
         assert report["gross_payout"] == pytest.approx(100.0)
-        # Investment = 45 + 47 = 92, net profit = 100 - 92 = 8
-        assert report["net_profit"] == pytest.approx(8.0)
+        # Investment = 92, raw profit = 8, winner fee = 2% * 8 = 0.16, net = 7.84
+        assert report["net_profit"] == pytest.approx(7.84)
+        assert report["actual_winner_fee"] == pytest.approx(0.16)
         # Position should be removed
         assert state.get_position("cond_hedge_exp") is None
 
-    def test_unhedged_position_resolved_with_resolver(
+    async def test_unhedged_position_resolved_with_resolver(
         self, state: StateManager
     ) -> None:
         """An unhedged position with a resolver returning 1.0 should be resolved as YES win."""
@@ -1059,19 +1068,20 @@ class TestResolveExpiredPositions:
         def resolver(p: Position) -> float:
             return 1.0
 
-        reports = state.resolve_expired_positions(outcome_resolver=resolver)
+        reports = await state.resolve_expired_positions(outcome_resolver=resolver)
 
         assert len(reports) == 1
         report = reports[0]
         assert report["condition_id"] == "cond_unhedge_res"
         assert report["was_hedged"] is False
         assert report["outcome"] == "YES"
-        # YES won: gross_payout = 100 * 1.0 = 100, investment = 45, net = 55
+        # YES won: gross_payout = 100, investment = 45, raw profit = 55
+        # Winner fee = 2% * 55 = 1.10, net = 53.90
         assert report["gross_payout"] == pytest.approx(100.0)
-        assert report["net_profit"] == pytest.approx(55.0)
+        assert report["net_profit"] == pytest.approx(53.90)
         assert state.get_position("cond_unhedge_res") is None
 
-    def test_unhedged_position_breakeven_without_resolver(
+    async def test_unhedged_position_breakeven_without_resolver(
         self, state: StateManager
     ) -> None:
         """Without a resolver, an unhedged position is closed at break-even."""
@@ -1095,19 +1105,19 @@ class TestResolveExpiredPositions:
         )
         state.add_position(pos)
 
-        reports = state.resolve_expired_positions(outcome_resolver=None)
+        reports = await state.resolve_expired_positions(outcome_resolver=None)
 
         assert len(reports) == 1
         report = reports[0]
         assert report["condition_id"] == "cond_unhedge_be"
         assert report["was_hedged"] is False
         assert report["outcome"] == "unknown_breakeven"
-        # Break-even: gross_payout = total_investment = 40, net_profit = 0
+        # Break-even: gross_payout = investment = 40, raw profit = 0, no winner fee
         assert report["gross_payout"] == pytest.approx(40.0)
         assert report["net_profit"] == pytest.approx(0.0)
         assert state.get_position("cond_unhedge_be") is None
 
-    def test_non_expired_position_not_resolved(
+    async def test_non_expired_position_not_resolved(
         self, state: StateManager
     ) -> None:
         """A position on an active (non-expired) market should not be resolved."""
@@ -1132,7 +1142,7 @@ class TestResolveExpiredPositions:
         )
         state.add_position(pos)
 
-        reports = state.resolve_expired_positions()
+        reports = await state.resolve_expired_positions()
 
         assert len(reports) == 0
         # Position should still be tracked

@@ -317,7 +317,7 @@ async def _execute_arb_trade(
                 )
             return
 
-        state_manager.record_trade(opp, [yes_result, no_result])
+        await state_manager.record_trade(opp, [yes_result, no_result])
         risk_manager.record_execution_success(market.condition_id)
         _log.info(
             "arb_complete",
@@ -462,7 +462,7 @@ async def _execute_maker_arb_trade(
             pair.yes_fill_size = adjusted_size
             pair.no_fill_size = adjusted_size
             pair.status = "complete"
-            state_manager.record_trade(opp, [yes_result, no_result])
+            await state_manager.record_trade(opp, [yes_result, no_result])
             risk_manager.record_execution_success(market.condition_id)
             _log.info(
                 "maker_arb_complete_dry",
@@ -550,7 +550,7 @@ async def _execute_directional_trade(
             return
         result = await executor.submit_order(order)
         result = await executor.verify_fill(result)
-        state_manager.record_trade(opp, [result])
+        await state_manager.record_trade(opp, [result])
         if result.status in (OrderStatus.FILLED, OrderStatus.PARTIALLY_FILLED):
             risk_manager.record_execution_success(market.condition_id)
         else:
@@ -626,7 +626,7 @@ async def _execute_asymmetric_trade(
                 result.fill_size or adjusted_size,
                 (result.fill_price or buy_price) * (result.fill_size or adjusted_size),
             )
-            state_manager.record_trade(opp, [result])
+            await state_manager.record_trade(opp, [result])
             risk_manager.record_execution_success(market.condition_id)
         elif result.status == OrderStatus.SUBMITTED and result.order_id:
             # Live: GTC order on the book, track for fill checking
@@ -704,7 +704,7 @@ async def _gtc_monitor_loop(
                         (checked.fill_price or entry["price"])
                         * (checked.fill_size or entry["size"]),
                     )
-                    state_manager.record_trade(entry["opportunity"], [checked])
+                    await state_manager.record_trade(entry["opportunity"], [checked])
                     risk_manager.record_execution_success(entry["condition_id"])
                     _log.info(
                         "gtc_fill_confirmed",
@@ -805,7 +805,7 @@ async def _maker_arb_monitor_loop(
                 # If both filled: complete
                 if pair.is_complete:
                     to_remove.append(entry)
-                    state_manager.record_trade(opp, [yes_order, no_order])
+                    await state_manager.record_trade(opp, [yes_order, no_order])
                     risk_manager.record_execution_success(market.condition_id)
                     _log.info(
                         "maker_arb_complete",
@@ -1288,7 +1288,7 @@ async def _resolution_loop(
 
     while _shutdown_event is not None and not _shutdown_event.is_set():
         try:
-            resolved = state_manager.resolve_expired_positions(
+            resolved = await state_manager.resolve_expired_positions(
                 outcome_resolver=_outcome_resolver,
             )
             if resolved:

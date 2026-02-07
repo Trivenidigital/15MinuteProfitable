@@ -23,6 +23,7 @@ from src.core.models import (
 )
 from src.data.trade_db import TradeDatabase, TradeRecord
 from src.monitoring.logger import get_logger
+from src.utils.fees import WINNER_FEE_RATE
 
 logger = get_logger(__name__)
 
@@ -142,11 +143,16 @@ class StateManager:
 
         total_shares = pos.yes_shares + pos.no_shares
         gross_payout = total_shares * payout_per_share
-        net_profit = gross_payout - pos.total_investment
+        raw_profit = gross_payout - pos.total_investment
+
+        # Deduct actual winner fee (2% on profits) at resolution
+        actual_winner_fee = WINNER_FEE_RATE * max(0.0, raw_profit)
+        net_profit = raw_profit - actual_winner_fee
 
         # Update daily P&L
         pnl = self._get_or_create_daily_pnl()
-        pnl.gross_profit += net_profit
+        pnl.total_fees += actual_winner_fee
+        pnl.gross_profit += raw_profit
         pnl.net_profit += net_profit
         if pnl.net_profit < pnl.max_drawdown:
             pnl.max_drawdown = pnl.net_profit
@@ -157,9 +163,9 @@ class StateManager:
             pnl.loss_count += 1
             pnl.total_loss_amount += abs(net_profit)
 
-        # Credit sim balance with the payout
+        # Credit sim balance (after winner fee)
         if self._settings.dry_run:
-            self._sim_balance_value += gross_payout
+            self._sim_balance_value += gross_payout - actual_winner_fee
 
         del self._positions[condition_id]
 
@@ -167,6 +173,8 @@ class StateManager:
             "position_closed",
             condition_id=condition_id,
             net_profit=net_profit,
+            raw_profit=raw_profit,
+            actual_winner_fee=actual_winner_fee,
             gross_payout=gross_payout,
             total_investment=pos.total_investment,
         )
@@ -205,67 +213,72 @@ class StateManager:
     # P&L tracking
     # ------------------------------------------------------------------
 
-    def record_trade(self, opportunity: Opportunity, orders: list[TradeOrder]) -> None:
-        """Record a completed trade: update position, increment trade count, record fees.
+    async def record_trade(self, opportunity: Opportunity, orders: list[TradeOrder]) -> None:
+        """Record a completed trade: update position, increment trade count.
 
         Only FILLED or PARTIALLY_FILLED orders are counted.
+
+        This method is async and acquires ``self._lock`` to prevent race
+        conditions when called from concurrent async tasks (strategy loop,
+        GTC monitor, maker-arb monitor).
         """
-        pnl = self._get_or_create_daily_pnl()
-        pnl.opportunities_seen += 1
+        async with self._lock:
+            pnl = self._get_or_create_daily_pnl()
+            pnl.opportunities_seen += 1
 
-        filled_orders = [
-            o for o in orders
-            if o.status in (OrderStatus.FILLED, OrderStatus.PARTIALLY_FILLED)
-        ]
-        if not filled_orders:
-            return
+            filled_orders = [
+                o for o in orders
+                if o.status in (OrderStatus.FILLED, OrderStatus.PARTIALLY_FILLED)
+            ]
+            if not filled_orders:
+                return
 
-        pnl.opportunities_taken += 1
-        pnl.trades += len(filled_orders)
+            pnl.opportunities_taken += 1
+            pnl.trades += len(filled_orders)
 
-        # Record fees from the opportunity
-        if opportunity.total_fees > 0:
-            pnl.total_fees += opportunity.total_fees
-            pnl.net_profit -= opportunity.total_fees
+            # NOTE: total_fees is now accumulated at resolution time (actual
+            # winner fees), not at entry time. This avoids the double-counting
+            # bug where estimated fees were pre-deducted from net_profit but
+            # never reconciled when positions resolved.
 
-        # Update or create position
-        cid = opportunity.market.condition_id
-        pos = self._positions.get(cid)
-        if pos is None:
-            pos = Position(
-                market=opportunity.market,
-                strategy=opportunity.strategy,
-                opened_at=opportunity.timestamp,
-            )
-            self._positions[cid] = pos
+            # Update or create position
+            cid = opportunity.market.condition_id
+            pos = self._positions.get(cid)
+            if pos is None:
+                pos = Position(
+                    market=opportunity.market,
+                    strategy=opportunity.strategy,
+                    opened_at=opportunity.timestamp,
+                )
+                self._positions[cid] = pos
 
-        for order in filled_orders:
-            is_yes = order.token_id == opportunity.market.yes_token_id
-            cost = order.fill_price * order.fill_size
+            for order in filled_orders:
+                is_yes = order.token_id == opportunity.market.yes_token_id
+                cost = order.fill_price * order.fill_size
 
-            if order.side == Side.BUY:
-                if is_yes:
-                    pos.yes_shares += order.fill_size
-                    pos.yes_cost_basis += cost
+                if order.side == Side.BUY:
+                    if is_yes:
+                        pos.yes_shares += order.fill_size
+                        pos.yes_cost_basis += cost
+                    else:
+                        pos.no_shares += order.fill_size
+                        pos.no_cost_basis += cost
                 else:
-                    pos.no_shares += order.fill_size
-                    pos.no_cost_basis += cost
-            else:
-                # SELL reduces shares
-                if is_yes:
-                    pos.yes_shares -= order.fill_size
-                    pos.yes_cost_basis -= cost
-                else:
-                    pos.no_shares -= order.fill_size
-                    pos.no_cost_basis -= cost
+                    # SELL reduces shares
+                    if is_yes:
+                        pos.yes_shares -= order.fill_size
+                        pos.yes_cost_basis -= cost
+                    else:
+                        pos.no_shares -= order.fill_size
+                        pos.no_cost_basis -= cost
 
-            # Debit sim balance for buys
-            if self._settings.dry_run and order.side == Side.BUY:
-                self._sim_balance_value -= cost
+                # Debit sim balance for buys
+                if self._settings.dry_run and order.side == Side.BUY:
+                    self._sim_balance_value -= cost
 
-        # Persist to SQLite if trade_db is attached
-        if self._trade_db is not None:
-            self._persist_trades(opportunity, filled_orders)
+            # Persist to SQLite if trade_db is attached
+            if self._trade_db is not None:
+                self._persist_trades(opportunity, filled_orders)
 
         logger.info(
             "trade_recorded",
@@ -465,7 +478,7 @@ class StateManager:
     # Position Resolution (for expired markets)
     # ------------------------------------------------------------------
 
-    def resolve_expired_positions(
+    async def resolve_expired_positions(
         self,
         outcome_resolver: Callable[[Position], float | None] | None = None,
     ) -> list[dict[str, Any]]:
@@ -480,6 +493,9 @@ class StateManager:
         are closed with their cost basis returned (break-even assumption
         for paper trading).
 
+        This method is async and acquires ``self._lock`` to prevent race
+        conditions with ``record_trade``.
+
         Args:
             outcome_resolver: Optional callback that takes a Position and
                 returns the payout per winning share (1.0 if YES wins,
@@ -490,6 +506,14 @@ class StateManager:
                 condition_id, slug, strategy, was_hedged, payout,
                 investment, net_profit
         """
+        async with self._lock:
+            return self._resolve_expired_positions_locked(outcome_resolver)
+
+    def _resolve_expired_positions_locked(
+        self,
+        outcome_resolver: Callable[[Position], float | None] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Inner implementation of resolve_expired_positions (caller holds lock)."""
         now = datetime.now(timezone.utc)
         resolved: list[dict[str, Any]] = []
 
@@ -548,13 +572,19 @@ class StateManager:
                             unpaired_no=unpaired_no,
                         )
 
-                net_profit = gross_payout - pos.total_investment
+                raw_profit = gross_payout - pos.total_investment
+
+                # Deduct actual winner fee (2% on profits) at resolution
+                actual_winner_fee = WINNER_FEE_RATE * max(0.0, raw_profit)
+                net_profit = raw_profit - actual_winner_fee
                 report["gross_payout"] = gross_payout
                 report["net_profit"] = net_profit
+                report["actual_winner_fee"] = actual_winner_fee
 
                 # Update daily P&L
                 pnl = self._get_or_create_daily_pnl()
-                pnl.gross_profit += net_profit
+                pnl.total_fees += actual_winner_fee
+                pnl.gross_profit += raw_profit
                 pnl.net_profit += net_profit
                 if net_profit >= 0:
                     pnl.win_count += 1
@@ -563,9 +593,9 @@ class StateManager:
                     pnl.loss_count += 1
                     pnl.total_loss_amount += abs(net_profit)
 
-                # Credit sim balance
+                # Credit sim balance (after winner fee)
                 if self._settings.dry_run:
-                    self._sim_balance_value += gross_payout
+                    self._sim_balance_value += gross_payout - actual_winner_fee
 
                 del self._positions[cid]
                 logger.info(
@@ -575,6 +605,7 @@ class StateManager:
                     paired_shares=paired_shares,
                     gross_payout=round(gross_payout, 4),
                     net_profit=round(net_profit, 4),
+                    actual_winner_fee=round(actual_winner_fee, 4),
                 )
 
             else:
@@ -611,12 +642,19 @@ class StateManager:
                         reason="no_outcome_resolver",
                     )
 
+                raw_profit = net_profit
+
+                # Deduct actual winner fee (2% on profits) at resolution
+                actual_winner_fee = WINNER_FEE_RATE * max(0.0, raw_profit)
+                net_profit = raw_profit - actual_winner_fee
                 report["gross_payout"] = gross_payout
                 report["net_profit"] = net_profit
+                report["actual_winner_fee"] = actual_winner_fee
 
                 # Update daily P&L
                 pnl = self._get_or_create_daily_pnl()
-                pnl.gross_profit += net_profit
+                pnl.total_fees += actual_winner_fee
+                pnl.gross_profit += raw_profit
                 pnl.net_profit += net_profit
                 if net_profit > 0:
                     pnl.win_count += 1
@@ -625,9 +663,9 @@ class StateManager:
                     pnl.loss_count += 1
                     pnl.total_loss_amount += abs(net_profit)
 
-                # Credit sim balance
+                # Credit sim balance (after winner fee)
                 if self._settings.dry_run:
-                    self._sim_balance_value += gross_payout
+                    self._sim_balance_value += gross_payout - actual_winner_fee
 
                 del self._positions[cid]
                 logger.info(
@@ -638,6 +676,7 @@ class StateManager:
                     no_shares=pos.no_shares,
                     gross_payout=round(gross_payout, 4),
                     net_profit=round(net_profit, 4),
+                    actual_winner_fee=round(actual_winner_fee, 4),
                 )
 
             resolved.append(report)
