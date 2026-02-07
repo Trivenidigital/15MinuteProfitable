@@ -9,6 +9,7 @@ from src.data.trade_db import (
     PortfolioState,
     TradeDatabase,
     TradeRecord,
+    TradeResult,
 )
 
 
@@ -291,6 +292,129 @@ class TestEquityCurve:
             )
         curve = db.get_equity_curve(limit=5)
         assert len(curve) == 5
+
+
+# ---------------------------------------------------------------------------
+# Trade Results
+# ---------------------------------------------------------------------------
+
+
+def _make_trade_result(**overrides) -> TradeResult:
+    """Create a TradeResult with sensible defaults."""
+    defaults = dict(
+        timestamp=time.time(),
+        condition_id="cond_1",
+        market_slug="will-btc-go-up",
+        asset="BTC",
+        strategy="arbitrage",
+        was_hedged=True,
+        yes_shares=100.0,
+        no_shares=100.0,
+        investment=95.0,
+        gross_payout=100.0,
+        net_profit=5.0,
+        outcome="",
+    )
+    defaults.update(overrides)
+    return TradeResult(**defaults)
+
+
+class TestSaveTradeResult:
+    def test_save_and_retrieve(self, db: TradeDatabase) -> None:
+        result = _make_trade_result()
+        row_id = db.save_trade_result(result)
+        assert row_id >= 1
+
+        results = db.get_trade_results(limit=10)
+        assert len(results) == 1
+        assert results[0].condition_id == "cond_1"
+        assert results[0].net_profit == pytest.approx(5.0)
+        assert results[0].was_hedged is True
+
+    def test_round_trip_all_fields(self, db: TradeDatabase) -> None:
+        result = _make_trade_result(
+            condition_id="cond_xyz",
+            market_slug="slug-test",
+            asset="ETH",
+            strategy="price_lag",
+            was_hedged=False,
+            yes_shares=50.0,
+            no_shares=0.0,
+            investment=25.0,
+            gross_payout=50.0,
+            net_profit=25.0,
+            outcome="YES",
+        )
+        db.save_trade_result(result)
+        r = db.get_trade_results(limit=1)[0]
+        assert r.condition_id == "cond_xyz"
+        assert r.market_slug == "slug-test"
+        assert r.asset == "ETH"
+        assert r.strategy == "price_lag"
+        assert r.was_hedged is False
+        assert r.yes_shares == pytest.approx(50.0)
+        assert r.no_shares == pytest.approx(0.0)
+        assert r.investment == pytest.approx(25.0)
+        assert r.gross_payout == pytest.approx(50.0)
+        assert r.net_profit == pytest.approx(25.0)
+        assert r.outcome == "YES"
+
+
+class TestGetTradeResults:
+    def test_empty(self, db: TradeDatabase) -> None:
+        results = db.get_trade_results()
+        assert results == []
+
+    def test_reverse_chronological_order(self, db: TradeDatabase) -> None:
+        db.save_trade_result(_make_trade_result(timestamp=100.0, condition_id="old"))
+        db.save_trade_result(_make_trade_result(timestamp=200.0, condition_id="new"))
+        results = db.get_trade_results()
+        assert results[0].timestamp > results[1].timestamp
+
+    def test_limit(self, db: TradeDatabase) -> None:
+        for i in range(10):
+            db.save_trade_result(
+                _make_trade_result(condition_id=f"cond_{i}", timestamp=time.time() + i)
+            )
+        results = db.get_trade_results(limit=3)
+        assert len(results) == 3
+
+    def test_offset(self, db: TradeDatabase) -> None:
+        for i in range(10):
+            db.save_trade_result(
+                _make_trade_result(condition_id=f"cond_{i}", timestamp=1000.0 + i)
+            )
+        results = db.get_trade_results(limit=3, offset=7)
+        assert len(results) == 3
+        # Offset 7 in descending order means we get the 3 oldest
+        assert results[0].timestamp == pytest.approx(1002.0)
+
+    def test_pagination_full_sweep(self, db: TradeDatabase) -> None:
+        for i in range(7):
+            db.save_trade_result(
+                _make_trade_result(condition_id=f"cond_{i}", timestamp=1000.0 + i)
+            )
+        page1 = db.get_trade_results(limit=3, offset=0)
+        page2 = db.get_trade_results(limit=3, offset=3)
+        page3 = db.get_trade_results(limit=3, offset=6)
+        assert len(page1) == 3
+        assert len(page2) == 3
+        assert len(page3) == 1
+        # All unique condition_ids
+        all_cids = [r.condition_id for r in page1 + page2 + page3]
+        assert len(set(all_cids)) == 7
+
+
+class TestGetTradeResultCount:
+    def test_empty(self, db: TradeDatabase) -> None:
+        assert db.get_trade_result_count() == 0
+
+    def test_count(self, db: TradeDatabase) -> None:
+        for i in range(5):
+            db.save_trade_result(
+                _make_trade_result(condition_id=f"cond_{i}")
+            )
+        assert db.get_trade_result_count() == 5
 
 
 # ---------------------------------------------------------------------------

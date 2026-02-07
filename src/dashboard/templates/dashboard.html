@@ -492,6 +492,34 @@
             </table>
         </div>
 
+        <!-- Trade Results (resolved positions) -->
+        <div class="section-title">Trade Results</div>
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>Market</th>
+                        <th>Asset</th>
+                        <th>Strategy</th>
+                        <th>Hedged</th>
+                        <th>Investment</th>
+                        <th>Payout</th>
+                        <th>P&amp;L</th>
+                        <th>Outcome</th>
+                    </tr>
+                </thead>
+                <tbody id="tradeResultsBody">
+                    <tr><td colspan="9" class="empty-state">No trade results yet</td></tr>
+                </tbody>
+            </table>
+            <div class="pagination">
+                <button id="trPrevBtn" disabled onclick="trPrevPage()">Prev</button>
+                <span class="page-info" id="trPageInfo">Page 1</span>
+                <button id="trNextBtn" disabled onclick="trNextPage()">Next</button>
+            </div>
+        </div>
+
         <!-- Trade log -->
         <div class="section-title">Trade Log</div>
         <div class="table-wrapper">
@@ -578,6 +606,10 @@
         let tradeOffset = 0;
         const tradeLimit = 50;
         let tradeTotal = 0;
+
+        let trResultOffset = 0;
+        const trResultLimit = 50;
+        let trResultTotal = 0;
 
         let equityChart = null;
         let strategyChart = null;
@@ -741,6 +773,63 @@
             if (tradeOffset + tradeLimit < tradeTotal) {
                 tradeOffset += tradeLimit;
                 fetchTrades();
+            }
+        }
+
+        /* -- Trade Results -- */
+        async function fetchTradeResults() {
+            const data = await fetchJSON('/api/trade-results?limit=' + trResultLimit + '&offset=' + trResultOffset);
+            if (!data) return;
+
+            trResultTotal = data.total;
+            const tbody = document.getElementById('tradeResultsBody');
+
+            if (data.results.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="9" class="empty-state">No trade results yet</td></tr>';
+            } else {
+                let html = '';
+                for (const r of data.results) {
+                    const hedgeBadge = r.was_hedged
+                        ? '<span class="badge badge-green">YES</span>'
+                        : '<span class="badge badge-red">NO</span>';
+                    const pnlColor = r.net_profit >= 0 ? 'var(--green)' : 'var(--red)';
+                    const outcomeBadge = r.outcome === 'YES'
+                        ? '<span class="badge badge-green">YES</span>'
+                        : r.outcome === 'NO'
+                        ? '<span class="badge badge-red">NO</span>'
+                        : '<span class="badge badge-yellow">' + escHtml(r.outcome || 'hedged') + '</span>';
+                    html += '<tr>'
+                        + '<td>' + fmtTimestamp(r.timestamp) + '</td>'
+                        + '<td>' + escHtml(r.market_slug) + '</td>'
+                        + '<td>' + escHtml(r.asset) + '</td>'
+                        + '<td><span class="badge badge-blue">' + escHtml(r.strategy) + '</span></td>'
+                        + '<td>' + hedgeBadge + '</td>'
+                        + '<td>' + fmtDollars(r.investment) + '</td>'
+                        + '<td>' + fmtDollars(r.gross_payout) + '</td>'
+                        + '<td style="color:' + pnlColor + ';font-weight:600">' + fmtDollars(r.net_profit) + '</td>'
+                        + '<td>' + outcomeBadge + '</td>'
+                        + '</tr>';
+                }
+                tbody.innerHTML = html;
+            }
+
+            // Update pagination
+            const page = Math.floor(trResultOffset / trResultLimit) + 1;
+            const totalPages = Math.max(1, Math.ceil(trResultTotal / trResultLimit));
+            document.getElementById('trPageInfo').textContent = 'Page ' + page + ' of ' + totalPages;
+            document.getElementById('trPrevBtn').disabled = trResultOffset <= 0;
+            document.getElementById('trNextBtn').disabled = trResultOffset + trResultLimit >= trResultTotal;
+        }
+
+        function trPrevPage() {
+            trResultOffset = Math.max(0, trResultOffset - trResultLimit);
+            fetchTradeResults();
+        }
+
+        function trNextPage() {
+            if (trResultOffset + trResultLimit < trResultTotal) {
+                trResultOffset += trResultLimit;
+                fetchTradeResults();
             }
         }
 
@@ -1096,6 +1185,7 @@
             await Promise.all([
                 fetchMetrics(),
                 fetchPositions(),
+                fetchTradeResults(),
                 fetchTrades(),
                 fetchOrderbooks(),
                 fetchRisk(),

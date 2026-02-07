@@ -40,7 +40,7 @@ from src.utils.rate_limiter import RateLimiter
 
 # Dashboard (lazy — only used when dashboard_enabled)
 from src.dashboard.app import configure_dashboard, create_app, start_dashboard
-from src.data.trade_db import DailySnapshot, TradeDatabase
+from src.data.trade_db import DailySnapshot, TradeDatabase, TradeResult
 
 # ---------------------------------------------------------------------------
 # Globals
@@ -1216,6 +1216,7 @@ async def _snapshot_loop(
 async def _resolution_loop(
     state_manager: StateManager,
     spot_buffer: SpotBuffer | None = None,
+    trade_db: TradeDatabase | None = None,
     interval: float = 15.0,
 ) -> None:
     """Periodically check for and resolve expired positions.
@@ -1291,6 +1292,22 @@ async def _resolution_loop(
                 outcome_resolver=_outcome_resolver,
             )
             if resolved:
+                if trade_db is not None:
+                    for report in resolved:
+                        trade_db.save_trade_result(TradeResult(
+                            timestamp=time.time(),
+                            condition_id=report["condition_id"],
+                            market_slug=report.get("slug", ""),
+                            asset=report.get("asset", ""),
+                            strategy=report.get("strategy", ""),
+                            was_hedged=report.get("was_hedged", False),
+                            yes_shares=report.get("yes_shares", 0.0),
+                            no_shares=report.get("no_shares", 0.0),
+                            investment=report.get("investment", 0.0),
+                            gross_payout=report.get("gross_payout", 0.0),
+                            net_profit=report.get("net_profit", 0.0),
+                            outcome=report.get("outcome", ""),
+                        ))
                 _log.info(
                     "resolution_loop_completed",
                     resolved_count=len(resolved),
@@ -1613,6 +1630,7 @@ async def _run_bot(settings: Settings, pid_lock: PidLock) -> None:
         _resolution_loop(
             state_manager=state_manager,
             spot_buffer=spot_buffer,
+            trade_db=trade_db,
             interval=15.0,  # Check every 15 seconds
         ),
     )

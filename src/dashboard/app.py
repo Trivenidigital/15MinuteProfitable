@@ -279,6 +279,53 @@ def create_app() -> FastAPI:
         })
 
     # ------------------------------------------------------------------
+    # /api/trade-results
+    # ------------------------------------------------------------------
+
+    @router.get("/api/trade-results")
+    async def api_trade_results(
+        limit: int = Query(default=50, ge=1, le=500),
+        offset: int = Query(default=0, ge=0),
+    ) -> JSONResponse:
+        """Return paginated trade resolution results from SQLite."""
+        trade_db: Optional[TradeDatabase] = getattr(app.state, "trade_db", None)
+        if trade_db is None:
+            return JSONResponse({
+                "results": [],
+                "total": 0,
+                "limit": limit,
+                "offset": offset,
+            })
+
+        results = trade_db.get_trade_results(limit=limit, offset=offset)
+        total = trade_db.get_trade_result_count()
+
+        result_list = []
+        for r in results:
+            result_list.append({
+                "id": r.id,
+                "timestamp": r.timestamp,
+                "condition_id": r.condition_id,
+                "market_slug": r.market_slug,
+                "asset": r.asset,
+                "strategy": r.strategy,
+                "was_hedged": r.was_hedged,
+                "yes_shares": r.yes_shares,
+                "no_shares": r.no_shares,
+                "investment": r.investment,
+                "gross_payout": r.gross_payout,
+                "net_profit": r.net_profit,
+                "outcome": r.outcome,
+            })
+
+        return JSONResponse({
+            "results": result_list,
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+        })
+
+    # ------------------------------------------------------------------
     # /api/strategies
     # ------------------------------------------------------------------
 

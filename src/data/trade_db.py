@@ -65,6 +65,25 @@ class DailySnapshot:
 
 
 @dataclass
+class TradeResult:
+    """Resolution outcome for a closed position."""
+
+    id: int | None = None
+    timestamp: float = 0.0
+    condition_id: str = ""
+    market_slug: str = ""
+    asset: str = ""
+    strategy: str = ""
+    was_hedged: bool = False
+    yes_shares: float = 0.0
+    no_shares: float = 0.0
+    investment: float = 0.0
+    gross_payout: float = 0.0
+    net_profit: float = 0.0
+    outcome: str = ""
+
+
+@dataclass
 class PortfolioState:
     """Single-row portfolio summary."""
 
@@ -120,6 +139,24 @@ CREATE TABLE IF NOT EXISTS daily_snapshots (
     opportunities_seen INTEGER NOT NULL DEFAULT 0,
     opportunities_taken INTEGER NOT NULL DEFAULT 0
 );
+
+CREATE TABLE IF NOT EXISTS trade_results (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp REAL NOT NULL,
+    condition_id TEXT NOT NULL,
+    market_slug TEXT NOT NULL DEFAULT '',
+    asset TEXT NOT NULL DEFAULT '',
+    strategy TEXT NOT NULL DEFAULT '',
+    was_hedged INTEGER NOT NULL DEFAULT 0,
+    yes_shares REAL NOT NULL DEFAULT 0.0,
+    no_shares REAL NOT NULL DEFAULT 0.0,
+    investment REAL NOT NULL DEFAULT 0.0,
+    gross_payout REAL NOT NULL DEFAULT 0.0,
+    net_profit REAL NOT NULL DEFAULT 0.0,
+    outcome TEXT NOT NULL DEFAULT ''
+);
+
+CREATE INDEX IF NOT EXISTS idx_trade_results_timestamp ON trade_results(timestamp DESC);
 
 CREATE TABLE IF NOT EXISTS portfolio_state (
     id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -234,6 +271,60 @@ class TradeDatabase:
             ).fetchone()
         else:
             row = self._conn.execute("SELECT COUNT(*) FROM trades").fetchone()
+        return row[0] if row else 0
+
+    # ------------------------------------------------------------------
+    # Trade results (resolution outcomes)
+    # ------------------------------------------------------------------
+
+    def save_trade_result(self, result: TradeResult) -> int:
+        """Insert a trade result record. Returns the row ID."""
+        cursor = self._conn.execute(
+            """INSERT INTO trade_results
+               (timestamp, condition_id, market_slug, asset, strategy,
+                was_hedged, yes_shares, no_shares, investment,
+                gross_payout, net_profit, outcome)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                result.timestamp,
+                result.condition_id,
+                result.market_slug,
+                result.asset,
+                result.strategy,
+                1 if result.was_hedged else 0,
+                result.yes_shares,
+                result.no_shares,
+                result.investment,
+                result.gross_payout,
+                result.net_profit,
+                result.outcome,
+            ),
+        )
+        self._conn.commit()
+        row_id = cursor.lastrowid
+        assert row_id is not None
+        logger.debug(
+            "trade_result_saved", id=row_id, condition_id=result.condition_id
+        )
+        return row_id
+
+    def get_trade_results(
+        self,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[TradeResult]:
+        """Fetch trade results in reverse chronological order."""
+        rows = self._conn.execute(
+            "SELECT * FROM trade_results ORDER BY timestamp DESC LIMIT ? OFFSET ?",
+            (limit, offset),
+        ).fetchall()
+        return [self._row_to_trade_result(r) for r in rows]
+
+    def get_trade_result_count(self) -> int:
+        """Count total trade results."""
+        row = self._conn.execute(
+            "SELECT COUNT(*) FROM trade_results"
+        ).fetchone()
         return row[0] if row else 0
 
     # ------------------------------------------------------------------
@@ -393,6 +484,24 @@ class TradeDatabase:
             fees=row["fees"],
             expected_profit=row["expected_profit"],
             metadata_json=row["metadata_json"],
+        )
+
+    @staticmethod
+    def _row_to_trade_result(row: sqlite3.Row) -> TradeResult:
+        return TradeResult(
+            id=row["id"],
+            timestamp=row["timestamp"],
+            condition_id=row["condition_id"],
+            market_slug=row["market_slug"],
+            asset=row["asset"],
+            strategy=row["strategy"],
+            was_hedged=bool(row["was_hedged"]),
+            yes_shares=row["yes_shares"],
+            no_shares=row["no_shares"],
+            investment=row["investment"],
+            gross_payout=row["gross_payout"],
+            net_profit=row["net_profit"],
+            outcome=row["outcome"],
         )
 
     @staticmethod
