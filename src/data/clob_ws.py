@@ -129,6 +129,22 @@ class ClobWebSocket:
 
         self._log.info("run_loop_exited")
 
+    async def reconnect(self) -> None:
+        """Force-close the current connection to trigger a reconnect.
+
+        The ``run()`` loop will automatically reconnect and resubscribe
+        all tokens in ``_subscribed_tokens``, which causes the server to
+        send fresh book snapshots.  This is needed because the Polymarket
+        CLOB WebSocket does NOT send snapshots for tokens added via
+        incremental subscribe messages on an existing connection.
+        """
+        if self._ws is not None:
+            self._log.info("reconnect_requested")
+            try:
+                await self._ws.close()
+            except Exception:
+                pass
+
     async def stop(self) -> None:
         """Signal the run loop to stop and close the active connection."""
         self._running = False

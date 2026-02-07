@@ -118,6 +118,7 @@ def mock_clob_ws() -> MagicMock:
     ws = MagicMock()
     ws.subscribe = AsyncMock()
     ws.unsubscribe = AsyncMock()
+    ws.reconnect = AsyncMock()
     return ws
 
 

@@ -129,6 +129,13 @@ class MarketManager:
                 active_count=len(self._active_markets),
             )
 
+        # Force WebSocket reconnect so the server sends fresh book
+        # snapshots for the newly subscribed tokens.  The Polymarket CLOB
+        # WebSocket does not send snapshots for incremental subscriptions
+        # on an existing connection.
+        if new_markets:
+            await self._clob_ws.reconnect()
+
         return list(self._active_markets.values())
 
     async def _remove_expired(self) -> list[Market]:
