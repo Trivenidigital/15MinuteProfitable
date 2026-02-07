@@ -648,6 +648,52 @@ class TestShouldExit:
             yes_cost_basis=23.0,
             strategy=StrategyType.PRICE_LAG,
         )
+        # Position still has meaningful value (>5% of cost) so time exit fires
+        book_manager.yes_book = _make_orderbook("YES_TOKEN", best_bid=0.45)
+
+        assert strategy.should_exit(position, market) is True
+
+    def test_time_exit_skipped_for_near_worthless_position(
+        self,
+        strategy: PriceLagStrategy,
+        book_manager: MockOrderBookManager,
+    ) -> None:
+        """Near-worthless positions should NOT be sold at time exit.
+
+        When a position has lost >95% of its value, selling for pennies
+        wastes the free lottery ticket. Max additional downside of holding
+        is the salvage amount; upside is full recovery at resolution.
+        """
+        # Market ends in 30 seconds -- time_exit_seconds is 60
+        market = _make_market(start_offset=-870.0, end_offset=30.0)
+        # Cost basis = 23.0, bid = 0.02 -> value = 50 * 0.02 = 1.0
+        # value_ratio = 1.0 / 23.0 = 0.0435 -> below 5% threshold
+        position = Position(
+            market=market,
+            yes_shares=50.0,
+            yes_cost_basis=23.0,
+            strategy=StrategyType.PRICE_LAG,
+        )
+        book_manager.yes_book = _make_orderbook("YES_TOKEN", best_bid=0.02)
+
+        assert strategy.should_exit(position, market) is False
+
+    def test_time_exit_fires_for_position_with_some_value(
+        self,
+        strategy: PriceLagStrategy,
+        book_manager: MockOrderBookManager,
+    ) -> None:
+        """Positions retaining >5% value should still time-exit normally."""
+        market = _make_market(start_offset=-870.0, end_offset=30.0)
+        # Cost basis = 23.0, bid = 0.10 -> value = 50 * 0.10 = 5.0
+        # value_ratio = 5.0 / 23.0 = 0.217 -> above 5% threshold
+        position = Position(
+            market=market,
+            yes_shares=50.0,
+            yes_cost_basis=23.0,
+            strategy=StrategyType.PRICE_LAG,
+        )
+        book_manager.yes_book = _make_orderbook("YES_TOKEN", best_bid=0.10)
 
         assert strategy.should_exit(position, market) is True
 
@@ -766,6 +812,8 @@ class TestShouldExit:
             yes_cost_basis=23.0,
             strategy=StrategyType.PRICE_LAG,
         )
+        # Position has meaningful value so time exit fires
+        book_manager.yes_book = _make_orderbook("YES_TOKEN", best_bid=0.45)
 
         assert strategy.should_exit(position, market) is True
 
@@ -974,6 +1022,8 @@ class TestSmartStopLoss:
             yes_cost_basis=23.0,
             strategy=StrategyType.PRICE_LAG,
         )
+        # Position has meaningful value so time exit fires
+        book_manager.yes_book = _make_orderbook("YES_TOKEN", best_bid=0.45)
         strategy._stop_loss_counts[market.condition_id] = 2  # pre-populate
 
         assert strategy.should_exit(position, market) is True

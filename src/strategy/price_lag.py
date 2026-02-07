@@ -272,6 +272,7 @@ class PriceLagStrategy(BaseStrategy):
 
         Exit conditions:
         1. Time-based exit: within time_exit_seconds of market close
+           (skipped for near-worthless positions — let them expire as lottery tickets)
         2. Stop-loss (smart): cheap contract bypass, time-decayed threshold,
            confirmation counter
         3. Take-profit: current value exceeds take_profit_pct above cost basis
@@ -282,15 +283,7 @@ class PriceLagStrategy(BaseStrategy):
         time_to_close = end_ts - now_ts
         cid = market.condition_id
 
-        # 1. Time-based exit
-        if time_to_close <= self._settings.time_exit_seconds:
-            self._log.info(
-                "time_exit", market=market.slug, time_to_close=round(time_to_close, 1)
-            )
-            self._stop_loss_counts.pop(cid, None)
-            return True
-
-        # 2. Get current prices
+        # Compute current value upfront (needed by time exit and stop-loss)
         cost_basis = position.total_investment
         if cost_basis <= 0:
             return False
@@ -313,7 +306,31 @@ class PriceLagStrategy(BaseStrategy):
 
         pnl_pct = (current_value - cost_basis) / cost_basis
 
-        # 3. Smart stop-loss
+        # 1. Time-based exit — but skip for near-worthless positions.
+        # When a position has lost >95% of its value, the salvage value from
+        # selling is negligible. Better to let it expire: the max additional
+        # downside is the salvage amount, but the upside is full recovery if
+        # the market resolves favorably.
+        if time_to_close <= self._settings.time_exit_seconds:
+            value_ratio = current_value / cost_basis
+            if value_ratio < 0.05:
+                self._log.info(
+                    "time_exit_skipped_lottery",
+                    market=market.slug,
+                    time_to_close=round(time_to_close, 1),
+                    current_value=round(current_value, 2),
+                    cost_basis=round(cost_basis, 2),
+                    value_ratio=round(value_ratio, 4),
+                )
+                self._stop_loss_counts.pop(cid, None)
+                return False
+            self._log.info(
+                "time_exit", market=market.slug, time_to_close=round(time_to_close, 1)
+            )
+            self._stop_loss_counts.pop(cid, None)
+            return True
+
+        # 2. Smart stop-loss
         stop_loss_exit = self._check_smart_stop_loss(
             pnl_pct=pnl_pct,
             cost_basis=cost_basis,
