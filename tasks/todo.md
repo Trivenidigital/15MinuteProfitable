@@ -1182,84 +1182,40 @@ Future capability to replay historical orderbook snapshots through strategy logi
 | `spot_snapshots` | ~2880 (4 symbols x 12/min) | Spot price history |
 | `market_outcomes` | ~16 (4 assets x 4/hour) | Window UP/DOWN/FLAT results |
 
-### Phase 2: Offline Analysis Agent
+### Phase 2: Autonomous Self-Learning Loop (7-Day Sprint)
 
-> **Status:** PLANNED
-> **Depends on:** Phase 1 (data must be flowing for 24+ hours)
-> **Goal:** Compute win rates, identify parameter tuning opportunities, validate strategy edge
+> **Status:** PLANNED — Waiting for Phase 1 data to accumulate (24h)
+> **Depends on:** Phase 1 (data must be flowing)
+> **Goal:** Claude agent autonomously analyzes performance, tunes parameters, and iterates until bot is consistently profitable in simulation
 
-**Scope:**
-- [ ] `src/analysis/` module — offline analysis scripts that query the SQLite database
-- [ ] `win_rate_report.py` — per-strategy win rate, grouped by asset, time-of-day, market conditions
-- [ ] `parameter_sensitivity.py` — measure how threshold changes would affect trade count and profitability
-- [ ] `market_bias_analysis.py` — is BTC biased UP/DOWN? Are certain hours more predictable?
-- [ ] `spot_vs_outcome_correlation.py` — how well does spot movement predict market outcome?
-- [ ] `decision_funnel.py` — opportunity → risk_approved → executed → profitable conversion rates
-- [ ] Export reports to `tasks/` as markdown for review
+**Full plan:** [`docs/strategy-self-learn.html`](../docs/strategy-self-learn.html)
+**Experiment log:** [`docs/self-learning-lessons-strategies.html`](../docs/self-learning-lessons-strategies.html)
 
-**Key queries to answer:**
-1. What % of `strategy_decisions` with decision="opportunity" actually get executed?
-2. What's the rejection reason breakdown? (Which risk checks block the most trades?)
-3. For price_lag: what spot_move_threshold + odds_lag_threshold combo has highest win rate?
-4. Are there time-of-day patterns in market_outcomes? (e.g., more UP in Asian session?)
-5. How often does the bot miss profitable opportunities (opportunity found but rejected)?
-6. What's the avg/median price_change_pct per 15-min window, per asset?
+**Workflow:**
+- [ ] Deploy Phase 1 observability code to server
+- [ ] Verify data pipeline (strategy_decisions, spot_snapshots, market_outcomes populating)
+- [ ] Establish 24h baseline with current config
+- [ ] Begin self-learning loop: Analyze → Hypothesize → Change ONE param → Wait → Evaluate
+- [ ] Day 1: Baseline measurement + first strategy activation (price_lag?)
+- [ ] Day 2: Evaluate first changes, enable resolution_sniper if warranted
+- [ ] Day 3-4: Iterate on entry/exit parameters (6-8h observation windows)
+- [ ] Day 5-6: Multi-strategy optimization, sizing tuning
+- [ ] Day 7: Full evaluation — profitable enough for live trading?
 
-**Implementation approach:**
-- Standalone Python scripts, not integrated into the bot's event loop
-- Run manually or via cron after 24-48 hours of data collection
-- Output markdown reports to `tasks/analysis-*.md`
-- Use pandas for aggregation (add to requirements-dev.txt)
+**Autonomy boundaries:**
+- **Auto (no approval needed):** Parameter changes in `.env`, strategy toggles, bot restart, document changes
+- **Manual (requires discussion):** Strategy code changes (`src/strategy/*.py`), risk manager structural changes, going live
 
-### Phase 3: Parameter Auto-Tuning
+**Safety rails:**
+- One parameter change per cycle
+- Max 50% change per step
+- Minimum 20 observations before concluding
+- Revert on degradation
+- Never disable risk limits entirely
 
-> **Status:** PLANNED
-> **Depends on:** Phase 2 (need analysis results to know WHAT to tune)
-> **Goal:** Automatically adjust strategy parameters based on observed performance
-
-**Scope:**
-- [ ] `src/analysis/optimizer.py` — parameter optimization using historical data
-- [ ] Grid search over key parameters: `spot_move_threshold`, `odds_lag_threshold`, `min_profit_margin`
-- [ ] Backtesting engine — replay `strategy_decisions` + `spot_snapshots` + `market_outcomes` with different params
-- [ ] Confidence intervals on win rate estimates (need sufficient sample size)
-- [ ] Output recommended parameter changes with expected impact
-- [ ] Safety: max parameter change per iteration (e.g., no more than 20% shift from current)
-
-**Key parameters to tune (by strategy):**
-| Strategy | Parameter | Current | Tuning approach |
-|----------|-----------|---------|-----------------|
-| Price-Lag | `spot_move_threshold` | 0.0005 | Grid search over [0.0002, 0.001] |
-| Price-Lag | `odds_lag_threshold` | 0.01 | Grid search over [0.005, 0.03] |
-| Price-Lag | `stop_loss_pct` | 0.08 | Optimize via realized P&L on exits |
-| Price-Lag | `take_profit_pct` | 0.15 | Optimize via time-to-profit curves |
-| Arbitrage | `min_profit_margin` | 0.003 | Lower bound from fee_verifier |
-| Arbitrage | `target_pair_cost` | 0.94 | Calibrate from actual arb fill data |
-
-### Phase 4: Live Dashboard Integration
-
-> **Status:** PLANNED
-> **Depends on:** Phase 1
-> **Goal:** Surface observability data on the web dashboard
-
-**Scope:**
-- [ ] `/api/decisions` endpoint — paginated strategy decisions with filters
-- [ ] `/api/outcomes` endpoint — market outcomes with stats
-- [ ] `/api/spot-history` endpoint — spot price chart data
-- [ ] Dashboard page: "Strategy Performance" — win rate chart, decision funnel
-- [ ] Dashboard page: "Market Outcomes" — heatmap of UP/DOWN by asset x hour
-- [ ] Dashboard page: "Spot History" — multi-symbol price overlay chart
-
-### Phase 5: Automated Alerts from Analysis
-
-> **Status:** PLANNED
-> **Depends on:** Phase 2 + Phase 4
-> **Goal:** Proactive alerts when performance degrades
-
-**Scope:**
-- [ ] Daily win rate alert if below threshold (e.g., <40% over 24h)
-- [ ] Strategy degradation alert — detect when a strategy stops finding opportunities
-- [ ] Parameter drift alert — when optimal params diverge significantly from current config
-- [ ] Telegram summary with key metrics from overnight analysis
+**Key documents:**
+- `docs/strategy-self-learn.html` — System plan, 7-day game plan, cadence, parameter priority
+- `docs/self-learning-lessons-strategies.html` — Living log of every config change, results, and strategy insights
 
 ---
 

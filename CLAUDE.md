@@ -109,6 +109,14 @@ NEVER: Skip error handling on WebSocket reconnections
 NEVER: Store private keys or API secrets in code
 NEVER: Submit market orders without checking orderbook depth first
 
+## Self-Learning System
+- **Vision:** Autonomous Analyze → Tune → Measure loop until profitable in DRY_RUN, then go live
+- **Agent:** Claude Code SSHs into Hetzner VPS to pull data, analyze, update `.env`, restart bot
+- **Autonomy:** Parameter changes are fully autonomous; strategy code changes require human approval
+- **Plan doc:** `docs/strategy-self-learn.html` (system plan, cadence, parameter priority, 7-day game plan)
+- **Experiment log:** `docs/self-learning-lessons-strategies.html` (living record of every config change and result)
+- **Safety:** One parameter per cycle, max 50% change, min 20 observations, revert on degradation
+
 ## Conventions
 - Commit format: conventional commits (feat:, fix:, refactor:)
 - Branch naming: feat/description, fix/description

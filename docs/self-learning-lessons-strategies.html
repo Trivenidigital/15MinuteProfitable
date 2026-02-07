@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Self-Learning Lessons &amp; Strategies - BTC 15-Minute Bot</title>
+    <style>
+        :root {
+            --bg: #0d1117;
+            --surface: #161b22;
+            --border: #30363d;
+            --text: #e6edf3;
+            --text-muted: #8b949e;
+            --accent: #58a6ff;
+            --green: #3fb950;
+            --red: #f85149;
+            --yellow: #d29922;
+            --orange: #db6d28;
+            --purple: #bc8cff;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            padding: 2rem;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 { font-size: 1.8rem; margin-bottom: 0.5rem; }
+        h2 { font-size: 1.3rem; margin: 2.5rem 0 1rem; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
+        h3 { font-size: 1.1rem; margin: 1.5rem 0 0.5rem; color: var(--text); }
+        h4 { font-size: 0.95rem; margin: 1rem 0 0.4rem; color: var(--purple); }
+        p { margin-bottom: 0.75rem; color: var(--text-muted); font-size: 0.9rem; }
+        .subtitle { color: var(--text-muted); margin-bottom: 2rem; }
+        .badge {
+            display: inline-block;
+            padding: 0.15rem 0.6rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .badge-active { background: rgba(63, 185, 80, 0.15); color: var(--green); border: 1px solid rgba(63, 185, 80, 0.3); }
+        .badge-kept { background: rgba(63, 185, 80, 0.15); color: var(--green); border: 1px solid rgba(63, 185, 80, 0.3); }
+        .badge-reverted { background: rgba(248, 81, 73, 0.15); color: var(--red); border: 1px solid rgba(248, 81, 73, 0.3); }
+        .badge-pending { background: rgba(210, 153, 34, 0.15); color: var(--yellow); border: 1px solid rgba(210, 153, 34, 0.3); }
+        .badge-neutral { background: rgba(139, 148, 158, 0.15); color: var(--text-muted); border: 1px solid rgba(139, 148, 158, 0.3); }
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.25rem;
+            margin-bottom: 1rem;
+        }
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.75rem;
+        }
+        .card-header h3 { margin: 0; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+            margin: 0.75rem 0;
+        }
+        th, td {
+            text-align: left;
+            padding: 0.5rem 0.75rem;
+            border-bottom: 1px solid var(--border);
+        }
+        th { color: var(--text-muted); font-weight: 600; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.03em; }
+        code {
+            font-family: 'SFMono-Regular', Consolas, monospace;
+            font-size: 0.85rem;
+            background: rgba(110, 118, 129, 0.15);
+            padding: 0.15rem 0.4rem;
+            border-radius: 4px;
+        }
+        .mono { font-family: 'SFMono-Regular', Consolas, monospace; font-size: 0.85rem; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; }
+        @media (max-width: 800px) { .grid, .grid-3 { grid-template-columns: 1fr; } }
+        .stat {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            text-align: center;
+        }
+        .stat-value { font-size: 1.5rem; font-weight: 700; }
+        .stat-label { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; }
+        .green { color: var(--green); }
+        .red { color: var(--red); }
+        .yellow { color: var(--yellow); }
+        .accent { color: var(--accent); }
+        .muted { color: var(--text-muted); }
+        .timeline-entry {
+            border-left: 3px solid var(--border);
+            padding-left: 1.5rem;
+            margin-bottom: 1.5rem;
+            position: relative;
+        }
+        .timeline-entry::before {
+            content: '';
+            position: absolute;
+            left: -7px;
+            top: 0.5rem;
+            width: 11px;
+            height: 11px;
+            border-radius: 50%;
+            background: var(--accent);
+            border: 2px solid var(--bg);
+        }
+        .timeline-entry.kept::before { background: var(--green); }
+        .timeline-entry.reverted::before { background: var(--red); }
+        .timeline-entry.pending::before { background: var(--yellow); }
+        .timeline-entry.baseline::before { background: var(--accent); }
+        .timeline-date { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.25rem; }
+        .timeline-title { font-size: 1rem; font-weight: 600; margin-bottom: 0.25rem; }
+        ul, ol { margin: 0.5rem 0 0.75rem 1.5rem; color: var(--text-muted); font-size: 0.9rem; }
+        li { margin-bottom: 0.3rem; }
+        .separator { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+        .callout {
+            border-left: 4px solid var(--accent);
+            background: rgba(88, 166, 255, 0.05);
+            padding: 0.75rem 1rem;
+            margin: 1rem 0;
+            border-radius: 0 6px 6px 0;
+        }
+        .callout.warning { border-left-color: var(--yellow); background: rgba(210, 153, 34, 0.05); }
+        .callout.success { border-left-color: var(--green); background: rgba(63, 185, 80, 0.05); }
+        .experiment-metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 0.5rem;
+            margin: 0.5rem 0;
+        }
+        .experiment-metrics .stat {
+            padding: 0.4rem 0.6rem;
+        }
+        .experiment-metrics .stat-value { font-size: 1rem; }
+        .experiment-metrics .stat-label { font-size: 0.65rem; }
+    </style>
+</head>
+<body>
+
+<!-- ============================================================ -->
+<!-- HEADER                                                        -->
+<!-- ============================================================ -->
+
+<h1>Self-Learning Lessons &amp; Strategies</h1>
+<div class="subtitle">
+    Living record of every configuration change, result, and strategy insight
+    <span class="badge badge-active">LIVING DOCUMENT</span>
+</div>
+<p>
+    This file is updated by the Claude analysis agent after every experiment cycle.
+    It captures <strong>what was tried</strong>, <strong>what happened</strong>, and <strong>what was learned</strong>.
+    See <a href="strategy-self-learn.html" style="color: var(--accent);">strategy-self-learn.html</a> for the system plan and methodology.
+</p>
+
+<!-- ============================================================ -->
+<!-- SUMMARY DASHBOARD                                             -->
+<!-- ============================================================ -->
+
+<h2>1. Sprint Summary</h2>
+
+<div class="grid-3">
+    <div class="stat">
+        <div class="stat-value accent">0</div>
+        <div class="stat-label">Experiments Run</div>
+    </div>
+    <div class="stat">
+        <div class="stat-value green">0</div>
+        <div class="stat-label">Changes Kept</div>
+    </div>
+    <div class="stat">
+        <div class="stat-value red">0</div>
+        <div class="stat-label">Changes Reverted</div>
+    </div>
+</div>
+
+<div class="grid">
+    <div class="stat">
+        <div class="stat-value accent">???</div>
+        <div class="stat-label">Current Win Rate</div>
+    </div>
+    <div class="stat">
+        <div class="stat-value accent">???</div>
+        <div class="stat-label">Cumulative Sim P&amp;L</div>
+    </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- CURRENT CONFIGURATION                                         -->
+<!-- ============================================================ -->
+
+<h2>2. Current Configuration State</h2>
+
+<p>
+    Current parameter values on the server. Updated after each kept/reverted change.
+    <span class="badge badge-neutral">BASELINE</span> = no changes made yet.
+</p>
+
+<div class="card">
+    <table>
+        <tr><th>Parameter</th><th>Current Value</th><th>Baseline</th><th>Last Changed</th><th>Experiment #</th></tr>
+        <tr><td><code>enable_arbitrage</code></td><td class="green">true</td><td>true</td><td>—</td><td>—</td></tr>
+        <tr><td><code>enable_price_lag</code></td><td class="red">false</td><td>false</td><td>—</td><td>—</td></tr>
+        <tr><td><code>enable_asymmetric</code></td><td class="red">false</td><td>false</td><td>—</td><td>—</td></tr>
+        <tr><td><code>enable_maker_arbitrage</code></td><td class="red">false</td><td>false</td><td>—</td><td>—</td></tr>
+        <tr><td><code>enable_resolution_sniper</code></td><td class="red">false</td><td>false</td><td>—</td><td>—</td></tr>
+        <tr><td><code>enable_parallel_strategies</code></td><td class="red">false</td><td>false</td><td>—</td><td>—</td></tr>
+        <tr><td><code>min_profit_margin</code></td><td>0.003</td><td>0.003</td><td>—</td><td>—</td></tr>
+        <tr><td><code>target_pair_cost</code></td><td>0.94</td><td>0.94</td><td>—</td><td>—</td></tr>
+        <tr><td><code>spot_move_threshold</code></td><td>0.0005</td><td>0.0005</td><td>—</td><td>—</td></tr>
+        <tr><td><code>odds_lag_threshold</code></td><td>0.01</td><td>0.01</td><td>—</td><td>—</td></tr>
+        <tr><td><code>lag_confirmations</code></td><td>1</td><td>1</td><td>—</td><td>—</td></tr>
+        <tr><td><code>stop_loss_pct</code></td><td>0.08</td><td>0.08</td><td>—</td><td>—</td></tr>
+        <tr><td><code>take_profit_pct</code></td><td>0.15</td><td>0.15</td><td>—</td><td>—</td></tr>
+        <tr><td><code>time_exit_seconds</code></td><td>45.0</td><td>45.0</td><td>—</td><td>—</td></tr>
+        <tr><td><code>stop_loss_confirmations</code></td><td>3</td><td>3</td><td>—</td><td>—</td></tr>
+        <tr><td><code>lag_entry_dead_zone_start</code></td><td>30.0</td><td>30.0</td><td>—</td><td>—</td></tr>
+        <tr><td><code>lag_entry_dead_zone_end</code></td><td>15.0</td><td>15.0</td><td>—</td><td>—</td></tr>
+        <tr><td><code>spot_window_seconds</code></td><td>10</td><td>10</td><td>—</td><td>—</td></tr>
+        <tr><td><code>cooldown_seconds</code></td><td>2.0</td><td>2.0</td><td>—</td><td>—</td></tr>
+        <tr><td><code>order_size</code></td><td>250.0</td><td>250.0</td><td>—</td><td>—</td></tr>
+        <tr><td><code>kelly_fraction</code></td><td>0.25</td><td>0.25</td><td>—</td><td>—</td></tr>
+        <tr><td><code>max_entries_per_market</code></td><td>2</td><td>2</td><td>—</td><td>—</td></tr>
+        <tr><td><code>max_position_per_market</code></td><td>1000.0</td><td>1000.0</td><td>—</td><td>—</td></tr>
+        <tr><td><code>max_total_position</code></td><td>5000.0</td><td>5000.0</td><td>—</td><td>—</td></tr>
+        <tr><td><code>max_daily_loss</code></td><td>250.0</td><td>250.0</td><td>—</td><td>—</td></tr>
+    </table>
+</div>
+
+<!-- ============================================================ -->
+<!-- EXPERIMENT TIMELINE                                           -->
+<!-- ============================================================ -->
+
+<h2>3. Experiment Timeline</h2>
+
+<p>Chronological record of every parameter change. Newest entries at the top. Each entry includes hypothesis, before/after metrics, and verdict.</p>
+
+<div class="callout">
+    <strong>No experiments yet.</strong> The 7-day sprint has not started. Deploy Phase 1 observability code and wait 24h for baseline data.
+</div>
+
+<!--
+================================================================================
+TEMPLATE — Copy this block for each new experiment. Place ABOVE previous entries.
+================================================================================
+
+<div class="timeline-entry pending">
+    <div class="timeline-date">2026-02-XX HH:MM UTC — Experiment #N</div>
+    <div class="timeline-title">
+        <code>parameter_name</code>: OLD_VALUE → NEW_VALUE
+        <span class="badge badge-pending">PENDING</span>
+    </div>
+    <p><strong>Hypothesis:</strong> [Why this change should help — be specific]</p>
+    <p><strong>Bottleneck:</strong> [Which funnel stage: no_opps / risk_rejected / losing_trades / too_few_trades]</p>
+    <p><strong>Before metrics (observation period: Xh):</strong></p>
+    <div class="experiment-metrics">
+        <div class="stat"><div class="stat-value">???</div><div class="stat-label">Opps/hr</div></div>
+        <div class="stat"><div class="stat-value">???</div><div class="stat-label">Trades/day</div></div>
+        <div class="stat"><div class="stat-value">???</div><div class="stat-label">Win Rate</div></div>
+        <div class="stat"><div class="stat-value">???</div><div class="stat-label">Net P&L</div></div>
+        <div class="stat"><div class="stat-value">???</div><div class="stat-label">Reject Rate</div></div>
+    </div>
+    <p><strong>Observation period:</strong> Xh — ends 2026-02-XX HH:MM UTC</p>
+    <p><strong>After metrics:</strong></p>
+    <div class="experiment-metrics">
+        <div class="stat"><div class="stat-value">???</div><div class="stat-label">Opps/hr</div></div>
+        <div class="stat"><div class="stat-value">???</div><div class="stat-label">Trades/day</div></div>
+        <div class="stat"><div class="stat-value">???</div><div class="stat-label">Win Rate</div></div>
+        <div class="stat"><div class="stat-value">???</div><div class="stat-label">Net P&L</div></div>
+        <div class="stat"><div class="stat-value">???</div><div class="stat-label">Reject Rate</div></div>
+    </div>
+    <p><strong>Verdict:</strong> [KEPT — reason / REVERTED — reason]</p>
+</div>
+
+-->
+
+<!-- ============================================================ -->
+<!-- DAILY PERFORMANCE LOG                                         -->
+<!-- ============================================================ -->
+
+<h2>4. Daily Performance Log</h2>
+
+<p>End-of-day snapshot showing the bot's overall trajectory. Updated once per day.</p>
+
+<table>
+    <tr>
+        <th>Day</th>
+        <th>Date</th>
+        <th>Experiments</th>
+        <th>Kept / Reverted</th>
+        <th>Markets Observed</th>
+        <th>Trades</th>
+        <th>Win Rate</th>
+        <th>Net P&amp;L</th>
+        <th>Cum P&amp;L</th>
+        <th>Active Strategies</th>
+    </tr>
+    <tr><td colspan="10" class="muted" style="text-align: center;">Sprint not yet started</td></tr>
+</table>
+
+<!-- ============================================================ -->
+<!-- STRATEGY INSIGHTS                                             -->
+<!-- ============================================================ -->
+
+<h2>5. Strategy Insights</h2>
+
+<p>
+    Patterns and insights discovered during the self-learning loop. These inform future
+    <strong>strategy code changes</strong> (which require human approval before implementing).
+</p>
+
+<div class="callout">
+    <strong>No insights yet.</strong> This section populates as experiments reveal patterns about market behavior,
+    strategy edge, and parameter sensitivity.
+</div>
+
+<!--
+TEMPLATE for strategy insights:
+
+<div class="card">
+    <div class="card-header">
+        <h3>[Insight Title]</h3>
+        <span class="badge badge-active">ACTIONABLE</span>
+    </div>
+    <p><strong>Discovered:</strong> 2026-02-XX | <strong>Source:</strong> Experiment #N</p>
+    <p>[Description of the pattern or insight]</p>
+    <p><strong>Evidence:</strong> [Data supporting the insight — specific numbers]</p>
+    <p><strong>Implication:</strong> [What this means for strategy design]</p>
+    <p><strong>Recommended action:</strong> [Parameter change / strategy code proposal / no action]</p>
+</div>
+-->
+
+<!-- ============================================================ -->
+<!-- MARKET BEHAVIOR PATTERNS                                      -->
+<!-- ============================================================ -->
+
+<h2>6. Market Behavior Patterns</h2>
+
+<p>Observations about how the 15-minute crypto prediction markets behave. These are structural patterns, not one-off events.</p>
+
+<div class="grid">
+    <div class="card">
+        <h4>Asset Characteristics</h4>
+        <p>Which assets are more predictable? Which have better spreads? Updated from market_outcomes data.</p>
+        <table>
+            <tr><th>Asset</th><th>Markets/Day</th><th>UP %</th><th>Avg Move %</th><th>Predictability</th><th>Notes</th></tr>
+            <tr><td colspan="6" class="muted" style="text-align: center;">No data yet</td></tr>
+        </table>
+    </div>
+    <div class="card">
+        <h4>Time-of-Day Patterns</h4>
+        <p>Are certain hours more volatile or directional? Captured from spot_snapshots + market_outcomes.</p>
+        <table>
+            <tr><th>Hour (UTC)</th><th>Avg Volatility</th><th>Directional Bias</th><th>Best Strategy</th><th>Notes</th></tr>
+            <tr><td colspan="5" class="muted" style="text-align: center;">No data yet</td></tr>
+        </table>
+    </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- FAILED HYPOTHESES                                             -->
+<!-- ============================================================ -->
+
+<h2>7. Failed Hypotheses &amp; Dead Ends</h2>
+
+<p>
+    Things that <strong>didn't work</strong> are just as valuable as things that did.
+    Recording them prevents re-trying the same failed approaches.
+</p>
+
+<div class="callout warning">
+    <strong>Nothing failed yet.</strong> This section captures reverted experiments and why they didn't work.
+    Patterns here help avoid repeating mistakes.
+</div>
+
+<!--
+TEMPLATE for failed hypotheses:
+
+<div class="card">
+    <div class="card-header">
+        <h3>[What was tried]</h3>
+        <span class="badge badge-reverted">FAILED</span>
+    </div>
+    <p><strong>Experiment:</strong> #N | <strong>Date:</strong> 2026-02-XX</p>
+    <p><strong>Hypothesis:</strong> [What we expected]</p>
+    <p><strong>What actually happened:</strong> [What went wrong]</p>
+    <p><strong>Root cause:</strong> [Why it failed — the actual reason]</p>
+    <p><strong>Lesson:</strong> [What to remember for future experiments]</p>
+</div>
+-->
+
+<!-- ============================================================ -->
+<!-- STRATEGY CODE CHANGE PROPOSALS                                -->
+<!-- ============================================================ -->
+
+<h2>8. Strategy Code Change Proposals</h2>
+
+<p>
+    When parameter tuning alone can't solve a problem, the agent documents proposed code changes here.
+    These <strong>require human approval</strong> before implementation.
+</p>
+
+<div class="callout">
+    <strong>No proposals yet.</strong> If parameter tuning reveals structural limitations in the strategy code,
+    proposals will appear here for discussion.
+</div>
+
+<!--
+TEMPLATE for code change proposals:
+
+<div class="card">
+    <div class="card-header">
+        <h3>[Proposal Title]</h3>
+        <span class="badge badge-pending">AWAITING APPROVAL</span>
+    </div>
+    <p><strong>Problem:</strong> [What parameter tuning can't solve]</p>
+    <p><strong>Evidence:</strong> [Data from experiments showing the limitation]</p>
+    <p><strong>Proposed change:</strong> [Which file(s), what logic to modify]</p>
+    <p><strong>Expected impact:</strong> [How this would improve performance]</p>
+    <p><strong>Risk:</strong> [What could go wrong]</p>
+    <p><strong>Status:</strong> AWAITING APPROVAL / APPROVED / REJECTED / IMPLEMENTED</p>
+</div>
+-->
+
+<hr class="separator">
+<p class="muted" style="text-align: center; font-size: 0.8rem;">
+    This document is auto-maintained by the Claude analysis agent. Last updated: 2026-02-07.
+</p>
+
+</body>
+</html>

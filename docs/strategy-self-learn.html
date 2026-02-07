@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Self-Learning Loop - BTC 15-Minute Bot</title>
+    <style>
+        :root {
+            --bg: #0d1117;
+            --surface: #161b22;
+            --border: #30363d;
+            --text: #e6edf3;
+            --text-muted: #8b949e;
+            --accent: #58a6ff;
+            --green: #3fb950;
+            --red: #f85149;
+            --yellow: #d29922;
+            --orange: #db6d28;
+            --purple: #bc8cff;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            padding: 2rem;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 { font-size: 1.8rem; margin-bottom: 0.5rem; }
+        h2 { font-size: 1.3rem; margin: 2.5rem 0 1rem; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
+        h3 { font-size: 1.1rem; margin: 1.5rem 0 0.5rem; color: var(--text); }
+        h4 { font-size: 0.95rem; margin: 1rem 0 0.4rem; color: var(--purple); }
+        p { margin-bottom: 0.75rem; color: var(--text-muted); font-size: 0.9rem; }
+        .subtitle { color: var(--text-muted); margin-bottom: 2rem; }
+        .badge {
+            display: inline-block;
+            padding: 0.15rem 0.6rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .badge-active { background: rgba(63, 185, 80, 0.15); color: var(--green); border: 1px solid rgba(63, 185, 80, 0.3); }
+        .badge-planned { background: rgba(88, 166, 255, 0.15); color: var(--accent); border: 1px solid rgba(88, 166, 255, 0.3); }
+        .badge-complete { background: rgba(63, 185, 80, 0.15); color: var(--green); border: 1px solid rgba(63, 185, 80, 0.3); }
+        .badge-dryrun { background: rgba(210, 153, 34, 0.15); color: var(--yellow); border: 1px solid rgba(210, 153, 34, 0.3); }
+        .badge-reverted { background: rgba(248, 81, 73, 0.15); color: var(--red); border: 1px solid rgba(248, 81, 73, 0.3); }
+        .badge-kept { background: rgba(63, 185, 80, 0.15); color: var(--green); border: 1px solid rgba(63, 185, 80, 0.3); }
+        .badge-pending { background: rgba(210, 153, 34, 0.15); color: var(--yellow); border: 1px solid rgba(210, 153, 34, 0.3); }
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.25rem;
+            margin-bottom: 1rem;
+        }
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.75rem;
+        }
+        .card-header h3 { margin: 0; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+            margin: 0.75rem 0;
+        }
+        th, td {
+            text-align: left;
+            padding: 0.5rem 0.75rem;
+            border-bottom: 1px solid var(--border);
+        }
+        th { color: var(--text-muted); font-weight: 600; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.03em; }
+        code {
+            font-family: 'SFMono-Regular', Consolas, monospace;
+            font-size: 0.85rem;
+            background: rgba(110, 118, 129, 0.15);
+            padding: 0.15rem 0.4rem;
+            border-radius: 4px;
+        }
+        .mono { font-family: 'SFMono-Regular', Consolas, monospace; font-size: 0.85rem; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; }
+        @media (max-width: 800px) { .grid, .grid-3 { grid-template-columns: 1fr; } }
+        .stat {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            text-align: center;
+        }
+        .stat-value { font-size: 1.5rem; font-weight: 700; }
+        .stat-label { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; }
+        .green { color: var(--green); }
+        .red { color: var(--red); }
+        .yellow { color: var(--yellow); }
+        .accent { color: var(--accent); }
+        .muted { color: var(--text-muted); }
+        .flow-diagram {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin: 1rem 0;
+            font-family: 'SFMono-Regular', Consolas, monospace;
+            font-size: 0.85rem;
+            white-space: pre;
+            overflow-x: auto;
+            line-height: 1.5;
+        }
+        .timeline-entry {
+            border-left: 3px solid var(--border);
+            padding-left: 1.5rem;
+            margin-bottom: 1.5rem;
+            position: relative;
+        }
+        .timeline-entry::before {
+            content: '';
+            position: absolute;
+            left: -7px;
+            top: 0.5rem;
+            width: 11px;
+            height: 11px;
+            border-radius: 50%;
+            background: var(--accent);
+            border: 2px solid var(--bg);
+        }
+        .timeline-entry.success::before { background: var(--green); }
+        .timeline-entry.fail::before { background: var(--red); }
+        .timeline-entry.pending::before { background: var(--yellow); }
+        .timeline-date { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.25rem; }
+        .timeline-title { font-size: 1rem; font-weight: 600; margin-bottom: 0.25rem; }
+        ul, ol { margin: 0.5rem 0 0.75rem 1.5rem; color: var(--text-muted); font-size: 0.9rem; }
+        li { margin-bottom: 0.3rem; }
+        .separator { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+        .callout {
+            border-left: 4px solid var(--accent);
+            background: rgba(88, 166, 255, 0.05);
+            padding: 0.75rem 1rem;
+            margin: 1rem 0;
+            border-radius: 0 6px 6px 0;
+        }
+        .callout.warning { border-left-color: var(--yellow); background: rgba(210, 153, 34, 0.05); }
+        .callout.danger { border-left-color: var(--red); background: rgba(248, 81, 73, 0.05); }
+        .callout.success { border-left-color: var(--green); background: rgba(63, 185, 80, 0.05); }
+    </style>
+</head>
+<body>
+
+<!-- ============================================================ -->
+<!-- HEADER                                                        -->
+<!-- ============================================================ -->
+
+<h1>Self-Learning Loop</h1>
+<div class="subtitle">
+    Autonomous parameter tuning for BTC 15-Minute Bot
+    <span class="badge badge-dryrun">DRY RUN</span>
+    <span class="badge badge-active">7-Day Sprint</span>
+</div>
+<p>
+    <strong>Goal:</strong> Run an autonomous Analyze &rarr; Tune &rarr; Measure loop until the bot is consistently profitable in simulation.
+    Once proven, flip <code>DRY_RUN=false</code> for live trading.
+</p>
+<p>
+    <strong>Start date:</strong> TBD (after Phase 1 observability data accumulates 24h)
+    &nbsp;|&nbsp; <strong>Target end:</strong> +7 days
+    &nbsp;|&nbsp; <strong>Server:</strong> <code>46.62.206.192</code> (Hetzner Helsinki)
+</p>
+
+<!-- ============================================================ -->
+<!-- SYSTEM ARCHITECTURE                                           -->
+<!-- ============================================================ -->
+
+<h2>1. System Architecture</h2>
+
+<div class="flow-diagram">
+Claude Code (Windows, local)                    Hetzner VPS (46.62.206.192)
+================================                ================================
+
+ Analysis Agent                                  Bot Process (systemctl)
+ +------------------+                            +-------------------------+
+ | 1. SSH in        |-------- SSH -------------->| /opt/btc15minutebot/    |
+ | 2. Pull data     |<--- trades.db, logs -------| data/trades.db          |
+ | 3. Analyze       |                            | .env (config)           |
+ | 4. Decide change |                            | src/ (code, read-only)  |
+ | 5. Push .env     |-------- SSH + scp -------->| .env (updated)          |
+ | 6. Restart bot   |-------- systemctl -------->| bot restarts            |
+ | 7. Document      |                            +-------------------------+
+ +--------+---------+
+          |
+          v
+ strategy-self-learn.html       <--- THIS FILE (living experiment log)
+ self-learning-lessons-
+   strategies.html              <--- Lessons & strategy insights
+</div>
+
+<h3>Autonomy Boundaries</h3>
+<div class="grid">
+    <div class="card">
+        <div class="card-header">
+            <h3>Fully Autonomous</h3>
+            <span class="badge badge-active">AUTO</span>
+        </div>
+        <ul>
+            <li>Change <code>.env</code> parameters (thresholds, sizing, timing)</li>
+            <li>Toggle strategies on/off (<code>enable_*</code> flags)</li>
+            <li>Restart bot via <code>systemctl restart</code></li>
+            <li>Adjust risk limits within safety bounds</li>
+            <li>Document all changes to this HTML file</li>
+        </ul>
+    </div>
+    <div class="card">
+        <div class="card-header">
+            <h3>Requires Human Approval</h3>
+            <span class="badge badge-dryrun">MANUAL</span>
+        </div>
+        <ul>
+            <li>Any changes to strategy source code (<code>src/strategy/*.py</code>)</li>
+            <li>New strategy implementation</li>
+            <li>Structural changes to risk manager or execution engine</li>
+            <li>Switching from DRY_RUN to live trading</li>
+        </ul>
+    </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- THE LOOP                                                      -->
+<!-- ============================================================ -->
+
+<h2>2. The Analysis Cycle</h2>
+
+<p>Each cycle follows this exact sequence. The agent changes <strong>at most ONE parameter per cycle</strong> to maintain clean signal.</p>
+
+<div class="card">
+    <h4>Step 1: Harvest Data</h4>
+    <p>SSH into server. Copy <code>trades.db</code> locally or run SQL queries via SSH. Pull recent log tail for error context.</p>
+
+    <h4>Step 2: Measure Performance (since last change)</h4>
+    <ul>
+        <li><strong>Funnel metrics:</strong> Markets observed &rarr; Opportunities found &rarr; Risk approved &rarr; Executed &rarr; Profitable</li>
+        <li><strong>Per-strategy:</strong> Win rate, avg profit, trade count, rejection rate</li>
+        <li><strong>Market outcomes:</strong> UP/DOWN/FLAT distribution per asset, per hour-of-day</li>
+        <li><strong>P&amp;L:</strong> Net simulated profit, max drawdown, Sharpe-like ratio</li>
+        <li><strong>Near-miss analysis:</strong> How many opportunities were within 1 tick of the threshold?</li>
+    </ul>
+
+    <h4>Step 3: Diagnose the Biggest Bottleneck</h4>
+    <p>Where in the funnel is the biggest drop-off? That determines what to tune.</p>
+    <table>
+        <tr><th>Bottleneck</th><th>Symptom</th><th>Likely Fix</th></tr>
+        <tr><td>No opportunities found</td><td>0 rows in strategy_decisions with decision="opportunity"</td><td>Lower thresholds (spot_move, odds_lag, min_profit_margin)</td></tr>
+        <tr><td>All rejected by risk</td><td>High % of "risk_rejected" decisions</td><td>Widen risk limits or fix overly conservative checks</td></tr>
+        <tr><td>Executed but losing</td><td>Trades happen but net P&amp;L is negative</td><td>Tighten entry criteria, adjust stop-loss/take-profit</td></tr>
+        <tr><td>Profitable but too few</td><td>Good win rate but only 2 trades/day</td><td>Loosen thresholds slightly, enable more strategies</td></tr>
+        <tr><td>Wrong direction calls</td><td>Win rate < 45%</td><td>Increase confirmations, widen dead zones, check spot lag correlation</td></tr>
+    </table>
+
+    <h4>Step 4: Hypothesize &amp; Change ONE Parameter</h4>
+    <p>Pick the highest-leverage parameter for the diagnosed bottleneck. State the hypothesis clearly before changing.</p>
+
+    <h4>Step 5: Apply Change</h4>
+    <p>SSH &rarr; update <code>/opt/btc15minutebot/.env</code> &rarr; <code>systemctl restart btc15minutebot</code></p>
+
+    <h4>Step 6: Document (in this file)</h4>
+    <p>Add an entry to the Experiment Log below with: timestamp, parameter changed, old&rarr;new value, hypothesis, baseline metrics.</p>
+
+    <h4>Step 7: Wait for Observation Period</h4>
+    <p>Minimum observation per change (see cadence rules below). Do NOT make another change until the period ends.</p>
+
+    <h4>Step 8: Evaluate Impact</h4>
+    <p>Next cycle starts here. Compare metrics post-change vs pre-change. Mark experiment as KEPT or REVERTED.</p>
+</div>
+
+<!-- ============================================================ -->
+<!-- CADENCE AND SAFETY                                            -->
+<!-- ============================================================ -->
+
+<h2>3. Cadence &amp; Safety Rules</h2>
+
+<div class="grid">
+    <div class="card">
+        <h4>Observation Windows</h4>
+        <table>
+            <tr><th>Phase</th><th>Min Wait Between Changes</th><th>Rationale</th></tr>
+            <tr><td>Day 1-2</td><td>12-24 hours</td><td>Establishing baseline, need clean data</td></tr>
+            <tr><td>Day 3-5</td><td>6-8 hours</td><td>Faster iteration once baseline is solid</td></tr>
+            <tr><td>Day 6-7</td><td>4-6 hours</td><td>Fine-tuning, smaller changes</td></tr>
+        </table>
+    </div>
+    <div class="card">
+        <h4>Safety Rails</h4>
+        <ul>
+            <li><strong>One parameter per cycle.</strong> Never change 2+ things at once.</li>
+            <li><strong>Revert on degradation.</strong> If a change makes metrics worse after full observation period, revert immediately.</li>
+            <li><strong>Bounded changes.</strong> No parameter moves more than 50% from current value per step.</li>
+            <li><strong>Minimum sample size.</strong> Need 20+ observations (trades or market windows) before drawing conclusions.</li>
+            <li><strong>Never disable risk limits entirely.</strong> Can widen them, never remove them.</li>
+            <li><strong>Log everything.</strong> Every change, every revert, every metric snapshot goes into this file.</li>
+        </ul>
+    </div>
+</div>
+
+<div class="callout warning">
+    <strong>Statistical significance matters.</strong> With 4 assets &times; 4 windows/hour = 16 outcomes/hour,
+    we get ~384 market windows per day. But actual trades will be much rarer. Don't over-react to small samples.
+    Use <strong>at least 20 trades</strong> (or 100 market windows) before concluding a parameter change helped/hurt.
+</div>
+
+<!-- ============================================================ -->
+<!-- PARAMETER TUNING PRIORITY                                     -->
+<!-- ============================================================ -->
+
+<h2>4. Parameter Tuning Priority</h2>
+
+<p>Ordered by expected impact. Attack the highest-leverage parameter first based on diagnosed bottleneck.</p>
+
+<div class="card">
+    <h4>Tier 1: Entry Signal Sensitivity (directly controls trade count)</h4>
+    <table>
+        <tr><th>Parameter</th><th>Current</th><th>Range to Explore</th><th>Strategy</th></tr>
+        <tr><td><code>spot_move_threshold</code></td><td>0.0005</td><td>0.0002 &ndash; 0.002</td><td>Price-Lag</td></tr>
+        <tr><td><code>odds_lag_threshold</code></td><td>0.01</td><td>0.005 &ndash; 0.03</td><td>Price-Lag</td></tr>
+        <tr><td><code>min_profit_margin</code></td><td>0.003</td><td>0.001 &ndash; 0.01</td><td>Arbitrage</td></tr>
+        <tr><td><code>target_pair_cost</code></td><td>0.94</td><td>0.92 &ndash; 0.97</td><td>Arbitrage</td></tr>
+        <tr><td><code>sniper_min_confidence</code></td><td>0.90</td><td>0.80 &ndash; 0.95</td><td>Sniper</td></tr>
+    </table>
+
+    <h4>Tier 2: Exit Management (controls profit per trade)</h4>
+    <table>
+        <tr><th>Parameter</th><th>Current</th><th>Range to Explore</th><th>Strategy</th></tr>
+        <tr><td><code>stop_loss_pct</code></td><td>0.08</td><td>0.05 &ndash; 0.15</td><td>Price-Lag</td></tr>
+        <tr><td><code>take_profit_pct</code></td><td>0.15</td><td>0.08 &ndash; 0.30</td><td>Price-Lag</td></tr>
+        <tr><td><code>time_exit_seconds</code></td><td>45.0</td><td>30 &ndash; 90</td><td>Price-Lag</td></tr>
+        <tr><td><code>stop_loss_confirmations</code></td><td>3</td><td>1 &ndash; 5</td><td>Price-Lag</td></tr>
+    </table>
+
+    <h4>Tier 3: Timing &amp; Dead Zones (controls when we trade)</h4>
+    <table>
+        <tr><th>Parameter</th><th>Current</th><th>Range to Explore</th><th>Strategy</th></tr>
+        <tr><td><code>lag_entry_dead_zone_start</code></td><td>30.0</td><td>15 &ndash; 60</td><td>Price-Lag</td></tr>
+        <tr><td><code>lag_entry_dead_zone_end</code></td><td>15.0</td><td>10 &ndash; 45</td><td>Price-Lag</td></tr>
+        <tr><td><code>spot_window_seconds</code></td><td>10</td><td>5 &ndash; 30</td><td>Price-Lag</td></tr>
+        <tr><td><code>sniper_window_seconds</code></td><td>120.0</td><td>60 &ndash; 180</td><td>Sniper</td></tr>
+    </table>
+
+    <h4>Tier 4: Strategy Mix &amp; Sizing (controls capital allocation)</h4>
+    <table>
+        <tr><th>Parameter</th><th>Current</th><th>Range to Explore</th><th>Strategy</th></tr>
+        <tr><td><code>enable_parallel_strategies</code></td><td>false</td><td>true / false</td><td>All</td></tr>
+        <tr><td><code>enable_price_lag</code></td><td>false</td><td>true / false</td><td>Price-Lag</td></tr>
+        <tr><td><code>enable_resolution_sniper</code></td><td>false</td><td>true / false</td><td>Sniper</td></tr>
+        <tr><td><code>order_size</code></td><td>250.0</td><td>50 &ndash; 500</td><td>All</td></tr>
+        <tr><td><code>kelly_fraction</code></td><td>0.25</td><td>0.10 &ndash; 0.50</td><td>All</td></tr>
+    </table>
+</div>
+
+<!-- ============================================================ -->
+<!-- BASELINE CONFIG SNAPSHOT                                       -->
+<!-- ============================================================ -->
+
+<h2>5. Baseline Configuration (Day 0)</h2>
+
+<p>Snapshot of all tunable parameters at the start of the 7-day sprint. All experiments are measured against this baseline.</p>
+
+<div class="card">
+    <table>
+        <tr><th>Category</th><th>Parameter</th><th>Value</th><th>Notes</th></tr>
+        <tr><td>Strategy Toggles</td><td><code>enable_arbitrage</code></td><td class="green">true</td><td>Primary strategy, always on</td></tr>
+        <tr><td></td><td><code>enable_price_lag</code></td><td class="red">false</td><td>Candidate to enable Day 1-2</td></tr>
+        <tr><td></td><td><code>enable_asymmetric</code></td><td class="red">false</td><td></td></tr>
+        <tr><td></td><td><code>enable_maker_arbitrage</code></td><td class="red">false</td><td></td></tr>
+        <tr><td></td><td><code>enable_resolution_sniper</code></td><td class="red">false</td><td>Candidate to enable Day 2-3</td></tr>
+        <tr><td></td><td><code>enable_parallel_strategies</code></td><td class="red">false</td><td>Enable after individual strategies tuned</td></tr>
+        <tr><td colspan="4" style="border-bottom: 2px solid var(--border);"></td></tr>
+        <tr><td>Entry Signals</td><td><code>min_profit_margin</code></td><td>0.003</td><td>Arb minimum profit per share</td></tr>
+        <tr><td></td><td><code>target_pair_cost</code></td><td>0.94</td><td>Max YES+NO combined</td></tr>
+        <tr><td></td><td><code>spot_move_threshold</code></td><td>0.0005</td><td>0.05% sensitivity</td></tr>
+        <tr><td></td><td><code>odds_lag_threshold</code></td><td>0.01</td><td>1% discrepancy</td></tr>
+        <tr><td></td><td><code>lag_confirmations</code></td><td>1</td><td>No wait, react immediately</td></tr>
+        <tr><td colspan="4" style="border-bottom: 2px solid var(--border);"></td></tr>
+        <tr><td>Exit Management</td><td><code>stop_loss_pct</code></td><td>0.08</td><td>8%</td></tr>
+        <tr><td></td><td><code>take_profit_pct</code></td><td>0.15</td><td>15%</td></tr>
+        <tr><td></td><td><code>time_exit_seconds</code></td><td>45.0</td><td>Exit 45s before expiry</td></tr>
+        <tr><td></td><td><code>stop_loss_confirmations</code></td><td>3</td><td>6s delay at 2s interval</td></tr>
+        <tr><td colspan="4" style="border-bottom: 2px solid var(--border);"></td></tr>
+        <tr><td>Timing</td><td><code>lag_entry_dead_zone_start</code></td><td>30.0</td><td>Skip first 30s after open</td></tr>
+        <tr><td></td><td><code>lag_entry_dead_zone_end</code></td><td>15.0</td><td>Skip last 15s before close</td></tr>
+        <tr><td></td><td><code>spot_window_seconds</code></td><td>10</td><td>Measure spot over 10s</td></tr>
+        <tr><td></td><td><code>cooldown_seconds</code></td><td>2.0</td><td>Min gap between trades</td></tr>
+        <tr><td colspan="4" style="border-bottom: 2px solid var(--border);"></td></tr>
+        <tr><td>Sizing / Risk</td><td><code>order_size</code></td><td>250.0</td><td></td></tr>
+        <tr><td></td><td><code>kelly_fraction</code></td><td>0.25</td><td>Quarter-Kelly</td></tr>
+        <tr><td></td><td><code>max_entries_per_market</code></td><td>2</td><td></td></tr>
+        <tr><td></td><td><code>max_position_per_market</code></td><td>1000.0</td><td></td></tr>
+        <tr><td></td><td><code>max_total_position</code></td><td>5000.0</td><td></td></tr>
+        <tr><td></td><td><code>max_daily_loss</code></td><td>250.0</td><td></td></tr>
+    </table>
+</div>
+
+<!-- ============================================================ -->
+<!-- 7-DAY GAME PLAN                                               -->
+<!-- ============================================================ -->
+
+<h2>6. 7-Day Game Plan</h2>
+
+<div class="card">
+    <h4>Day 1: Baseline &amp; Enable Data Collection</h4>
+    <ul>
+        <li>Deploy Phase 1 observability code to server</li>
+        <li>Verify <code>strategy_decisions</code>, <code>spot_snapshots</code>, <code>market_outcomes</code> tables are populating</li>
+        <li>Let bot run with current config for 24h to establish baseline metrics</li>
+        <li>Record baseline: opportunities/hour, rejection rate, trade count, P&amp;L</li>
+    </ul>
+
+    <h4>Day 2: First Strategy Activation + Tune</h4>
+    <ul>
+        <li>Analyze baseline data: what's the funnel bottleneck?</li>
+        <li>If no opportunities found &rarr; enable <code>price_lag</code> strategy, tune entry thresholds</li>
+        <li>If opportunities found but all rejected &rarr; investigate risk rejection reasons, loosen as needed</li>
+        <li>Make 1-2 parameter changes (12h observation each)</li>
+    </ul>
+
+    <h4>Day 3-4: Iterate on Active Strategies</h4>
+    <ul>
+        <li>Evaluate Day 2 changes. Keep or revert.</li>
+        <li>Enable <code>resolution_sniper</code> if price-lag is generating data</li>
+        <li>Tune exit parameters (stop-loss, take-profit) based on observed P&amp;L curves</li>
+        <li>Tune dead zones based on time-of-day patterns in market_outcomes</li>
+        <li>Target: 2-3 parameter changes per day (8h observation each)</li>
+    </ul>
+
+    <h4>Day 5-6: Optimization &amp; Multi-Strategy</h4>
+    <ul>
+        <li>If individual strategies show edge, enable <code>parallel_strategies</code></li>
+        <li>Fine-tune sizing (order_size, kelly_fraction) based on observed variance</li>
+        <li>Analyze per-asset performance &mdash; are some assets more predictable?</li>
+        <li>Consider disabling strategies that show consistent negative edge</li>
+        <li>Target: 3-4 parameter changes per day (6h observation each)</li>
+    </ul>
+
+    <h4>Day 7: Evaluate &amp; Decision</h4>
+    <ul>
+        <li>Compile full 7-day performance report</li>
+        <li>Calculate: net P&amp;L, win rate, Sharpe ratio, max drawdown</li>
+        <li>Compare final config vs Day 0 baseline</li>
+        <li>Decision point: Is the bot ready for live trading?</li>
+        <li>If not profitable: document what was learned, plan next sprint</li>
+        <li>If profitable: discuss moving to live with reduced position sizes</li>
+    </ul>
+</div>
+
+<!-- ============================================================ -->
+<!-- SUCCESS CRITERIA                                              -->
+<!-- ============================================================ -->
+
+<h2>7. Success Criteria (Day 7 Evaluation)</h2>
+
+<div class="grid-3">
+    <div class="stat">
+        <div class="stat-value accent">???</div>
+        <div class="stat-label">Net Sim P&amp;L (7 days)</div>
+    </div>
+    <div class="stat">
+        <div class="stat-value accent">???</div>
+        <div class="stat-label">Win Rate</div>
+    </div>
+    <div class="stat">
+        <div class="stat-value accent">???</div>
+        <div class="stat-label">Total Trades</div>
+    </div>
+</div>
+
+<div class="card">
+    <h4>Ready for Live Trading If:</h4>
+    <ul>
+        <li>Net positive simulated P&amp;L over 7 days (after all fees)</li>
+        <li>Win rate &gt; 50% with at least 50 total trades</li>
+        <li>No single-day loss exceeding 5% of sim balance</li>
+        <li>At least one strategy showing consistent positive edge</li>
+        <li>Max drawdown &lt; 15% of peak sim balance</li>
+    </ul>
+
+    <h4>Needs Another Sprint If:</h4>
+    <ul>
+        <li>Insufficient trade volume (&lt; 20 trades total)</li>
+        <li>Win rate below 45% despite parameter tuning</li>
+        <li>All strategies show negative expected value</li>
+        <li>Identified strategy code changes that could unlock edge (requires human approval)</li>
+    </ul>
+</div>
+
+<!-- ============================================================ -->
+<!-- EXPERIMENT LOG                                                -->
+<!-- ============================================================ -->
+
+<h2>8. Experiment Log</h2>
+
+<p>Every parameter change is recorded here. Newest entries at the top. This is the <strong>source of truth</strong> for what was tried and what worked.</p>
+
+<div class="callout">
+    <strong>No experiments yet.</strong> The 7-day sprint has not started. First entry will be the Day 0 baseline measurement.
+</div>
+
+<!--
+TEMPLATE for new experiment entries. Copy this block and fill in.
+
+<div class="timeline-entry pending">
+    <div class="timeline-date">2026-02-XX HH:MM UTC &mdash; Experiment #N</div>
+    <div class="timeline-title">Parameter: <code>param_name</code> &mdash; OLD &rarr; NEW</div>
+    <p><strong>Hypothesis:</strong> [Why this change should help]</p>
+    <p><strong>Bottleneck addressed:</strong> [Which funnel stage]</p>
+    <p><strong>Baseline metrics (before):</strong></p>
+    <table>
+        <tr><th>Metric</th><th>Value</th></tr>
+        <tr><td>Opportunities/hour</td><td>???</td></tr>
+        <tr><td>Risk rejection rate</td><td>???</td></tr>
+        <tr><td>Trades/day</td><td>???</td></tr>
+        <tr><td>Win rate</td><td>???</td></tr>
+        <tr><td>Net P&L (period)</td><td>???</td></tr>
+    </table>
+    <p><strong>Observation period:</strong> Xh (until 2026-02-XX HH:MM UTC)</p>
+    <p><strong>Result:</strong> <span class="badge badge-pending">PENDING</span></p>
+    <p><strong>Post-change metrics:</strong> [filled in after observation]</p>
+    <p><strong>Verdict:</strong> [KEPT / REVERTED / SUPERSEDED]</p>
+</div>
+
+-->
+
+<!-- ============================================================ -->
+<!-- CUMULATIVE PERFORMANCE                                        -->
+<!-- ============================================================ -->
+
+<h2>9. Cumulative Performance Tracker</h2>
+
+<p>Updated after each experiment evaluation. Tracks the overall trajectory of the bot's performance across the 7-day sprint.</p>
+
+<table>
+    <tr>
+        <th>Day</th>
+        <th>Config Changes</th>
+        <th>Trades</th>
+        <th>Win Rate</th>
+        <th>Net P&amp;L</th>
+        <th>Cum P&amp;L</th>
+        <th>Active Strategies</th>
+        <th>Notes</th>
+    </tr>
+    <tr><td colspan="8" class="muted" style="text-align: center;">Sprint not yet started</td></tr>
+</table>
+
+<!-- ============================================================ -->
+<!-- KEY LEARNINGS                                                 -->
+<!-- ============================================================ -->
+
+<h2>10. Key Learnings &amp; Strategy Insights</h2>
+
+<p>Patterns discovered during the self-learning loop. These inform future strategy code changes (which require human approval).</p>
+
+<div class="callout">
+    <strong>No learnings yet.</strong> This section populates as experiments reveal patterns about market behavior, strategy edge, and parameter sensitivity.
+</div>
+
+<!--
+TEMPLATE for learnings:
+
+<div class="card">
+    <h4>Learning: [Title]</h4>
+    <p><strong>Discovered:</strong> 2026-02-XX | <strong>Source:</strong> Experiment #N</p>
+    <p>[Description of the insight]</p>
+    <p><strong>Action taken:</strong> [Parameter change / strategy proposal / none]</p>
+</div>
+-->
+
+<hr class="separator">
+<p class="muted" style="text-align: center; font-size: 0.8rem;">
+    This document is auto-maintained by the Claude analysis agent. Last updated: 2026-02-07.
+</p>
+
+</body>
+</html>
