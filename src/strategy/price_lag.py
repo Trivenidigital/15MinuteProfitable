@@ -50,6 +50,7 @@ class PriceLagStrategy(BaseStrategy):
         self._spot_buffer = spot_buffer
         self._consecutive_signals: dict[str, int] = {}  # condition_id -> count
         self._last_signal_direction: dict[str, str] = {}  # condition_id -> "UP"/"DOWN"
+        self._stop_loss_counts: dict[str, int] = {}  # condition_id -> consecutive trigger count
 
     @property
     def name(self) -> str:
@@ -271,18 +272,22 @@ class PriceLagStrategy(BaseStrategy):
 
         Exit conditions:
         1. Time-based exit: within time_exit_seconds of market close
-        2. Stop-loss: current value dropped below stop_loss_pct of cost basis
+        2. Stop-loss (smart): cheap contract bypass, time-decayed threshold,
+           confirmation counter
         3. Take-profit: current value exceeds take_profit_pct above cost basis
         """
         now_ts = time.time()
+        start_ts = market.start_time.timestamp()
         end_ts = market.end_time.timestamp()
         time_to_close = end_ts - now_ts
+        cid = market.condition_id
 
         # 1. Time-based exit
         if time_to_close <= self._settings.time_exit_seconds:
             self._log.info(
                 "time_exit", market=market.slug, time_to_close=round(time_to_close, 1)
             )
+            self._stop_loss_counts.pop(cid, None)
             return True
 
         # 2. Get current prices
@@ -291,6 +296,8 @@ class PriceLagStrategy(BaseStrategy):
             return False
 
         current_value = 0.0
+        total_shares = position.yes_shares + position.no_shares
+
         if position.yes_shares > 0:
             yes_book = self._book_manager.get_book(market.yes_token_id)
             if yes_book and yes_book.best_bid is not None:
@@ -306,13 +313,18 @@ class PriceLagStrategy(BaseStrategy):
 
         pnl_pct = (current_value - cost_basis) / cost_basis
 
-        # 3. Stop-loss
-        if pnl_pct <= -self._settings.stop_loss_pct:
-            self._log.info(
-                "stop_loss_triggered",
-                market=market.slug,
-                pnl_pct=round(pnl_pct * 100, 2),
-            )
+        # 3. Smart stop-loss
+        stop_loss_exit = self._check_smart_stop_loss(
+            pnl_pct=pnl_pct,
+            cost_basis=cost_basis,
+            total_shares=total_shares,
+            now_ts=now_ts,
+            start_ts=start_ts,
+            end_ts=end_ts,
+            market=market,
+        )
+        if stop_loss_exit:
+            self._stop_loss_counts.pop(cid, None)
             return True
 
         # 4. Take-profit
@@ -322,14 +334,100 @@ class PriceLagStrategy(BaseStrategy):
                 market=market.slug,
                 pnl_pct=round(pnl_pct * 100, 2),
             )
+            self._stop_loss_counts.pop(cid, None)
             return True
 
+        return False
+
+    def _check_smart_stop_loss(
+        self,
+        pnl_pct: float,
+        cost_basis: float,
+        total_shares: float,
+        now_ts: float,
+        start_ts: float,
+        end_ts: float,
+        market: Market,
+    ) -> bool:
+        """Evaluate smart stop-loss with cheap bypass, time decay, and confirmation.
+
+        Returns True only when a confirmed stop-loss exit should occur.
+        """
+        cid = market.condition_id
+
+        # Step A: Cheap contract bypass
+        if total_shares > 0:
+            avg_entry_price = cost_basis / total_shares
+            if avg_entry_price < self._settings.stop_loss_cheap_threshold:
+                self._log.debug(
+                    "stop_loss_skipped_cheap",
+                    market=market.slug,
+                    avg_entry_price=round(avg_entry_price, 4),
+                )
+                self._stop_loss_counts.pop(cid, None)
+                return False
+
+        # Step B: Time-decayed threshold
+        duration = end_ts - start_ts
+        if duration > 0:
+            elapsed = now_ts - start_ts
+            progress = elapsed / duration  # 0.0 -> 1.0
+        else:
+            progress = 1.0
+
+        if self._settings.stop_loss_time_decay:
+            if progress >= 2 / 3:
+                # Last third: disable stop-loss entirely
+                self._log.debug(
+                    "stop_loss_disabled_late_market",
+                    market=market.slug,
+                    progress=round(progress, 2),
+                )
+                self._stop_loss_counts.pop(cid, None)
+                return False
+            elif progress >= 1 / 3:
+                # Middle third: double the threshold (wider)
+                effective_threshold = self._settings.stop_loss_pct * 2
+            else:
+                # First third: use as-is
+                effective_threshold = self._settings.stop_loss_pct
+        else:
+            effective_threshold = self._settings.stop_loss_pct
+
+        # Check if loss exceeds effective threshold
+        if pnl_pct <= -effective_threshold:
+            # Step C: Confirmation counter
+            count = self._stop_loss_counts.get(cid, 0) + 1
+            self._stop_loss_counts[cid] = count
+
+            if count >= self._settings.stop_loss_confirmations:
+                self._log.info(
+                    "stop_loss_triggered",
+                    market=market.slug,
+                    pnl_pct=round(pnl_pct * 100, 2),
+                    confirmations=count,
+                    effective_threshold=round(effective_threshold * 100, 2),
+                )
+                return True
+
+            self._log.debug(
+                "stop_loss_pending_confirmation",
+                market=market.slug,
+                pnl_pct=round(pnl_pct * 100, 2),
+                confirmations=count,
+                required=self._settings.stop_loss_confirmations,
+            )
+            return False
+
+        # Not in stop-loss territory — reset counter
+        self._stop_loss_counts.pop(cid, None)
         return False
 
     def cleanup_market(self, condition_id: str) -> None:
         """Remove tracking data for an expired market."""
         self._consecutive_signals.pop(condition_id, None)
         self._last_signal_direction.pop(condition_id, None)
+        self._stop_loss_counts.pop(condition_id, None)
 
     def _time_aware_sizing(self, time_to_close: float) -> float:
         """Return sizing multiplier based on time remaining.

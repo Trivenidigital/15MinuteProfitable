@@ -49,6 +49,9 @@ class Settings(BaseSettings):
     take_profit_pct: float = 0.15  # 15% take profit (let winners run)
     time_exit_seconds: float = 45.0  # exit 45s before expiry
     lag_confirmations: int = 1  # react immediately, no confirmation wait
+    stop_loss_time_decay: bool = True  # widen stop-loss as market nears expiry
+    stop_loss_cheap_threshold: float = 0.10  # no stop-loss for contracts < $0.10 avg price
+    stop_loss_confirmations: int = 3  # consecutive triggers before exit (6s at 2s interval)
 
     # Asymmetric Entry Strategy Parameters
     yes_cheap_threshold: float = 0.42  # buy YES when ask < this

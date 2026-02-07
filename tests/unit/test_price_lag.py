@@ -656,8 +656,9 @@ class TestShouldExit:
         strategy: PriceLagStrategy,
         book_manager: MockOrderBookManager,
     ) -> None:
-        """Should exit when loss exceeds stop_loss_pct."""
-        market = _make_market(start_offset=-300.0, end_offset=600.0)
+        """Should exit when loss exceeds stop_loss_pct after enough confirmations."""
+        # Use first third of market (progress < 1/3) so threshold stays at stop_loss_pct
+        market = _make_market(start_offset=-200.0, end_offset=700.0)
         # Cost basis = 23.0, current bid = 0.40 -> value = 50 * 0.40 = 20.0
         # pnl_pct = (20.0 - 23.0) / 23.0 = -0.1304 -> exceeds -0.05 stop_loss
         position = Position(
@@ -668,6 +669,12 @@ class TestShouldExit:
         )
         book_manager.yes_book = _make_orderbook("YES_TOKEN", best_bid=0.40)
 
+        # First two calls: pending confirmation (need 3)
+        assert strategy.should_exit(position, market) is False
+        assert strategy._stop_loss_counts[market.condition_id] == 1
+        assert strategy.should_exit(position, market) is False
+        assert strategy._stop_loss_counts[market.condition_id] == 2
+        # Third call: confirmed stop-loss
         assert strategy.should_exit(position, market) is True
 
     def test_take_profit_triggered(
@@ -730,7 +737,8 @@ class TestShouldExit:
         book_manager: MockOrderBookManager,
     ) -> None:
         """Stop-loss on a NO position (bought NO, price dropped)."""
-        market = _make_market(start_offset=-300.0, end_offset=600.0)
+        # Use first third of market so threshold stays at stop_loss_pct
+        market = _make_market(start_offset=-200.0, end_offset=700.0)
         # Cost basis = 23.0 (in no_cost_basis), NO bid = 0.40 -> value = 50 * 0.40 = 20.0
         # pnl_pct = (20.0 - 23.0) / 23.0 = -0.1304 -> exceeds stop
         position = Position(
@@ -741,6 +749,8 @@ class TestShouldExit:
         )
         book_manager.no_book = _make_orderbook("NO_TOKEN", best_bid=0.40)
 
+        # Pre-populate confirmations to just below threshold
+        strategy._stop_loss_counts[market.condition_id] = 2
         assert strategy.should_exit(position, market) is True
 
     def test_time_exit_at_exact_boundary(
@@ -776,6 +786,233 @@ class TestShouldExit:
         book_manager.yes_book = None
 
         assert strategy.should_exit(position, market) is False
+
+
+# ---------------------------------------------------------------------------
+# Smart stop-loss
+# ---------------------------------------------------------------------------
+
+
+class TestSmartStopLoss:
+    """Tests for cheap bypass, time decay, and confirmation counter."""
+
+    def test_cheap_contract_bypass(
+        self,
+        strategy: PriceLagStrategy,
+        book_manager: MockOrderBookManager,
+    ) -> None:
+        """Contracts with avg entry < stop_loss_cheap_threshold skip stop-loss."""
+        market = _make_market(start_offset=-200.0, end_offset=700.0)
+        # 150 shares at $0.04 avg => cost_basis = 6.0, avg = 0.04 < 0.10
+        position = Position(
+            market=market,
+            yes_shares=150.0,
+            yes_cost_basis=6.0,
+            strategy=StrategyType.PRICE_LAG,
+        )
+        # bid = 0.02 => value = 3.0, pnl_pct = -50% — massive loss but cheap
+        book_manager.yes_book = _make_orderbook("YES_TOKEN", best_bid=0.02)
+
+        # Even after many calls, should never trigger stop-loss
+        for _ in range(5):
+            assert strategy.should_exit(position, market) is False
+        assert market.condition_id not in strategy._stop_loss_counts
+
+    def test_cheap_bypass_respects_threshold(
+        self,
+        strategy: PriceLagStrategy,
+        book_manager: MockOrderBookManager,
+    ) -> None:
+        """Contracts at or above threshold are NOT bypassed."""
+        market = _make_market(start_offset=-200.0, end_offset=700.0)
+        # 100 shares at $0.10 avg => cost_basis = 10.0, avg = 0.10 (NOT cheap)
+        position = Position(
+            market=market,
+            yes_shares=100.0,
+            yes_cost_basis=10.0,
+            strategy=StrategyType.PRICE_LAG,
+        )
+        # bid = 0.05 => value = 5.0, pnl_pct = -50% => exceeds threshold
+        book_manager.yes_book = _make_orderbook("YES_TOKEN", best_bid=0.05)
+
+        # Should accumulate confirmations
+        assert strategy.should_exit(position, market) is False
+        assert strategy._stop_loss_counts[market.condition_id] == 1
+
+    def test_time_decay_middle_third_doubles_threshold(
+        self,
+        strategy: PriceLagStrategy,
+        book_manager: MockOrderBookManager,
+    ) -> None:
+        """In middle third, threshold doubles: 5% -> 10%."""
+        # progress ~= 500/900 = 0.556 (middle third)
+        market = _make_market(start_offset=-500.0, end_offset=400.0)
+        # pnl_pct = -8% => exceeds 5% but NOT 10% (doubled threshold)
+        position = Position(
+            market=market,
+            yes_shares=50.0,
+            yes_cost_basis=23.0,
+            strategy=StrategyType.PRICE_LAG,
+        )
+        # value = 50 * 0.4232 = 21.16, pnl = (21.16-23)/23 = -0.08
+        book_manager.yes_book = _make_orderbook("YES_TOKEN", best_bid=0.4232)
+
+        # Should NOT trigger because 8% < 10% (doubled threshold)
+        for _ in range(5):
+            assert strategy.should_exit(position, market) is False
+
+    def test_time_decay_last_third_disables_stop_loss(
+        self,
+        strategy: PriceLagStrategy,
+        book_manager: MockOrderBookManager,
+    ) -> None:
+        """In last third of market, stop-loss is disabled entirely."""
+        # progress ~= 700/900 = 0.778 (last third)
+        market = _make_market(start_offset=-700.0, end_offset=200.0)
+        position = Position(
+            market=market,
+            yes_shares=50.0,
+            yes_cost_basis=23.0,
+            strategy=StrategyType.PRICE_LAG,
+        )
+        # pnl_pct = -30% — huge loss but we're in last third
+        book_manager.yes_book = _make_orderbook("YES_TOKEN", best_bid=0.322)
+
+        for _ in range(5):
+            assert strategy.should_exit(position, market) is False
+
+    def test_time_decay_disabled_uses_flat_threshold(
+        self,
+        strategy: PriceLagStrategy,
+        book_manager: MockOrderBookManager,
+    ) -> None:
+        """With stop_loss_time_decay=False, threshold is always stop_loss_pct."""
+        strategy._settings = Settings(
+            private_key="0x" + "ab" * 32,  # type: ignore[arg-type]
+            stop_loss_pct=0.05,
+            stop_loss_time_decay=False,
+            stop_loss_confirmations=1,
+            time_exit_seconds=60.0,
+        )
+        # Last third — but decay is disabled so stop-loss should still work
+        market = _make_market(start_offset=-700.0, end_offset=200.0)
+        position = Position(
+            market=market,
+            yes_shares=50.0,
+            yes_cost_basis=23.0,
+            strategy=StrategyType.PRICE_LAG,
+        )
+        # pnl_pct = -13% => exceeds 5%
+        book_manager.yes_book = _make_orderbook("YES_TOKEN", best_bid=0.40)
+
+        assert strategy.should_exit(position, market) is True
+
+    def test_confirmation_counter_increments(
+        self,
+        strategy: PriceLagStrategy,
+        book_manager: MockOrderBookManager,
+    ) -> None:
+        """Counter increments on each check in stop-loss territory."""
+        market = _make_market(start_offset=-200.0, end_offset=700.0)
+        position = Position(
+            market=market,
+            yes_shares=50.0,
+            yes_cost_basis=23.0,
+            strategy=StrategyType.PRICE_LAG,
+        )
+        book_manager.yes_book = _make_orderbook("YES_TOKEN", best_bid=0.40)
+
+        assert strategy.should_exit(position, market) is False
+        assert strategy._stop_loss_counts[market.condition_id] == 1
+
+        assert strategy.should_exit(position, market) is False
+        assert strategy._stop_loss_counts[market.condition_id] == 2
+
+        assert strategy.should_exit(position, market) is True  # 3rd = confirmed
+        # Counter cleaned up on exit
+        assert market.condition_id not in strategy._stop_loss_counts
+
+    def test_confirmation_counter_resets_when_not_in_territory(
+        self,
+        strategy: PriceLagStrategy,
+        book_manager: MockOrderBookManager,
+    ) -> None:
+        """Counter resets to 0 when position exits stop-loss territory."""
+        market = _make_market(start_offset=-200.0, end_offset=700.0)
+        position = Position(
+            market=market,
+            yes_shares=50.0,
+            yes_cost_basis=23.0,
+            strategy=StrategyType.PRICE_LAG,
+        )
+
+        # First check: in stop-loss territory
+        book_manager.yes_book = _make_orderbook("YES_TOKEN", best_bid=0.40)
+        assert strategy.should_exit(position, market) is False
+        assert strategy._stop_loss_counts[market.condition_id] == 1
+
+        # Second check: price recovers, no longer in territory
+        book_manager.yes_book = _make_orderbook("YES_TOKEN", best_bid=0.47)
+        assert strategy.should_exit(position, market) is False
+        assert market.condition_id not in strategy._stop_loss_counts
+
+        # Third check: back in territory — counter restarts from 1
+        book_manager.yes_book = _make_orderbook("YES_TOKEN", best_bid=0.40)
+        assert strategy.should_exit(position, market) is False
+        assert strategy._stop_loss_counts[market.condition_id] == 1
+
+    def test_time_exit_cleans_stop_loss_counter(
+        self,
+        strategy: PriceLagStrategy,
+        book_manager: MockOrderBookManager,
+    ) -> None:
+        """Time-based exit should clean up stop-loss counter."""
+        market = _make_market(start_offset=-870.0, end_offset=30.0)
+        position = Position(
+            market=market,
+            yes_shares=50.0,
+            yes_cost_basis=23.0,
+            strategy=StrategyType.PRICE_LAG,
+        )
+        strategy._stop_loss_counts[market.condition_id] = 2  # pre-populate
+
+        assert strategy.should_exit(position, market) is True
+        assert market.condition_id not in strategy._stop_loss_counts
+
+    def test_take_profit_cleans_stop_loss_counter(
+        self,
+        strategy: PriceLagStrategy,
+        book_manager: MockOrderBookManager,
+    ) -> None:
+        """Take-profit exit should clean up stop-loss counter."""
+        market = _make_market(start_offset=-200.0, end_offset=700.0)
+        position = Position(
+            market=market,
+            yes_shares=50.0,
+            yes_cost_basis=23.0,
+            strategy=StrategyType.PRICE_LAG,
+        )
+        book_manager.yes_book = _make_orderbook("YES_TOKEN", best_bid=0.55)
+        strategy._stop_loss_counts[market.condition_id] = 2  # pre-populate
+
+        assert strategy.should_exit(position, market) is True
+        assert market.condition_id not in strategy._stop_loss_counts
+
+    def test_cleanup_market_removes_stop_loss_counts(
+        self,
+        strategy: PriceLagStrategy,
+    ) -> None:
+        """cleanup_market should remove stop-loss counter."""
+        cid = "test_cond"
+        strategy._stop_loss_counts[cid] = 2
+        strategy._consecutive_signals[cid] = 5
+        strategy._last_signal_direction[cid] = "UP"
+
+        strategy.cleanup_market(cid)
+
+        assert cid not in strategy._stop_loss_counts
+        assert cid not in strategy._consecutive_signals
+        assert cid not in strategy._last_signal_direction
 
 
 # ---------------------------------------------------------------------------
