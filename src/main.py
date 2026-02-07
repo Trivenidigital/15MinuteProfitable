@@ -121,16 +121,15 @@ async def _strategy_loop(
                     for opp in all_opps:
                         decision_logger.log_opportunity(cycle_id, opp)
 
-            best = all_opps[0] if all_opps else None
-
-            if best is not None:
-                market = best.market
+            # Try opportunities in ranked order until one passes risk checks
+            for opp in all_opps:
+                market = opp.market
 
                 # Risk check
-                approved, reason = risk_manager.check_opportunity(best)
+                approved, reason = risk_manager.check_opportunity(opp)
                 if decision_logger:
                     decision_logger.log_risk_decision(
-                        cycle_id, best, approved, reason
+                        cycle_id, opp, approved, reason
                     )
 
                 if not approved:
@@ -139,35 +138,38 @@ async def _strategy_loop(
                         market=market.slug,
                         reason=reason,
                     )
-                else:
-                    # Adjust size
-                    adjusted_size = risk_manager.adjust_size(
-                        best, settings.order_size
+                    continue
+
+                # Adjust size
+                adjusted_size = risk_manager.adjust_size(
+                    opp, settings.order_size
+                )
+                if adjusted_size <= 0:
+                    _log.debug("size_adjusted_to_zero", market=market.slug)
+                    continue
+
+                try:
+                    await _execute_opportunity(
+                        opp=opp,
+                        adjusted_size=adjusted_size,
+                        executor=executor,
+                        state_manager=state_manager,
+                        risk_manager=risk_manager,
+                        rate_limiter=rate_limiter,
+                        settings=settings,
+                        strategies=strategies or [],
                     )
-                    if adjusted_size <= 0:
-                        _log.debug("size_adjusted_to_zero", market=market.slug)
-                    else:
-                        try:
-                            await _execute_opportunity(
-                                opp=best,
-                                adjusted_size=adjusted_size,
-                                executor=executor,
-                                state_manager=state_manager,
-                                risk_manager=risk_manager,
-                                rate_limiter=rate_limiter,
-                                settings=settings,
-                                strategies=strategies or [],
-                            )
-                            if decision_logger:
-                                decision_logger.log_execution(
-                                    cycle_id, best, success=True
-                                )
-                        except Exception:
-                            if decision_logger:
-                                decision_logger.log_execution(
-                                    cycle_id, best, success=False
-                                )
-                            raise
+                    if decision_logger:
+                        decision_logger.log_execution(
+                            cycle_id, opp, success=True
+                        )
+                except Exception:
+                    if decision_logger:
+                        decision_logger.log_execution(
+                            cycle_id, opp, success=False
+                        )
+                    raise
+                break  # Only execute one opportunity per cycle
 
         # Wait before next evaluation cycle
         try:
