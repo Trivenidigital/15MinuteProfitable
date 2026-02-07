@@ -957,6 +957,7 @@ async def _exit_check_loop(
     executor: OrderExecutor,
     rate_limiter: RateLimiter,
     settings: Settings,
+    book_manager: OrderBookManager,
     interval: float = 2.0,
 ) -> None:
     """Fast loop to check if directional positions should be exited.
@@ -990,7 +991,7 @@ async def _exit_check_loop(
                 if strategy.should_exit(position, market):
                     await _execute_exit(
                         position, market, executor, state_manager,
-                        rate_limiter, settings,
+                        rate_limiter, settings, book_manager,
                     )
         except Exception as exc:
             _log.error("exit_check_error", error=str(exc))
@@ -1008,6 +1009,7 @@ async def _execute_exit(
     state_manager: StateManager,
     rate_limiter: RateLimiter,
     settings: Settings,
+    book_manager: OrderBookManager,
 ) -> None:
     """Sell all shares in a directional position."""
     orders = []
@@ -1047,10 +1049,35 @@ async def _execute_exit(
         for result in results:
             await executor.verify_fill(result)
 
+        # Compute sell proceeds from orderbook best bids (accurate for
+        # both live and DRY_RUN; the FOK fill_price of $0.01 is just the
+        # floor, not the real execution price).
+        sell_proceeds = 0.0
+        if position.yes_shares > 0:
+            yes_book = book_manager.get_book(market.yes_token_id)
+            bid = yes_book.best_bid if yes_book and yes_book.best_bid else 0.0
+            sell_proceeds += position.yes_shares * bid
+        if position.no_shares > 0:
+            no_book = book_manager.get_book(market.no_token_id)
+            bid = no_book.best_bid if no_book and no_book.best_bid else 0.0
+            sell_proceeds += position.no_shares * bid
+
+        total_shares = position.yes_shares + position.no_shares
+        payout_per_share = sell_proceeds / total_shares if total_shares > 0 else 0.0
+
+        # Close the position in state to prevent repeated exit signals
+        # and double-counting at market resolution.
+        try:
+            state_manager.close_position(market.condition_id, payout_per_share)
+        except KeyError:
+            pass  # Already closed by resolution loop
+
         _log.info(
             "position_exited",
             market=market.slug,
             results=[r.status.value for r in results],
+            sell_proceeds=round(sell_proceeds, 4),
+            payout_per_share=round(payout_per_share, 4),
         )
     except Exception as exc:
         _log.error("exit_execution_error", market=market.slug, error=str(exc))
@@ -1611,6 +1638,7 @@ async def _run_bot(settings: Settings, pid_lock: PidLock) -> None:
             executor=executor,
             rate_limiter=rate_limiter,
             settings=settings,
+            book_manager=book_manager,
             interval=2.0,
         ),
     )
