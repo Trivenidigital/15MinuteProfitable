@@ -171,7 +171,7 @@
 
 <div class="grid-3">
     <div class="stat">
-        <div class="stat-value accent">0</div>
+        <div class="stat-value accent">1</div>
         <div class="stat-label">Experiments Run</div>
     </div>
     <div class="stat">
@@ -245,8 +245,24 @@
 
 <p>Chronological record of every parameter change. Newest entries at the top. Each entry includes hypothesis, before/after metrics, and verdict.</p>
 
-<div class="callout">
-    <strong>No experiments yet.</strong> The 7-day sprint has not started. Deploy Phase 1 observability code and wait 24h for baseline data.
+<div class="timeline-entry baseline">
+    <div class="timeline-date">2026-02-07 22:25 UTC &mdash; Experiment #0 (Pre-Sprint)</div>
+    <div class="timeline-title">
+        Phase 1 Observability Deployed &mdash; Baseline Collection Begins
+        <span class="badge badge-active">COLLECTING</span>
+    </div>
+    <p><strong>Action:</strong> Deployed Phase 1 observability code to server. Bot restarted with decision logging, spot snapshots (5s interval), and market outcome tracking enabled.</p>
+    <p><strong>Immediate observations (first 60s post-deploy):</strong></p>
+    <div class="experiment-metrics">
+        <div class="stat"><div class="stat-value">0</div><div class="stat-label">Opps/hr</div></div>
+        <div class="stat"><div class="stat-value">0</div><div class="stat-label">Trades/day</div></div>
+        <div class="stat"><div class="stat-value">—</div><div class="stat-label">Win Rate</div></div>
+        <div class="stat"><div class="stat-value">$0</div><div class="stat-label">Net P&amp;L</div></div>
+        <div class="stat"><div class="stat-value">100%</div><div class="stat-label">No-Opp Rate</div></div>
+    </div>
+    <p><strong>Decision log:</strong> 32 decisions, all <code>no_opportunities</code>. Only arbitrage is enabled; combined YES+NO prices &gt;$1.01 across all assets (BTC: $1.01, ETH: $1.01, SOL: $1.03, XRP: $1.05). Spreads far above $0.94 target.</p>
+    <p><strong>Spot data:</strong> 4 symbols capturing (BTCUSDT: ~$69,490, ETHUSDT: ~$2,094, SOLUSDT: ~$88.38, XRPUSDT: ~$1.43).</p>
+    <p><strong>Next step:</strong> Wait 24h for baseline data accumulation, then begin first analysis cycle.</p>
 </div>
 
 <!--
@@ -319,9 +335,40 @@ TEMPLATE — Copy this block for each new experiment. Place ABOVE previous entri
     <strong>strategy code changes</strong> (which require human approval before implementing).
 </p>
 
-<div class="callout">
-    <strong>No insights yet.</strong> This section populates as experiments reveal patterns about market behavior,
-    strategy edge, and parameter sensitivity.
+<div class="card">
+    <div class="card-header">
+        <h3>Arbitrage alone produces zero opportunities</h3>
+        <span class="badge badge-active">ACTIONABLE</span>
+    </div>
+    <p><strong>Discovered:</strong> 2026-02-07 | <strong>Source:</strong> Experiment #0 (deployment)</p>
+    <p>With only arbitrage enabled, 100% of scan cycles return <code>no_opportunities</code>. Combined YES+NO prices range from $1.01 to $1.05 across all 4 assets, far above the $0.94 target. Pure arb spreads on Polymarket 15-min markets are structurally too wide for profitable arb at current fee levels.</p>
+    <p><strong>Evidence:</strong> 32/32 decisions = <code>no_opportunities</code>. BTC: $1.01, ETH: $1.01, SOL: $1.03, XRP: $1.05 combined.</p>
+    <p><strong>Implication:</strong> The bot cannot generate any trades with arbitrage as the sole strategy. Directional strategies (price_lag, sniper) are needed to produce trade volume.</p>
+    <p><strong>Recommended action:</strong> First self-learning experiment should enable <code>price_lag</code> strategy. Arb should remain on as a secondary opportunistic strategy but should not be relied upon.</p>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3>XRP has the tightest spreads at 50/50 odds</h3>
+        <span class="badge badge-neutral">OBSERVATION</span>
+    </div>
+    <p><strong>Discovered:</strong> 2026-02-07 | <strong>Source:</strong> Experiment #0 (deployment)</p>
+    <p>XRP consistently shows YES prices near $0.46-0.47 and NO near $0.55-0.58 — closest to 50/50 odds. While this means highest taker fees (fee peaks at 50/50), it also indicates the most liquid/competitive market. BTC and ETH tend to show more skewed odds.</p>
+    <p><strong>Evidence:</strong> XRP combined $1.05, but individual prices closer to $0.50. BTC/ETH show YES at $0.06-0.24 (heavily skewed).</p>
+    <p><strong>Implication:</strong> Directional strategies on XRP face higher fees but may find more opportunities due to frequent price swings near the decision boundary. Skewed markets (BTC, ETH) may be better for sniper entries on the cheap side.</p>
+    <p><strong>Recommended action:</strong> Monitor per-asset win rates once trading begins. Consider asset-specific thresholds if patterns diverge.</p>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3>Sniper entry risk on high-priced contracts</h3>
+        <span class="badge badge-pending">MONITOR</span>
+    </div>
+    <p><strong>Discovered:</strong> 2026-02-07 | <strong>Source:</strong> Resolution Sniper deployment (pre-sprint)</p>
+    <p>XRP sniper entries at $0.93 have terrible risk/reward: $0.33 expected profit on $150 means a single loss wipes ~420 wins. The sniper's <code>sniper_max_entry_price</code> needs to be watched carefully.</p>
+    <p><strong>Evidence:</strong> From earlier deployment logs — XRP sniper triggered at 93% confidence, entry at $0.93.</p>
+    <p><strong>Implication:</strong> Need minimum expected profit filter or lower max entry price for sniper.</p>
+    <p><strong>Recommended action:</strong> Tune <code>sniper_max_entry_price</code> downward if sniper losses on high-price entries are observed.</p>
 </div>
 
 <!--

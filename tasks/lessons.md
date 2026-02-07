@@ -86,6 +86,28 @@
 - **Market close price is approximate.** When a market expires, the `_market_outcome_loop` captures the current spot price as the close. Since detection runs every 10s, this can be up to 10s late. For higher accuracy, query `trade_db.get_spot_at_time()` using the market's `end_time` (relies on the 5s spot snapshot loop). This is good enough for directional win/loss determination.
 - **ruff import sorting is strict.** Comments between import groups (like `# Dashboard (lazy)`) break isort formatting. Either remove inline comments or ensure imports are organized into clean standard/third-party/local groups without interleaving comments.
 
+## Resolution Sniper Deployment
+
+- **Circuit breaker persists across restarts.** The state snapshot saves daily PnL, and if the circuit breaker was activated (24h timer), restarting the bot doesn't clear it. Even changing `max_daily_loss` from $150 to $1000 didn't help because `is_circuit_breaker_active()` short-circuits before the daily loss check re-evaluates. Fix required a second restart to clear the in-memory flag. Consider: re-evaluate breaker against current settings on startup.
+- **Pydantic `env_prefix="BOT_"` means ALL env vars need the prefix.** `ENABLE_RESOLUTION_SNIPER=true` silently does nothing. Must be `BOT_ENABLE_RESOLUTION_SNIPER=true`. Triple-check the prefix when adding new env vars.
+- **Sniper fires every 15-minute window, not just once.** Each market cycle (BTC, ETH, SOL, XRP) gets its own sniper evaluation in the last 120s. At 87% confidence, all 4 assets can trigger simultaneously during coordinated moves.
+- **87% confidence threshold is the sweet spot.** At 90%, about 25% of valid opportunities were filtered out. At 87%, the sniper catches entries like ETH at 87.1% and SOL at 87.4% that still have strong positive EV after fees.
+- **XRP sniper entries at high prices ($0.93) have poor risk/reward.** Expected profit of $0.33 on $150 means a single loss wipes out ~420 wins. Consider adding a minimum expected profit filter ($5+) or lowering `sniper_max_entry_price`.
+- **Entry cap and per-strategy override may conflict.** The risk manager overrides `max_entries_per_market` to 3 for sniper, but rejections showed `2 >= 2`, suggesting price-lag entries on the same condition_id count toward the cap. Entries from different strategies sharing a market need careful accounting.
+- **Monitoring background tasks must use current PID.** If the bot is restarted mid-monitoring, `/proc/{old_pid}/status` fails and cascades grep failures. Always capture the PID fresh or use `systemctl status` for memory checks.
+
+## Self-Learning System
+
+- **Plans must match the user's actual vision, not what seems logical.** I wrote Phase 2-5 as generic offline analysis scripts + dashboard integration. The user's actual vision was an autonomous self-learning loop (Analyze → Tune → Measure). Always verify plans against prior discussions before writing them up. Generic "next steps" are a red flag.
+- **Two separate living documents, not one.** `strategy-self-learn.html` is the system plan (methodology, cadence, parameter priority, 7-day game plan). `self-learning-lessons-strategies.html` is the experiment log (every config change, results, insights). The plan rarely changes; the log changes every cycle. Mixing them makes the log hard to scan.
+- **The self-learning agent is an operational workflow, not bot code.** No new Python modules needed. The Claude agent SSHs into the server, queries SQLite, updates `.env`, restarts via systemctl. The observability pipeline (Phase 1) provides the data; the agent provides the intelligence.
+- **Parameter tuning is autonomous; strategy code changes require human approval.** This boundary prevents runaway code mutations while allowing rapid iteration on thresholds. The agent documents code change proposals in the HTML experiment log for async human review.
+- **Baseline data needs 24h before first analysis.** The bot needs to run with current config for a full day to capture enough market windows (~384/day across 4 assets) for statistically meaningful baseline metrics. Don't start tuning on partial data.
+- **"no_opportunities" dominates early decision logs.** With only arbitrage enabled and spreads too wide (combined YES+NO > $1.01), every scan cycle returns zero opportunities. This confirms the first self-learning action should be enabling price_lag or lowering arb thresholds.
+- **Deployment is fast when no new dependencies.** Pure Python file additions (new modules, new tables via CREATE IF NOT EXISTS) only need `git pull` + `systemctl restart`. No `pip install` needed. SQLite schema auto-migrates on startup.
+- **Spot snapshots start immediately, market outcomes need a full 15-min window.** After restart, `spot_snapshots` gets rows within 5s and `strategy_decisions` within 2s. But `market_outcomes` stays empty until the first market expires (~15 min). Don't panic about zero outcome rows right after deploy.
+- **One parameter change per cycle with minimum 20 observations.** This is a hard rule for the self-learning loop. Changing multiple parameters simultaneously makes it impossible to attribute improvement/degradation. 20 observations is the minimum for any conclusion.
+
 ## Common Mistakes
 
 - **Heredoc in SSH:** Copy-pasting heredocs (`cat << 'EOF'`) over SSH often fails. Use multiple `printf` or `echo` commands instead.

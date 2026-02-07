@@ -113,9 +113,14 @@ NEVER: Submit market orders without checking orderbook depth first
 - **Vision:** Autonomous Analyze → Tune → Measure loop until profitable in DRY_RUN, then go live
 - **Agent:** Claude Code SSHs into Hetzner VPS to pull data, analyze, update `.env`, restart bot
 - **Autonomy:** Parameter changes are fully autonomous; strategy code changes require human approval
-- **Plan doc:** `docs/strategy-self-learn.html` (system plan, cadence, parameter priority, 7-day game plan)
-- **Experiment log:** `docs/self-learning-lessons-strategies.html` (living record of every config change and result)
+- **Sprint:** 7-day observation period. Deployed Phase 1 observability 2026-02-07 22:25 UTC. Baseline collection in progress.
+- **Key finding (pre-sprint):** Arbitrage alone produces zero opportunities — spreads $1.01-$1.05 vs $0.94 target. Must enable directional strategies (price_lag first).
+- **Three memory files:**
+  - `docs/strategy-self-learn.html` — System plan, cadence, parameter priority, 7-day game plan (rarely changes)
+  - `docs/self-learning-lessons-strategies.html` — Living experiment log, insights, market patterns (updated every cycle)
+  - `tasks/lessons.md` — Development lessons and patterns (updated after corrections/discoveries)
 - **Safety:** One parameter per cycle, max 50% change, min 20 observations, revert on degradation
+- **Deploy workflow:** `git push` → SSH `git pull` → `systemctl restart btc15minutebot`. No pip install needed for pure Python changes.
 
 ## Conventions
 - Commit format: conventional commits (feat:, fix:, refactor:)
