@@ -8,6 +8,16 @@
 - **Chain:** Polygon Mainnet (chain_id=137)
 - **Collateral:** USDC.e (`0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174`)
 
+## Cloud Server
+- **IP:** `46.62.206.192` (Hetzner VPS, Helsinki)
+- **SSH:** `ssh root@46.62.206.192`
+- **Bot path:** `/opt/btc15minutebot/`
+- **Config:** `/opt/btc15minutebot/.env`
+- **Service:** `systemctl {start|stop|restart|status} btc15minutebot`
+- **Logs:** `/var/log/btc15minutebot/bot.log` (stdout) and `error.log` (stderr)
+- **Database:** `/opt/btc15minutebot/data/trades.db` (SQLite)
+- **Dashboard:** `http://46.62.206.192:8080`
+
 ## Key Commands
 - Run bot: `python -m src.main`
 - Run tests: `pytest tests/ -v`

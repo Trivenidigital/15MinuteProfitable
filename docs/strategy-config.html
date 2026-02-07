@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BTC 15-Minute Bot - Strategy Configuration</title>
+    <style>
+        :root {
+            --bg: #0d1117;
+            --surface: #161b22;
+            --border: #30363d;
+            --text: #e6edf3;
+            --text-muted: #8b949e;
+            --accent: #58a6ff;
+            --green: #3fb950;
+            --red: #f85149;
+            --yellow: #d29922;
+            --orange: #db6d28;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            padding: 2rem;
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+        h1 { font-size: 1.8rem; margin-bottom: 0.5rem; }
+        h2 { font-size: 1.3rem; margin: 2rem 0 1rem; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
+        h3 { font-size: 1.1rem; margin: 1.5rem 0 0.5rem; color: var(--text); }
+        .subtitle { color: var(--text-muted); margin-bottom: 2rem; }
+        .badge {
+            display: inline-block;
+            padding: 0.15rem 0.6rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .badge-active { background: rgba(63, 185, 80, 0.15); color: var(--green); border: 1px solid rgba(63, 185, 80, 0.3); }
+        .badge-inactive { background: rgba(139, 148, 158, 0.15); color: var(--text-muted); border: 1px solid rgba(139, 148, 158, 0.3); }
+        .badge-dryrun { background: rgba(210, 153, 34, 0.15); color: var(--yellow); border: 1px solid rgba(210, 153, 34, 0.3); }
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.25rem;
+            margin-bottom: 1rem;
+        }
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.75rem;
+        }
+        .card-header h3 { margin: 0; }
+        .card p { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 0.75rem; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+        th, td {
+            text-align: left;
+            padding: 0.5rem 0.75rem;
+            border-bottom: 1px solid var(--border);
+        }
+        th { color: var(--text-muted); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.03em; }
+        td:first-child { font-family: 'SFMono-Regular', Consolas, monospace; font-size: 0.85rem; }
+        td:nth-child(2) { color: var(--accent); font-family: 'SFMono-Regular', Consolas, monospace; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        @media (max-width: 700px) { .grid { grid-template-columns: 1fr; } }
+        .stat-row { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; }
+        .stat {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            flex: 1;
+            min-width: 140px;
+        }
+        .stat-label { color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+        .stat-value { font-size: 1.3rem; font-weight: 600; margin-top: 0.2rem; }
+        .note {
+            background: rgba(210, 153, 34, 0.1);
+            border: 1px solid rgba(210, 153, 34, 0.3);
+            border-radius: 6px;
+            padding: 0.75rem 1rem;
+            font-size: 0.85rem;
+            color: var(--yellow);
+            margin: 1rem 0;
+        }
+        footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border); color: var(--text-muted); font-size: 0.8rem; }
+    </style>
+</head>
+<body>
+
+<h1>Polymarket 15-Minute Crypto Trading Bot</h1>
+<p class="subtitle">Strategy Configuration &amp; Active Settings &mdash; Last updated: 2026-02-07</p>
+
+<div class="stat-row">
+    <div class="stat">
+        <div class="stat-label">Mode</div>
+        <div class="stat-value" style="color: var(--yellow);">DRY RUN</div>
+    </div>
+    <div class="stat">
+        <div class="stat-label">Server</div>
+        <div class="stat-value" style="font-size:1rem;">46.62.206.192</div>
+    </div>
+    <div class="stat">
+        <div class="stat-label">Markets</div>
+        <div class="stat-value">BTC ETH SOL XRP</div>
+    </div>
+    <div class="stat">
+        <div class="stat-label">Order Size</div>
+        <div class="stat-value">$150</div>
+    </div>
+</div>
+
+<h2>Active Strategies</h2>
+
+<div class="card">
+    <div class="card-header">
+        <h3>Maker Arbitrage</h3>
+        <span class="badge badge-active">Active</span>
+    </div>
+    <p>
+        Places GTC limit orders on both YES and NO sides at prices below the best ask.
+        If both sides fill, the combined cost is less than $1.00, locking in a risk-free
+        profit at market resolution. Zero taker fees since all orders are maker (limit).
+    </p>
+    <table>
+        <tr><th>Parameter</th><th>Value</th><th>Description</th></tr>
+        <tr><td>maker_target_pair_cost</td><td>0.985</td><td>Max combined YES+NO limit price to attempt arb</td></tr>
+        <tr><td>maker_price_offset</td><td>0.01</td><td>Place limit this far below best ask</td></tr>
+        <tr><td>maker_pair_timeout_seconds</td><td>180</td><td>Cancel unfilled side after 3 minutes</td></tr>
+        <tr><td>maker_max_pending_pairs</td><td>5</td><td>Max concurrent arb pair attempts</td></tr>
+        <tr><td>maker_min_profit_margin</td><td>0.002</td><td>Minimum 0.2% profit per share pair</td></tr>
+    </table>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3>Price Lag Exploitation</h3>
+        <span class="badge badge-active">Active</span>
+    </div>
+    <p>
+        Directional strategy that exploits the lag between Binance spot price movements
+        and Polymarket odds updates. When Binance spot moves significantly (e.g. BTC drops 0.1%),
+        Polymarket odds may take seconds to adjust. The bot buys the correct side (YES for up, NO for down)
+        before odds catch up, then exits via take-profit, stop-loss, or time-based exit.
+    </p>
+    <table>
+        <tr><th>Parameter</th><th>Value</th><th>Description</th></tr>
+        <tr><td>spot_move_threshold</td><td>0.001 (0.1%)</td><td>Minimum Binance spot price change to trigger entry</td></tr>
+        <tr><td>lag_confirmations</td><td>2</td><td>Number of consecutive spot ticks confirming the move</td></tr>
+        <tr><td>odds_lag_threshold</td><td>0.015 (1.5%)</td><td>Minimum discrepancy between expected and actual odds</td></tr>
+        <tr><td>stop_loss_pct</td><td>0.10 (10%)</td><td>Exit if position value drops 10% below cost basis</td></tr>
+        <tr><td>take_profit_pct</td><td>0.18 (18%)</td><td>Exit if position value rises 18% above cost basis</td></tr>
+        <tr><td>time_exit_seconds</td><td>50</td><td>Exit 50 seconds before market expiry</td></tr>
+        <tr><td>spot_window_seconds</td><td>10</td><td>Rolling window for spot price movement detection</td></tr>
+        <tr><td>lag_entry_dead_zone_start</td><td>30</td><td>Don't enter within 30s of market open</td></tr>
+        <tr><td>lag_entry_dead_zone_end</td><td>15</td><td>Don't enter within 15s of market close</td></tr>
+    </table>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3>Pure Arbitrage (Taker)</h3>
+        <span class="badge badge-active">Active</span>
+    </div>
+    <p>
+        Monitors YES ask + NO ask combined price. When the combined cost drops below the
+        target threshold ($0.94), both sides are bought simultaneously via FOK taker orders.
+        At resolution, one side pays $1.00, guaranteeing profit minus taker and winner fees.
+        Rarely triggers since taker fees eat most of the spread.
+    </p>
+    <table>
+        <tr><th>Parameter</th><th>Value</th><th>Description</th></tr>
+        <tr><td>target_pair_cost</td><td>0.94</td><td>Max combined YES+NO ask price to buy</td></tr>
+        <tr><td>min_profit_margin</td><td>0.003</td><td>Minimum profit margin after all fees</td></tr>
+        <tr><td>order_type</td><td>FOK</td><td>Fill-or-Kill for immediate execution</td></tr>
+    </table>
+</div>
+
+<div class="grid">
+    <div class="card">
+        <div class="card-header">
+            <h3>Asymmetric Entry</h3>
+            <span class="badge badge-inactive">Disabled</span>
+        </div>
+        <p>Accumulates cheap YES/NO tokens below threshold, pairs them for sub-$1 combined cost.</p>
+    </div>
+    <div class="card">
+        <div class="card-header">
+            <h3>Multi-Market Scanner</h3>
+            <span class="badge badge-active">Active</span>
+        </div>
+        <p>Scans all 4 markets each cycle, ranks opportunities, and routes to the best one.</p>
+    </div>
+</div>
+
+<h2>Risk Management</h2>
+
+<div class="card">
+    <table>
+        <tr><th>Parameter</th><th>Value</th><th>Description</th></tr>
+        <tr><td>max_position_per_market</td><td>$750</td><td>Max investment in any single market</td></tr>
+        <tr><td>max_total_position</td><td>$5,000</td><td>Max total investment across all markets</td></tr>
+        <tr><td>max_unhedged_exposure</td><td>$250</td><td>Max directional (non-arb) exposure</td></tr>
+        <tr><td>max_daily_loss</td><td>$150</td><td>Daily loss limit; triggers 24h circuit breaker</td></tr>
+        <tr><td>cooldown_seconds</td><td>2</td><td>Min seconds between trades on same market</td></tr>
+        <tr><td>min_trade_size</td><td>5 shares</td><td>Reject dust trades below this threshold</td></tr>
+        <tr><td>circuit_breaker_threshold</td><td>3 failures</td><td>Auto-trip after 3 consecutive execution failures</td></tr>
+        <tr><td>circuit_breaker_duration</td><td>300s (5 min)</td><td>Pause all trading when breaker trips</td></tr>
+        <tr><td>disconnect_threshold</td><td>30s</td><td>Trip breaker if WebSocket disconnected &gt; 30s</td></tr>
+    </table>
+</div>
+
+<h2>Execution Settings</h2>
+
+<div class="card">
+    <table>
+        <tr><th>Parameter</th><th>Value</th><th>Description</th></tr>
+        <tr><td>parallel_strategies</td><td>false</td><td>Execute strategies sequentially (avoids capital fragmentation)</td></tr>
+        <tr><td>order_size</td><td>$150</td><td>Default order size per trade</td></tr>
+        <tr><td>neg_risk</td><td>true</td><td>Required for BTC/ETH/SOL/XRP 15-min markets</td></tr>
+        <tr><td>kelly_fraction</td><td>0.25</td><td>Kelly criterion fraction for position sizing</td></tr>
+        <tr><td>exit_check_interval</td><td>2s</td><td>How often stop-loss/take-profit is evaluated</td></tr>
+    </table>
+</div>
+
+<h2>Fee Model</h2>
+
+<div class="card">
+    <table>
+        <tr><th>Fee Type</th><th>Rate</th><th>When Applied</th></tr>
+        <tr><td>Taker Fee</td><td>MAX_RATE &times; 4 &times; p &times; (1-p), MAX_RATE &asymp; 3.15%</td><td>On market (FOK) orders at entry/exit</td></tr>
+        <tr><td>Maker Fee</td><td>0%</td><td>On limit (GTC) orders</td></tr>
+        <tr><td>Winner Fee</td><td>2% on profits</td><td>At market resolution (deducted from winnings)</td></tr>
+    </table>
+    <div class="note">
+        Taker fee peaks at ~3.15% when odds are 50/50 and drops to 0% at extreme odds (0.01 or 0.99).
+        Maker arbitrage avoids taker fees entirely by using limit orders.
+    </div>
+</div>
+
+<h2>Infrastructure</h2>
+
+<div class="card">
+    <table>
+        <tr><th>Component</th><th>Detail</th></tr>
+        <tr><td>Server</td><td>Hetzner VPS, Helsinki &mdash; 46.62.206.192</td></tr>
+        <tr><td>OS</td><td>Ubuntu 24.04</td></tr>
+        <tr><td>Python</td><td>3.12</td></tr>
+        <tr><td>Bot Path</td><td>/opt/btc15minutebot/</td></tr>
+        <tr><td>Service</td><td>systemd: btc15minutebot.service</td></tr>
+        <tr><td>Logs</td><td>/var/log/btc15minutebot/bot.log &amp; error.log</td></tr>
+        <tr><td>Database</td><td>SQLite: /opt/btc15minutebot/data/trades.db</td></tr>
+        <tr><td>Dashboard</td><td>http://46.62.206.192:8080</td></tr>
+        <tr><td>Chain</td><td>Polygon Mainnet (chain_id=137)</td></tr>
+        <tr><td>Collateral</td><td>USDC.e (0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174)</td></tr>
+    </table>
+</div>
+
+<h2>Data Feeds</h2>
+
+<div class="card">
+    <table>
+        <tr><th>Feed</th><th>URL</th><th>Purpose</th></tr>
+        <tr><td>CLOB WebSocket</td><td>wss://ws-subscriptions-clob.polymarket.com/ws/market</td><td>Real-time orderbook (bids/asks)</td></tr>
+        <tr><td>Binance WebSocket</td><td>wss://stream.binance.com:9443/ws</td><td>Spot prices (BTCUSDT, ETHUSDT, SOLUSDT, XRPUSDT)</td></tr>
+        <tr><td>Gamma API</td><td>https://gamma-api.polymarket.com</td><td>Market discovery &amp; metadata</td></tr>
+        <tr><td>CLOB REST</td><td>https://clob.polymarket.com</td><td>Order placement &amp; account queries</td></tr>
+    </table>
+</div>
+
+<footer>
+    Generated 2026-02-07 &mdash; Polymarket 15-Minute Crypto Trading Bot &mdash; Branch: feat/risk-manager
+</footer>
+
+</body>
+</html>
