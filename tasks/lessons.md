@@ -48,9 +48,42 @@
 
 - **Never sell near-worthless positions for dust.** When a position has lost >95% of value, the salvage from selling is negligible but the upside of holding to expiry could be full recovery. A $31.50 position sold for $0.30 saves $0.30 max downside but forfeits the chance of $31.50 payout. Even 1% win probability makes holding +EV. Time-based exits must check value ratio before dumping.
 
+## Strategy Co-location vs Separate Bots
+
+- **New strategies belong in the same bot** unless they need a different API key, wallet, chain, or event loop. The shared infrastructure cost of a second bot (rate limit coordination, WebSocket duplication, state synchronization) far outweighs the isolation benefit.
+- **Key shared resources that force co-location:** Rate limiter (60 orders/min per API key), WebSocket connections (~5 per IP), risk manager (needs global exposure view), orderbook manager, spot buffer, executor.
+- **The BaseStrategy interface is the right abstraction.** Any strategy that follows evaluate() → Opportunity | None + should_exit() → bool fits cleanly. Don't split unless the pattern fundamentally doesn't fit.
+- **Time-domain partitioning avoids conflicts naturally.** Price-Lag winds down at <30s, Sniper activates at T-120s. The scanner picks the best opportunity — no manual conflict resolution needed.
+- **Per-strategy overrides in risk manager are the right pattern** for strategies with different risk profiles (e.g., sniper needs 3 entries per market vs default 2). Don't fork the risk manager.
+- **"Hold to resolution" strategies are fine** — should_exit() returning False is trivially handled by the exit loop.
+- **When to actually separate:** Different API keys/wallets, different chains, strategy needs its own event loop, or strategy is experimental enough that crashes are expected.
+
+## Stop-Loss and Take-Profit
+
+- **Triple-stacking race condition:** The 2s cooldown in RiskManager races with async order execution. The scanner evaluates the same market multiple times before `record_trade()` runs. Fix: track `_entry_counts` in StateManager (incremented inside the async lock in `record_trade()`), checked synchronously in `RiskManager.check_opportunity()` before allowing entries. `max_entries_per_market` config controls the cap (default: 2).
+- **Asymmetric payoff with flat take-profit:** Flat 15% take-profit exits winners early while losers go to near-zero at resolution. Fix: dynamic take-profit with time-based curve (first third: base, middle: 2x, last: disabled). In the last 5 minutes, a winning position has high probability of going to $1.00 — don't sell at $0.575.
+- **Smart stop-loss layers:** Three layers work together: (1) cheap contract bypass (skip stop-loss for avg entry < $0.10), (2) time-decayed threshold (doubles in middle third, disabled in last third), (3) confirmation counter (3 consecutive triggers before exit). This prevents premature exits on temporary dips.
+- **StateProvider protocol pattern:** When adding new state queries needed by RiskManager, extend the `StateProvider` protocol in `src/risk/manager.py`, implement in `StateManager`, and update `MockState` in tests. All 4 position deletion sites in StateManager must clean up new tracking dicts.
+
+## Memory and Observability
+
+- **OrderBook memory grows unboundedly** without cleanup. Expired 15-min market token IDs accumulate in `OrderBookManager._books`. Fix: `remove_stale_books()` called during market rollover, removes books not updated within 120s.
+- **`snapshot_applied` dominated log output** at ~58% of all lines when at INFO level. Demoting to DEBUG reduced log volume by ~95% (from ~18,000 lines/min to ~878).
+- **Stop-loss debug events are invisible in production.** Promote key stop-loss events (skipped_cheap, disabled_late_market, pending_confirmation) to INFO for rollout observability. These are low-volume events.
+
+## Server/Deploy
+
+- **SSH key auth is set up.** `~/.ssh/id_ed25519` → `root@46.62.206.192`. No more password prompts.
+- **Server may have local changes.** When deploying, if `git checkout` fails with "local changes would be overwritten", run `git stash` first.
+- **Server lacks `pgrep`.** Use `pidof python` or `systemctl status btc15minutebot` instead of `pgrep -f src.main` for process checks.
+- **Large log file queries hang.** Don't `grep` the entire bot.log (3.5M+ lines). Use `tail -N` to limit input, or `awk '/timestamp/,0'` to scope to a time range.
+- **Log rotation:** Consider setting up logrotate — the log file grows continuously and is already 3.6M+ lines.
+
 ## Common Mistakes
 
 - **Heredoc in SSH:** Copy-pasting heredocs (`cat << 'EOF'`) over SSH often fails. Use multiple `printf` or `echo` commands instead.
 - **Forgot to create venv:** Always `source .venv/bin/activate` before running `pip install -e .`
 - **Wrong working directory:** Always `cd /opt/btc15minutebot` before running bot commands.
 - **Port already in use:** Kill old process before starting new one. Check with `netstat -ano | findstr :8080`
+- **MockState must match StateProvider protocol.** When adding new methods to StateProvider, always update MockState in test_risk_manager.py or tests will fail with AttributeError.
+- **Test market timing matters with dynamic thresholds.** When tests use `start_offset=-300, end_offset=600` (progress = 1/3), they hit the boundary between first and middle third. Choose offsets clearly within a phase (e.g., `-200/700` for first third, `-450/450` for middle).

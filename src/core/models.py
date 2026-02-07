@@ -22,6 +22,7 @@ class StrategyType(str, Enum):
     ASYMMETRIC = "asymmetric"
     PRICE_LAG = "price_lag"
     MAKER_ARBITRAGE = "maker_arbitrage"
+    RESOLUTION_SNIPER = "resolution_sniper"
 
 
 class OrderStatus(str, Enum):

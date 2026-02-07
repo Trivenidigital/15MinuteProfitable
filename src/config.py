@@ -69,6 +69,17 @@ class Settings(BaseSettings):
     maker_max_pending_pairs: int = 5  # max concurrent arb attempts
     maker_min_profit_margin: float = 0.002  # 0.2% min profit per share (lower bar)
 
+    # Resolution Sniper Strategy Parameters
+    enable_resolution_sniper: bool = False
+    sniper_order_size: float = 150.0          # Total across 3 tranches ($50 each)
+    sniper_min_confidence: float = 0.90       # Min win probability to enter
+    sniper_window_seconds: float = 120.0      # Activate at T-120s
+    sniper_hard_stop_seconds: float = 15.0    # Stop buying at T-15s
+    sniper_max_entry_price: float = 0.97      # Reject fills above this
+    sniper_exit_confidence_floor: float = 0.0 # Emergency exit threshold (0 = disabled)
+    sniper_min_vol_data_points: int = 10      # Min data points for vol calc
+    sniper_vol_floor: float = 0.0001          # Min sigma floor (0.01%/min)
+
     # Markets (only assets with 15-min up/down markets on Polymarket)
     markets: list[str] = ["BTC", "ETH", "SOL", "XRP"]
     market_intervals: list[str] = ["15m"]  # Future: add "1h", "4h" for hourly markets
