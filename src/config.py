@@ -123,5 +123,9 @@ class Settings(BaseSettings):
     dashboard_password: SecretStr = SecretStr("")  # empty = auth disabled
     db_path: str = "data/trades.db"
 
+    # Decision logging (Phase 1 observability)
+    enable_decision_logging: bool = True
+    spot_snapshot_interval: float = 5.0  # seconds between spot price snapshots
+
     # Daily Summary
     daily_summary_hour: int = 0  # UTC hour to send daily summary

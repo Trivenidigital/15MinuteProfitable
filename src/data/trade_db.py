@@ -96,6 +96,53 @@ class PortfolioState:
     total_pnl: float = 0.0
 
 
+@dataclass
+class StrategyDecision:
+    """One row per opportunity found (or per scan cycle with 0 opps)."""
+
+    id: int | None = None
+    timestamp: float = 0.0
+    cycle_id: int = 0
+    condition_id: str = ""
+    market_slug: str = ""
+    asset: str = ""
+    strategy: str = ""
+    decision: str = ""  # "opportunity", "risk_approved", "risk_rejected", "executed", "exec_failed"
+    rejection_reason: str = ""
+    confidence: float = 0.0
+    expected_profit: float = 0.0
+    expected_profit_pct: float = 0.0
+    metadata_json: str = "{}"
+
+
+@dataclass
+class SpotSnapshot:
+    """Periodic spot price capture."""
+
+    id: int | None = None
+    timestamp: float = 0.0
+    symbol: str = ""  # e.g. "BTCUSDT"
+    price: float = 0.0
+
+
+@dataclass
+class MarketOutcome:
+    """Outcome of a 15-minute market window (traded or not)."""
+
+    id: int | None = None
+    timestamp: float = 0.0  # when recorded
+    condition_id: str = ""
+    asset: str = ""
+    market_slug: str = ""
+    window_start: float = 0.0  # market start_time epoch
+    window_end: float = 0.0  # market end_time epoch
+    outcome: str = ""  # "YES" (up) or "NO" (down) or "FLAT"
+    spot_open: float = 0.0
+    spot_close: float = 0.0
+    price_change_pct: float = 0.0  # (close - open) / open * 100
+    was_traded: bool = False
+
+
 # ---------------------------------------------------------------------------
 # Schema
 # ---------------------------------------------------------------------------
@@ -167,6 +214,54 @@ CREATE TABLE IF NOT EXISTS portfolio_state (
     total_trades INTEGER NOT NULL DEFAULT 0,
     total_pnl REAL NOT NULL DEFAULT 0.0
 );
+
+CREATE TABLE IF NOT EXISTS strategy_decisions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp REAL NOT NULL,
+    cycle_id INTEGER NOT NULL DEFAULT 0,
+    condition_id TEXT NOT NULL DEFAULT '',
+    market_slug TEXT NOT NULL DEFAULT '',
+    asset TEXT NOT NULL DEFAULT '',
+    strategy TEXT NOT NULL DEFAULT '',
+    decision TEXT NOT NULL DEFAULT '',
+    rejection_reason TEXT NOT NULL DEFAULT '',
+    confidence REAL NOT NULL DEFAULT 0.0,
+    expected_profit REAL NOT NULL DEFAULT 0.0,
+    expected_profit_pct REAL NOT NULL DEFAULT 0.0,
+    metadata_json TEXT NOT NULL DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS idx_decisions_timestamp ON strategy_decisions(timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_decisions_strategy ON strategy_decisions(strategy);
+CREATE INDEX IF NOT EXISTS idx_decisions_cycle ON strategy_decisions(cycle_id);
+
+CREATE TABLE IF NOT EXISTS spot_snapshots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp REAL NOT NULL,
+    symbol TEXT NOT NULL DEFAULT '',
+    price REAL NOT NULL DEFAULT 0.0
+);
+
+CREATE INDEX IF NOT EXISTS idx_spot_timestamp ON spot_snapshots(timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_spot_symbol ON spot_snapshots(symbol);
+
+CREATE TABLE IF NOT EXISTS market_outcomes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp REAL NOT NULL,
+    condition_id TEXT NOT NULL UNIQUE,
+    asset TEXT NOT NULL DEFAULT '',
+    market_slug TEXT NOT NULL DEFAULT '',
+    window_start REAL NOT NULL DEFAULT 0.0,
+    window_end REAL NOT NULL DEFAULT 0.0,
+    outcome TEXT NOT NULL DEFAULT '',
+    spot_open REAL NOT NULL DEFAULT 0.0,
+    spot_close REAL NOT NULL DEFAULT 0.0,
+    price_change_pct REAL NOT NULL DEFAULT 0.0,
+    was_traded INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_outcomes_asset ON market_outcomes(asset);
+CREATE INDEX IF NOT EXISTS idx_outcomes_window ON market_outcomes(window_end DESC);
 """
 
 
@@ -421,6 +516,201 @@ class TradeDatabase:
         )
 
     # ------------------------------------------------------------------
+    # Strategy decisions
+    # ------------------------------------------------------------------
+
+    def save_decision(self, d: StrategyDecision) -> int:
+        """Insert a strategy decision record. Returns the row ID."""
+        cursor = self._conn.execute(
+            """INSERT INTO strategy_decisions
+               (timestamp, cycle_id, condition_id, market_slug, asset, strategy,
+                decision, rejection_reason, confidence, expected_profit,
+                expected_profit_pct, metadata_json)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                d.timestamp,
+                d.cycle_id,
+                d.condition_id,
+                d.market_slug,
+                d.asset,
+                d.strategy,
+                d.decision,
+                d.rejection_reason,
+                d.confidence,
+                d.expected_profit,
+                d.expected_profit_pct,
+                d.metadata_json,
+            ),
+        )
+        self._conn.commit()
+        row_id = cursor.lastrowid
+        assert row_id is not None
+        return row_id
+
+    def get_decisions(
+        self,
+        limit: int = 50,
+        offset: int = 0,
+        strategy: str | None = None,
+    ) -> list[StrategyDecision]:
+        """Fetch decisions in reverse chronological order with optional strategy filter."""
+        if strategy:
+            rows = self._conn.execute(
+                "SELECT * FROM strategy_decisions WHERE strategy = ?"
+                " ORDER BY timestamp DESC LIMIT ? OFFSET ?",
+                (strategy, limit, offset),
+            ).fetchall()
+        else:
+            rows = self._conn.execute(
+                "SELECT * FROM strategy_decisions ORDER BY timestamp DESC LIMIT ? OFFSET ?",
+                (limit, offset),
+            ).fetchall()
+        return [self._row_to_decision(r) for r in rows]
+
+    # ------------------------------------------------------------------
+    # Spot snapshots
+    # ------------------------------------------------------------------
+
+    def save_spot_snapshot(self, s: SpotSnapshot) -> int:
+        """Insert a spot snapshot record. Returns the row ID."""
+        cursor = self._conn.execute(
+            """INSERT INTO spot_snapshots (timestamp, symbol, price)
+               VALUES (?, ?, ?)""",
+            (s.timestamp, s.symbol, s.price),
+        )
+        self._conn.commit()
+        row_id = cursor.lastrowid
+        assert row_id is not None
+        return row_id
+
+    def get_spot_snapshots(
+        self,
+        symbol: str,
+        limit: int = 100,
+    ) -> list[SpotSnapshot]:
+        """Fetch spot snapshots for a symbol in reverse chronological order."""
+        rows = self._conn.execute(
+            "SELECT * FROM spot_snapshots WHERE symbol = ? ORDER BY timestamp DESC LIMIT ?",
+            (symbol, limit),
+        ).fetchall()
+        return [self._row_to_spot_snapshot(r) for r in rows]
+
+    def get_spot_at_time(
+        self,
+        symbol: str,
+        target_ts: float,
+        tolerance_s: float = 30.0,
+    ) -> float | None:
+        """Find the closest spot snapshot within tolerance of target_ts.
+
+        Returns the price if found, None if no snapshot within tolerance.
+        """
+        row = self._conn.execute(
+            """SELECT price, ABS(timestamp - ?) AS diff
+               FROM spot_snapshots
+               WHERE symbol = ? AND ABS(timestamp - ?) <= ?
+               ORDER BY diff ASC LIMIT 1""",
+            (target_ts, symbol, target_ts, tolerance_s),
+        ).fetchone()
+        if row is None:
+            return None
+        return float(row["price"])
+
+    # ------------------------------------------------------------------
+    # Market outcomes
+    # ------------------------------------------------------------------
+
+    def save_market_outcome(self, o: MarketOutcome) -> int:
+        """Insert a market outcome record. Returns the row ID.
+
+        Uses INSERT OR REPLACE to handle duplicate condition_ids
+        (e.g. if the same market is recorded twice).
+        """
+        cursor = self._conn.execute(
+            """INSERT OR REPLACE INTO market_outcomes
+               (timestamp, condition_id, asset, market_slug, window_start,
+                window_end, outcome, spot_open, spot_close,
+                price_change_pct, was_traded)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                o.timestamp,
+                o.condition_id,
+                o.asset,
+                o.market_slug,
+                o.window_start,
+                o.window_end,
+                o.outcome,
+                o.spot_open,
+                o.spot_close,
+                o.price_change_pct,
+                1 if o.was_traded else 0,
+            ),
+        )
+        self._conn.commit()
+        row_id = cursor.lastrowid
+        assert row_id is not None
+        return row_id
+
+    def get_market_outcomes(
+        self,
+        limit: int = 50,
+        asset: str | None = None,
+    ) -> list[MarketOutcome]:
+        """Fetch market outcomes in reverse chronological order."""
+        if asset:
+            rows = self._conn.execute(
+                "SELECT * FROM market_outcomes WHERE asset = ? ORDER BY window_end DESC LIMIT ?",
+                (asset, limit),
+            ).fetchall()
+        else:
+            rows = self._conn.execute(
+                "SELECT * FROM market_outcomes ORDER BY window_end DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+        return [self._row_to_market_outcome(r) for r in rows]
+
+    def get_outcome_stats(self, asset: str | None = None) -> dict[str, float | int]:
+        """Compute aggregate stats from market outcomes.
+
+        Returns dict with keys: count, yes_count, no_count, flat_count,
+        win_rate, avg_change_pct.
+        """
+        if asset:
+            rows = self._conn.execute(
+                "SELECT outcome, price_change_pct FROM market_outcomes WHERE asset = ?",
+                (asset,),
+            ).fetchall()
+        else:
+            rows = self._conn.execute(
+                "SELECT outcome, price_change_pct FROM market_outcomes",
+            ).fetchall()
+
+        count = len(rows)
+        if count == 0:
+            return {
+                "count": 0,
+                "yes_count": 0,
+                "no_count": 0,
+                "flat_count": 0,
+                "win_rate": 0.0,
+                "avg_change_pct": 0.0,
+            }
+
+        yes_count = sum(1 for r in rows if r["outcome"] == "YES")
+        no_count = sum(1 for r in rows if r["outcome"] == "NO")
+        flat_count = sum(1 for r in rows if r["outcome"] == "FLAT")
+        avg_change = sum(float(r["price_change_pct"]) for r in rows) / count
+
+        return {
+            "count": count,
+            "yes_count": yes_count,
+            "no_count": no_count,
+            "flat_count": flat_count,
+            "win_rate": yes_count / count if count > 0 else 0.0,
+            "avg_change_pct": avg_change,
+        }
+
+    # ------------------------------------------------------------------
     # Analytics
     # ------------------------------------------------------------------
 
@@ -502,6 +792,50 @@ class TradeDatabase:
             gross_payout=row["gross_payout"],
             net_profit=row["net_profit"],
             outcome=row["outcome"],
+        )
+
+    @staticmethod
+    def _row_to_decision(row: sqlite3.Row) -> StrategyDecision:
+        return StrategyDecision(
+            id=row["id"],
+            timestamp=row["timestamp"],
+            cycle_id=row["cycle_id"],
+            condition_id=row["condition_id"],
+            market_slug=row["market_slug"],
+            asset=row["asset"],
+            strategy=row["strategy"],
+            decision=row["decision"],
+            rejection_reason=row["rejection_reason"],
+            confidence=row["confidence"],
+            expected_profit=row["expected_profit"],
+            expected_profit_pct=row["expected_profit_pct"],
+            metadata_json=row["metadata_json"],
+        )
+
+    @staticmethod
+    def _row_to_spot_snapshot(row: sqlite3.Row) -> SpotSnapshot:
+        return SpotSnapshot(
+            id=row["id"],
+            timestamp=row["timestamp"],
+            symbol=row["symbol"],
+            price=row["price"],
+        )
+
+    @staticmethod
+    def _row_to_market_outcome(row: sqlite3.Row) -> MarketOutcome:
+        return MarketOutcome(
+            id=row["id"],
+            timestamp=row["timestamp"],
+            condition_id=row["condition_id"],
+            asset=row["asset"],
+            market_slug=row["market_slug"],
+            window_start=row["window_start"],
+            window_end=row["window_end"],
+            outcome=row["outcome"],
+            spot_open=row["spot_open"],
+            spot_close=row["spot_close"],
+            price_change_pct=row["price_change_pct"],
+            was_traded=bool(row["was_traded"]),
         )
 
     @staticmethod

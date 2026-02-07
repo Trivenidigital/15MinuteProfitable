@@ -1,7 +1,7 @@
 # Polymarket 15-Minute Crypto Trading Bot — Implementation Plan
 
 > **Status:** DEPLOYED TO PRODUCTION - Paper trading on Hetzner Helsinki
-> **Last updated:** 2026-02-05
+> **Last updated:** 2026-02-07
 > **Server:** 46.62.206.192 | **Dashboard:** http://46.62.206.192:8080 | **Cost:** €6.99/mo
 
 ---
@@ -1145,6 +1145,121 @@ Future capability to replay historical orderbook snapshots through strategy logi
 9. **Order size minimums:** The gabagool bot mentions minimum 5 shares. Need to verify current minimums per market.
 
 10. **VPS location:** Where should the VPS be to minimize latency to Polymarket's CLOB servers and Polygon nodes? Likely US East Coast.
+
+---
+
+## Observability Roadmap
+
+> **Goal:** Build a full data pipeline to capture, analyze, and act on strategy performance data.
+> **Branch:** feat/risk-manager
+> **Last updated:** 2026-02-07
+
+### Phase 1: Data Capture (COMPLETE)
+
+> Implemented 2026-02-07. All data is now flowing to SQLite.
+
+- [x] `strategy_decisions` table — every opportunity found, risk approval/rejection, execution outcome per scan cycle
+- [x] `spot_snapshots` table — spot prices for all tracked symbols every 5s
+- [x] `market_outcomes` table — UP/DOWN/FLAT result for every 15-min window observed
+- [x] `DecisionLogger` class wrapping TradeDatabase for structured decision capture
+- [x] `_spot_snapshot_loop` — periodic price persistence in main.py
+- [x] `_market_outcome_loop` — tracks market open prices, records outcomes on expiry
+- [x] Config params: `enable_decision_logging`, `spot_snapshot_interval`
+- [x] 23 unit tests covering all new tables, DecisionLogger, schema migration
+- [x] All 809 existing tests still pass (0 regressions)
+
+**Key files:**
+- `src/data/trade_db.py` — StrategyDecision, SpotSnapshot, MarketOutcome models + save/get methods
+- `src/data/decision_logger.py` — DecisionLogger class (~115 lines)
+- `src/config.py` — enable_decision_logging, spot_snapshot_interval
+- `src/main.py` — wiring into _strategy_loop, new loops, task launch in _run_bot
+- `tests/unit/test_decision_logger.py` — 23 tests
+
+**SQLite tables (data/trades.db):**
+| Table | Rows/hour (est.) | Purpose |
+|-------|-----------------|---------|
+| `strategy_decisions` | ~1800 (1/2s cycle) | Every scan cycle decision |
+| `spot_snapshots` | ~2880 (4 symbols x 12/min) | Spot price history |
+| `market_outcomes` | ~16 (4 assets x 4/hour) | Window UP/DOWN/FLAT results |
+
+### Phase 2: Offline Analysis Agent
+
+> **Status:** PLANNED
+> **Depends on:** Phase 1 (data must be flowing for 24+ hours)
+> **Goal:** Compute win rates, identify parameter tuning opportunities, validate strategy edge
+
+**Scope:**
+- [ ] `src/analysis/` module — offline analysis scripts that query the SQLite database
+- [ ] `win_rate_report.py` — per-strategy win rate, grouped by asset, time-of-day, market conditions
+- [ ] `parameter_sensitivity.py` — measure how threshold changes would affect trade count and profitability
+- [ ] `market_bias_analysis.py` — is BTC biased UP/DOWN? Are certain hours more predictable?
+- [ ] `spot_vs_outcome_correlation.py` — how well does spot movement predict market outcome?
+- [ ] `decision_funnel.py` — opportunity → risk_approved → executed → profitable conversion rates
+- [ ] Export reports to `tasks/` as markdown for review
+
+**Key queries to answer:**
+1. What % of `strategy_decisions` with decision="opportunity" actually get executed?
+2. What's the rejection reason breakdown? (Which risk checks block the most trades?)
+3. For price_lag: what spot_move_threshold + odds_lag_threshold combo has highest win rate?
+4. Are there time-of-day patterns in market_outcomes? (e.g., more UP in Asian session?)
+5. How often does the bot miss profitable opportunities (opportunity found but rejected)?
+6. What's the avg/median price_change_pct per 15-min window, per asset?
+
+**Implementation approach:**
+- Standalone Python scripts, not integrated into the bot's event loop
+- Run manually or via cron after 24-48 hours of data collection
+- Output markdown reports to `tasks/analysis-*.md`
+- Use pandas for aggregation (add to requirements-dev.txt)
+
+### Phase 3: Parameter Auto-Tuning
+
+> **Status:** PLANNED
+> **Depends on:** Phase 2 (need analysis results to know WHAT to tune)
+> **Goal:** Automatically adjust strategy parameters based on observed performance
+
+**Scope:**
+- [ ] `src/analysis/optimizer.py` — parameter optimization using historical data
+- [ ] Grid search over key parameters: `spot_move_threshold`, `odds_lag_threshold`, `min_profit_margin`
+- [ ] Backtesting engine — replay `strategy_decisions` + `spot_snapshots` + `market_outcomes` with different params
+- [ ] Confidence intervals on win rate estimates (need sufficient sample size)
+- [ ] Output recommended parameter changes with expected impact
+- [ ] Safety: max parameter change per iteration (e.g., no more than 20% shift from current)
+
+**Key parameters to tune (by strategy):**
+| Strategy | Parameter | Current | Tuning approach |
+|----------|-----------|---------|-----------------|
+| Price-Lag | `spot_move_threshold` | 0.0005 | Grid search over [0.0002, 0.001] |
+| Price-Lag | `odds_lag_threshold` | 0.01 | Grid search over [0.005, 0.03] |
+| Price-Lag | `stop_loss_pct` | 0.08 | Optimize via realized P&L on exits |
+| Price-Lag | `take_profit_pct` | 0.15 | Optimize via time-to-profit curves |
+| Arbitrage | `min_profit_margin` | 0.003 | Lower bound from fee_verifier |
+| Arbitrage | `target_pair_cost` | 0.94 | Calibrate from actual arb fill data |
+
+### Phase 4: Live Dashboard Integration
+
+> **Status:** PLANNED
+> **Depends on:** Phase 1
+> **Goal:** Surface observability data on the web dashboard
+
+**Scope:**
+- [ ] `/api/decisions` endpoint — paginated strategy decisions with filters
+- [ ] `/api/outcomes` endpoint — market outcomes with stats
+- [ ] `/api/spot-history` endpoint — spot price chart data
+- [ ] Dashboard page: "Strategy Performance" — win rate chart, decision funnel
+- [ ] Dashboard page: "Market Outcomes" — heatmap of UP/DOWN by asset x hour
+- [ ] Dashboard page: "Spot History" — multi-symbol price overlay chart
+
+### Phase 5: Automated Alerts from Analysis
+
+> **Status:** PLANNED
+> **Depends on:** Phase 2 + Phase 4
+> **Goal:** Proactive alerts when performance degrades
+
+**Scope:**
+- [ ] Daily win rate alert if below threshold (e.g., <40% over 24h)
+- [ ] Strategy degradation alert — detect when a strategy stops finding opportunities
+- [ ] Parameter drift alert — when optimal params diverge significantly from current config
+- [ ] Telegram summary with key metrics from overnight analysis
 
 ---
 

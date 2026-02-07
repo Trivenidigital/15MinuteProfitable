@@ -10,13 +10,16 @@
 
 ## Cloud Server
 - **IP:** `46.62.206.192` (Hetzner VPS, Helsinki)
-- **SSH:** `ssh root@46.62.206.192`
+- **SSH:** `ssh root@46.62.206.192` (key-based auth, no password needed)
+- **SSH Key:** `~/.ssh/id_ed25519` (ed25519, configured via ssh-copy-id)
 - **Bot path:** `/opt/btc15minutebot/`
 - **Config:** `/opt/btc15minutebot/.env`
+- **Branch on server:** `feat/risk-manager` (active development branch)
 - **Service:** `systemctl {start|stop|restart|status} btc15minutebot`
 - **Logs:** `/var/log/btc15minutebot/bot.log` (stdout) and `error.log` (stderr)
 - **Database:** `/opt/btc15minutebot/data/trades.db` (SQLite)
 - **Dashboard:** `http://46.62.206.192:8080`
+- **Note:** Server does not have `pgrep` installed — use `pidof` or `systemctl` for process checks
 
 ## Key Commands
 - Run bot: `python -m src.main`
@@ -34,14 +37,16 @@ src/
 ├── core/                # Core domain models and state
 │   ├── models.py        # Trade, Position, Opportunity, Market dataclasses
 │   └── state.py         # Global state manager (positions, P&L, exposure, recovery)
-├── data/                # Data layer (feeds, orderbook)
+├── data/                # Data layer (feeds, orderbook, persistence)
 │   ├── clob_ws.py       # CLOB WebSocket client (orderbook deltas)
 │   ├── rtds_ws.py       # RTDS WebSocket client (market lifecycle)
 │   ├── binance_ws.py    # Binance WebSocket (spot price feeds)
 │   ├── orderbook.py     # L2 orderbook state management
 │   ├── spot_buffer.py   # Rolling spot price buffer
 │   ├── market_discovery.py  # Gamma API market scanner
-│   └── market_manager.py    # Market lifecycle + rollover management
+│   ├── market_manager.py    # Market lifecycle + rollover management
+│   ├── trade_db.py      # SQLite persistence (trades, decisions, spots, outcomes)
+│   └── decision_logger.py   # Strategy decision capture per scan cycle
 ├── strategy/            # Strategy engine
 │   ├── base.py          # Abstract strategy interface
 │   ├── arbitrage.py     # Fee-adjusted pure arbitrage (Strategy A)

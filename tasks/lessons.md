@@ -79,6 +79,13 @@
 - **Large log file queries hang.** Don't `grep` the entire bot.log (3.5M+ lines). Use `tail -N` to limit input, or `awk '/timestamp/,0'` to scope to a time range.
 - **Log rotation:** Consider setting up logrotate — the log file grows continuously and is already 3.6M+ lines.
 
+## Observability Pipeline
+
+- **TradeDatabase is gated on `dashboard_enabled`, but decision logging needs it always.** The trade_db initialization check was `if settings.dashboard_enabled`. Phase 1 observability extended this to `if settings.dashboard_enabled or settings.enable_decision_logging` so the DB is available even without the dashboard. Any future feature that needs SQLite should add its own config gate to this check.
+- **Module-level mutable state for cross-loop coordination.** `_market_start_prices` and `_recorded_outcomes` are module-level dicts/sets used by `_market_outcome_loop` to track open prices across market lifecycles. This follows the same pattern as `_pending_gtc_orders` and `_pending_maker_arb_pairs`. Keep this pattern for state shared between loops rather than threading it through function params.
+- **Market close price is approximate.** When a market expires, the `_market_outcome_loop` captures the current spot price as the close. Since detection runs every 10s, this can be up to 10s late. For higher accuracy, query `trade_db.get_spot_at_time()` using the market's `end_time` (relies on the 5s spot snapshot loop). This is good enough for directional win/loss determination.
+- **ruff import sorting is strict.** Comments between import groups (like `# Dashboard (lazy)`) break isort formatting. Either remove inline comments or ensure imports are organized into clean standard/third-party/local groups without interleaving comments.
+
 ## Common Mistakes
 
 - **Heredoc in SSH:** Copy-pasting heredocs (`cat << 'EOF'`) over SSH often fails. Use multiple `printf` or `echo` commands instead.

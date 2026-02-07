@@ -39,9 +39,15 @@ from src.utils.fee_verifier import verify_fees
 from src.utils.pid_lock import PidLock
 from src.utils.rate_limiter import RateLimiter
 
-# Dashboard (lazy — only used when dashboard_enabled)
 from src.dashboard.app import configure_dashboard, create_app, start_dashboard
-from src.data.trade_db import DailySnapshot, TradeDatabase, TradeResult
+from src.data.decision_logger import DecisionLogger
+from src.data.trade_db import (
+    DailySnapshot,
+    MarketOutcome,
+    SpotSnapshot,
+    TradeDatabase,
+    TradeResult,
+)
 
 # ---------------------------------------------------------------------------
 # Globals
@@ -68,6 +74,7 @@ async def _strategy_loop(
     rate_limiter: RateLimiter,
     settings: Settings,
     strategies: list[BaseStrategy] | None = None,
+    decision_logger: DecisionLogger | None = None,
 ) -> None:
     """Continuously scan all active markets for opportunities.
 
@@ -85,6 +92,7 @@ async def _strategy_loop(
     """
     while _shutdown_event is not None and not _shutdown_event.is_set():
         markets = market_manager.active_markets
+        cycle_id = decision_logger.next_cycle() if decision_logger else 0
 
         if not markets:
             _log.debug("no_active_markets")
@@ -99,16 +107,32 @@ async def _strategy_loop(
                 rate_limiter=rate_limiter,
                 settings=settings,
                 strategies=strategies or [],
+                decision_logger=decision_logger,
+                cycle_id=cycle_id,
             )
         else:
-            # Normal mode: execute only the single best opportunity
-            opp = await scanner.scan(markets)
+            # Normal mode: scan all, log, then pick best
+            all_opps = await scanner.scan_all(markets)
 
-            if opp is not None:
-                market = opp.market
+            if decision_logger:
+                if not all_opps:
+                    decision_logger.log_no_opportunities(cycle_id)
+                else:
+                    for opp in all_opps:
+                        decision_logger.log_opportunity(cycle_id, opp)
+
+            best = all_opps[0] if all_opps else None
+
+            if best is not None:
+                market = best.market
 
                 # Risk check
-                approved, reason = risk_manager.check_opportunity(opp)
+                approved, reason = risk_manager.check_opportunity(best)
+                if decision_logger:
+                    decision_logger.log_risk_decision(
+                        cycle_id, best, approved, reason
+                    )
+
                 if not approved:
                     _log.debug(
                         "opportunity_rejected",
@@ -118,21 +142,32 @@ async def _strategy_loop(
                 else:
                     # Adjust size
                     adjusted_size = risk_manager.adjust_size(
-                        opp, settings.order_size
+                        best, settings.order_size
                     )
                     if adjusted_size <= 0:
                         _log.debug("size_adjusted_to_zero", market=market.slug)
                     else:
-                        await _execute_opportunity(
-                            opp=opp,
-                            adjusted_size=adjusted_size,
-                            executor=executor,
-                            state_manager=state_manager,
-                            risk_manager=risk_manager,
-                            rate_limiter=rate_limiter,
-                            settings=settings,
-                            strategies=strategies or [],
-                        )
+                        try:
+                            await _execute_opportunity(
+                                opp=best,
+                                adjusted_size=adjusted_size,
+                                executor=executor,
+                                state_manager=state_manager,
+                                risk_manager=risk_manager,
+                                rate_limiter=rate_limiter,
+                                settings=settings,
+                                strategies=strategies or [],
+                            )
+                            if decision_logger:
+                                decision_logger.log_execution(
+                                    cycle_id, best, success=True
+                                )
+                        except Exception:
+                            if decision_logger:
+                                decision_logger.log_execution(
+                                    cycle_id, best, success=False
+                                )
+                            raise
 
         # Wait before next evaluation cycle
         try:
@@ -153,6 +188,8 @@ async def _execute_parallel_strategies(
     rate_limiter: RateLimiter,
     settings: Settings,
     strategies: list[BaseStrategy],
+    decision_logger: DecisionLogger | None = None,
+    cycle_id: int = 0,
 ) -> None:
     """Execute the best opportunity from each strategy type (A/B test mode).
 
@@ -162,6 +199,8 @@ async def _execute_parallel_strategies(
     best_per_strategy = await scanner.scan_best_per_strategy(markets)
 
     if not best_per_strategy:
+        if decision_logger:
+            decision_logger.log_no_opportunities(cycle_id)
         return
 
     _log.info(
@@ -174,8 +213,14 @@ async def _execute_parallel_strategies(
     for strat_type, opp in best_per_strategy.items():
         market = opp.market
 
+        if decision_logger:
+            decision_logger.log_opportunity(cycle_id, opp)
+
         # Risk check
         approved, reason = risk_manager.check_opportunity(opp)
+        if decision_logger:
+            decision_logger.log_risk_decision(cycle_id, opp, approved, reason)
+
         if not approved:
             _log.debug(
                 "opportunity_rejected",
@@ -202,16 +247,23 @@ async def _execute_parallel_strategies(
             profit_pct=round(opp.expected_profit_pct, 6),
         )
 
-        await _execute_opportunity(
-            opp=opp,
-            adjusted_size=adjusted_size,
-            executor=executor,
-            state_manager=state_manager,
-            risk_manager=risk_manager,
-            rate_limiter=rate_limiter,
-            settings=settings,
-            strategies=strategies,
-        )
+        try:
+            await _execute_opportunity(
+                opp=opp,
+                adjusted_size=adjusted_size,
+                executor=executor,
+                state_manager=state_manager,
+                risk_manager=risk_manager,
+                rate_limiter=rate_limiter,
+                settings=settings,
+                strategies=strategies,
+            )
+            if decision_logger:
+                decision_logger.log_execution(cycle_id, opp, success=True)
+        except Exception:
+            if decision_logger:
+                decision_logger.log_execution(cycle_id, opp, success=False)
+            raise
 
 
 async def _execute_opportunity(
@@ -1376,6 +1428,146 @@ async def _resolution_loop(
 
 
 # ---------------------------------------------------------------------------
+# Spot snapshot loop (periodic spot price persistence)
+# ---------------------------------------------------------------------------
+
+
+async def _spot_snapshot_loop(
+    spot_buffer: SpotBuffer,
+    trade_db: TradeDatabase,
+    interval: float = 5.0,
+) -> None:
+    """Periodically save spot prices to SQLite for post-hoc analysis."""
+    while _shutdown_event is not None and not _shutdown_event.is_set():
+        try:
+            for symbol in spot_buffer.symbols:
+                price = spot_buffer.get_price(symbol)
+                if price is not None:
+                    trade_db.save_spot_snapshot(
+                        SpotSnapshot(
+                            timestamp=time.time(),
+                            symbol=symbol,
+                            price=price,
+                        )
+                    )
+        except Exception as exc:
+            _log.error("spot_snapshot_error", error=str(exc))
+
+        try:
+            await asyncio.wait_for(_shutdown_event.wait(), timeout=interval)
+        except asyncio.TimeoutError:
+            pass
+
+
+# ---------------------------------------------------------------------------
+# Market outcome loop (track all 15-min window results)
+# ---------------------------------------------------------------------------
+
+_market_start_prices: dict[str, float] = {}  # condition_id -> spot at start
+_recorded_outcomes: set[str] = set()  # condition_ids already recorded
+
+
+async def _market_outcome_loop(
+    market_manager: MarketManager,
+    spot_buffer: SpotBuffer,
+    state_manager: StateManager,
+    trade_db: TradeDatabase,
+    interval: float = 10.0,
+) -> None:
+    """Track market open prices and record outcomes on expiry."""
+    known_markets: dict[str, Market] = {}  # condition_id -> Market
+
+    while _shutdown_event is not None and not _shutdown_event.is_set():
+        try:
+            # 1. Capture open prices for newly discovered markets
+            for market in market_manager.active_markets:
+                if market.condition_id not in known_markets:
+                    symbol = f"{market.asset}USDT"
+                    price = spot_buffer.get_price(symbol)
+                    if price is not None:
+                        _market_start_prices[market.condition_id] = price
+                    known_markets[market.condition_id] = market
+
+            # 2. Detect expired markets
+            active_ids = {m.condition_id for m in market_manager.active_markets}
+            expired_ids = (
+                set(known_markets.keys()) - active_ids - _recorded_outcomes
+            )
+
+            for cid in list(expired_ids):
+                market = known_markets.get(cid)
+                if market is None:
+                    continue
+
+                open_price = _market_start_prices.get(cid, 0.0)
+                symbol = f"{market.asset}USDT"
+
+                # Try to get close price from spot buffer or db
+                close_price = spot_buffer.get_price(symbol)
+                if close_price is None:
+                    db_price = trade_db.get_spot_at_time(
+                        symbol, market.end_time.timestamp(), tolerance_s=30.0
+                    )
+                    close_price = db_price if db_price is not None else 0.0
+
+                # Determine outcome
+                if open_price > 0 and close_price > 0:
+                    change_pct = (close_price - open_price) / open_price * 100
+                    if close_price > open_price:
+                        outcome = "YES"
+                    elif close_price < open_price:
+                        outcome = "NO"
+                    else:
+                        outcome = "FLAT"
+                else:
+                    change_pct = 0.0
+                    outcome = "FLAT"
+
+                # Check if bot had a position
+                was_traded = any(
+                    p.market.condition_id == cid
+                    for p in state_manager.get_all_positions()
+                )
+
+                trade_db.save_market_outcome(
+                    MarketOutcome(
+                        timestamp=time.time(),
+                        condition_id=cid,
+                        asset=market.asset,
+                        market_slug=market.slug,
+                        window_start=market.start_time.timestamp(),
+                        window_end=market.end_time.timestamp(),
+                        outcome=outcome,
+                        spot_open=open_price,
+                        spot_close=close_price,
+                        price_change_pct=change_pct,
+                        was_traded=was_traded,
+                    )
+                )
+
+                _recorded_outcomes.add(cid)
+                _log.info(
+                    "market_outcome_recorded",
+                    condition_id=cid[:12],
+                    asset=market.asset,
+                    outcome=outcome,
+                    change_pct=round(change_pct, 4),
+                    was_traded=was_traded,
+                )
+
+                # Cleanup start price
+                _market_start_prices.pop(cid, None)
+
+        except Exception as exc:
+            _log.error("market_outcome_error", error=str(exc))
+
+        try:
+            await asyncio.wait_for(_shutdown_event.wait(), timeout=interval)
+        except asyncio.TimeoutError:
+            pass
+
+
+# ---------------------------------------------------------------------------
 # Shutdown handling
 # ---------------------------------------------------------------------------
 
@@ -1516,10 +1708,10 @@ async def _run_bot(settings: Settings, pid_lock: PidLock) -> None:
     rate_limiter = RateLimiter(max_per_minute=55)
     spot_buffer = SpotBuffer(window_seconds=60)
 
-    # Trade database + dashboard (if enabled)
+    # Trade database (needed for dashboard or decision logging)
     trade_db: TradeDatabase | None = None
     dashboard_server = None
-    if settings.dashboard_enabled:
+    if settings.dashboard_enabled or settings.enable_decision_logging:
         trade_db = TradeDatabase(settings.db_path)
         state_manager.set_trade_db(trade_db)
 
@@ -1624,6 +1816,12 @@ async def _run_bot(settings: Settings, pid_lock: PidLock) -> None:
         ),
     )
 
+    # Decision logger (Phase 1 observability)
+    decision_logger: DecisionLogger | None = None
+    if trade_db is not None and settings.enable_decision_logging:
+        decision_logger = DecisionLogger(trade_db)
+        _log.info("decision_logging_enabled")
+
     strategy_task = asyncio.create_task(
         _strategy_loop(
             market_manager=market_manager,
@@ -1634,6 +1832,7 @@ async def _run_bot(settings: Settings, pid_lock: PidLock) -> None:
             rate_limiter=rate_limiter,
             settings=settings,
             strategies=strategies,
+            decision_logger=decision_logger,
         ),
     )
 
@@ -1695,6 +1894,30 @@ async def _run_bot(settings: Settings, pid_lock: PidLock) -> None:
             interval=15.0,  # Check every 15 seconds
         ),
     )
+
+    # Spot snapshot loop (periodic price persistence for offline analysis)
+    spot_snapshot_task = None
+    if trade_db is not None:
+        spot_snapshot_task = asyncio.create_task(
+            _spot_snapshot_loop(
+                spot_buffer=spot_buffer,
+                trade_db=trade_db,
+                interval=settings.spot_snapshot_interval,
+            ),
+        )
+
+    # Market outcome loop (track all 15-min window results)
+    market_outcome_task = None
+    if trade_db is not None:
+        market_outcome_task = asyncio.create_task(
+            _market_outcome_loop(
+                market_manager=market_manager,
+                spot_buffer=spot_buffer,
+                state_manager=state_manager,
+                trade_db=trade_db,
+                interval=10.0,
+            ),
+        )
 
     _log.info(
         "bot_running",
@@ -1763,6 +1986,7 @@ async def _run_bot(settings: Settings, pid_lock: PidLock) -> None:
         monitor_task, strategy_task, rollover_task,
         exit_task, gtc_task, maker_arb_task, summary_task,
         dashboard_task, snapshot_task, resolution_task,
+        spot_snapshot_task, market_outcome_task,
     ]
     for task in all_tasks:
         if task is not None:
