@@ -958,6 +958,7 @@ async def _exit_check_loop(
     rate_limiter: RateLimiter,
     settings: Settings,
     book_manager: OrderBookManager,
+    trade_db: TradeDatabase | None = None,
     interval: float = 2.0,
 ) -> None:
     """Fast loop to check if directional positions should be exited.
@@ -991,7 +992,7 @@ async def _exit_check_loop(
                 if strategy.should_exit(position, market):
                     await _execute_exit(
                         position, market, executor, state_manager,
-                        rate_limiter, settings, book_manager,
+                        rate_limiter, settings, book_manager, trade_db,
                     )
         except Exception as exc:
             _log.error("exit_check_error", error=str(exc))
@@ -1010,6 +1011,7 @@ async def _execute_exit(
     rate_limiter: RateLimiter,
     settings: Settings,
     book_manager: OrderBookManager,
+    trade_db: TradeDatabase | None = None,
 ) -> None:
     """Sell all shares in a directional position."""
     orders = []
@@ -1067,16 +1069,39 @@ async def _execute_exit(
 
         # Close the position in state to prevent repeated exit signals
         # and double-counting at market resolution.
+        net_profit = sell_proceeds - position.total_investment
+        from src.utils.fees import WINNER_FEE_RATE
+        actual_winner_fee = WINNER_FEE_RATE * max(0.0, net_profit)
+        net_profit -= actual_winner_fee
+
         try:
             state_manager.close_position(market.condition_id, payout_per_share)
         except KeyError:
             pass  # Already closed by resolution loop
+
+        # Persist early exit as a trade_result so it appears on the dashboard
+        if trade_db is not None:
+            trade_db.save_trade_result(TradeResult(
+                timestamp=time.time(),
+                condition_id=market.condition_id,
+                market_slug=market.slug,
+                asset=market.asset,
+                strategy=position.strategy.value,
+                was_hedged=position.is_hedged,
+                yes_shares=position.yes_shares,
+                no_shares=position.no_shares,
+                investment=position.total_investment,
+                gross_payout=sell_proceeds,
+                net_profit=net_profit,
+                outcome="early_exit",
+            ))
 
         _log.info(
             "position_exited",
             market=market.slug,
             results=[r.status.value for r in results],
             sell_proceeds=round(sell_proceeds, 4),
+            net_profit=round(net_profit, 4),
             payout_per_share=round(payout_per_share, 4),
         )
     except Exception as exc:
@@ -1639,6 +1664,7 @@ async def _run_bot(settings: Settings, pid_lock: PidLock) -> None:
             rate_limiter=rate_limiter,
             settings=settings,
             book_manager=book_manager,
+            trade_db=trade_db,
             interval=2.0,
         ),
     )
