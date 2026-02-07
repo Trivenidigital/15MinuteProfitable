@@ -121,12 +121,16 @@ class MarketManager:
         # Step 3: Discover markets for any assets that are missing or need rollover
         new_markets = await self._discover_missing(active_assets)
 
+        # Prune stale orderbook entries from expired markets
+        pruned = self._book_manager.remove_stale_books(threshold_s=120.0)
+
         if expired or new_markets:
             self._log.info(
                 "rollover_complete",
                 expired_count=len(expired),
                 new_count=len(new_markets),
                 active_count=len(self._active_markets),
+                stale_books_pruned=pruned,
             )
 
         # Force WebSocket reconnect so the server sends fresh book

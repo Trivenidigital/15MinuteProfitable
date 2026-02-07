@@ -226,7 +226,7 @@ class ClobWebSocket:
         if "hash" in msg:
             book.last_hash = str(msg["hash"])
 
-        self._log.info(
+        self._log.debug(
             "snapshot_applied",
             asset_id=asset_id,
             bid_levels=len(bids),

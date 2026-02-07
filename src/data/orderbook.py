@@ -230,3 +230,17 @@ class OrderBookManager:
         if state is None:
             return True
         return state.is_stale(threshold_s)
+
+    def remove_stale_books(self, threshold_s: float = 120.0) -> int:
+        """Remove books that haven't been updated within *threshold_s* seconds.
+
+        Returns the number of books removed. Safe to call periodically —
+        expired markets stop receiving updates so their books become stale.
+        """
+        stale_ids = [
+            tid for tid, state in self._books.items()
+            if state.is_stale(threshold_s)
+        ]
+        for tid in stale_ids:
+            del self._books[tid]
+        return len(stale_ids)

@@ -1117,6 +1117,110 @@ class TestResolveExpiredPositions:
         assert report["net_profit"] == pytest.approx(0.0)
         assert state.get_position("cond_unhedge_be") is None
 
+# ---------------------------------------------------------------------------
+# position_entry_count (stacking prevention)
+# ---------------------------------------------------------------------------
+
+
+class TestPositionEntryCount:
+    """Tests for _entry_counts tracking via record_trade."""
+
+    def test_initial_count_is_zero(self, state: StateManager) -> None:
+        """Entry count for unknown condition_id should be 0."""
+        assert state.position_entry_count("nonexistent") == 0
+
+    async def test_record_trade_increments_count(
+        self, state: StateManager, market_btc: Market
+    ) -> None:
+        """First record_trade should set entry count to 1."""
+        opp = Opportunity(
+            strategy=StrategyType.PRICE_LAG,
+            market=market_btc,
+            timestamp=datetime.utcnow(),
+            total_fees=0.0,
+        )
+        order = TradeOrder(
+            token_id=market_btc.yes_token_id,
+            side=Side.BUY,
+            price=0.45,
+            size=100,
+            status=OrderStatus.FILLED,
+            fill_size=100,
+            fill_price=0.45,
+        )
+        await state.record_trade(opp, [order])
+        assert state.position_entry_count("cond_btc") == 1
+
+    async def test_multiple_trades_increment_count(
+        self, state: StateManager, market_btc: Market
+    ) -> None:
+        """Multiple record_trade calls should increment the count."""
+        opp = Opportunity(
+            strategy=StrategyType.PRICE_LAG,
+            market=market_btc,
+            timestamp=datetime.utcnow(),
+            total_fees=0.0,
+        )
+        order = TradeOrder(
+            token_id=market_btc.yes_token_id,
+            side=Side.BUY,
+            price=0.45,
+            size=50,
+            status=OrderStatus.FILLED,
+            fill_size=50,
+            fill_price=0.45,
+        )
+        await state.record_trade(opp, [order])
+        await state.record_trade(opp, [order])
+        await state.record_trade(opp, [order])
+        assert state.position_entry_count("cond_btc") == 3
+
+    async def test_close_position_clears_count(
+        self, state: StateManager, market_btc: Market
+    ) -> None:
+        """close_position should clear the entry count."""
+        opp = Opportunity(
+            strategy=StrategyType.PRICE_LAG,
+            market=market_btc,
+            timestamp=datetime.utcnow(),
+            total_fees=0.0,
+        )
+        order = TradeOrder(
+            token_id=market_btc.yes_token_id,
+            side=Side.BUY,
+            price=0.45,
+            size=100,
+            status=OrderStatus.FILLED,
+            fill_size=100,
+            fill_price=0.45,
+        )
+        await state.record_trade(opp, [order])
+        assert state.position_entry_count("cond_btc") == 1
+
+        state.close_position("cond_btc", payout_per_share=0.50)
+        assert state.position_entry_count("cond_btc") == 0
+
+    async def test_unfilled_order_does_not_increment(
+        self, state: StateManager, market_btc: Market
+    ) -> None:
+        """Cancelled orders should not increment the entry count."""
+        opp = Opportunity(
+            strategy=StrategyType.PRICE_LAG,
+            market=market_btc,
+            timestamp=datetime.utcnow(),
+            total_fees=0.0,
+        )
+        order = TradeOrder(
+            token_id=market_btc.yes_token_id,
+            side=Side.BUY,
+            price=0.45,
+            size=100,
+            status=OrderStatus.CANCELLED,
+        )
+        await state.record_trade(opp, [order])
+        assert state.position_entry_count("cond_btc") == 0
+
+
     async def test_non_expired_position_not_resolved(
         self, state: StateManager
     ) -> None:

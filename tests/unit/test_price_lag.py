@@ -728,8 +728,9 @@ class TestShouldExit:
         strategy: PriceLagStrategy,
         book_manager: MockOrderBookManager,
     ) -> None:
-        """Should exit when profit exceeds take_profit_pct."""
-        market = _make_market(start_offset=-300.0, end_offset=600.0)
+        """Should exit when profit exceeds take_profit_pct (first third of market)."""
+        # Use first third: progress = 200/900 = 0.22 < 1/3 -> base threshold (10%)
+        market = _make_market(start_offset=-200.0, end_offset=700.0)
         # Cost basis = 23.0, current bid = 0.55 -> value = 50 * 0.55 = 27.5
         # pnl_pct = (27.5 - 23.0) / 23.0 = 0.1957 -> exceeds 0.10 take_profit
         position = Position(
@@ -1047,6 +1048,136 @@ class TestSmartStopLoss:
 
         assert strategy.should_exit(position, market) is True
         assert market.condition_id not in strategy._stop_loss_counts
+
+
+# ---------------------------------------------------------------------------
+# Dynamic take-profit
+# ---------------------------------------------------------------------------
+
+
+class TestDynamicTakeProfit:
+    """Tests for time-based dynamic take-profit."""
+
+    def test_first_third_uses_base_threshold(
+        self,
+        strategy: PriceLagStrategy,
+        book_manager: MockOrderBookManager,
+    ) -> None:
+        """In first third, take-profit fires at base take_profit_pct (10%)."""
+        # progress = 200/900 = 0.22 (first third)
+        market = _make_market(start_offset=-200.0, end_offset=700.0)
+        position = Position(
+            market=market,
+            yes_shares=50.0,
+            yes_cost_basis=23.0,
+            strategy=StrategyType.PRICE_LAG,
+        )
+        # value = 50 * 0.55 = 27.5, pnl_pct = (27.5-23)/23 = 0.1957 > 10%
+        book_manager.yes_book = _make_orderbook("YES_TOKEN", best_bid=0.55)
+
+        assert strategy.should_exit(position, market) is True
+
+    def test_first_third_below_threshold_no_exit(
+        self,
+        strategy: PriceLagStrategy,
+        book_manager: MockOrderBookManager,
+    ) -> None:
+        """In first third, profit below 10% should not trigger exit."""
+        market = _make_market(start_offset=-200.0, end_offset=700.0)
+        position = Position(
+            market=market,
+            yes_shares=50.0,
+            yes_cost_basis=23.0,
+            strategy=StrategyType.PRICE_LAG,
+        )
+        # value = 50 * 0.49 = 24.5, pnl_pct = (24.5-23)/23 = 0.065 < 10%
+        book_manager.yes_book = _make_orderbook("YES_TOKEN", best_bid=0.49)
+
+        assert strategy.should_exit(position, market) is False
+
+    def test_middle_third_doubles_threshold(
+        self,
+        strategy: PriceLagStrategy,
+        book_manager: MockOrderBookManager,
+    ) -> None:
+        """In middle third, take-profit threshold doubles to 20%.
+        A 15% profit should NOT trigger exit."""
+        # progress = 450/900 = 0.50 (middle third)
+        market = _make_market(start_offset=-450.0, end_offset=450.0)
+        position = Position(
+            market=market,
+            yes_shares=50.0,
+            yes_cost_basis=23.0,
+            strategy=StrategyType.PRICE_LAG,
+        )
+        # value = 50 * 0.53 = 26.5, pnl_pct = (26.5-23)/23 = 0.152 < 20%
+        book_manager.yes_book = _make_orderbook("YES_TOKEN", best_bid=0.53)
+
+        assert strategy.should_exit(position, market) is False
+
+    def test_middle_third_triggers_at_doubled_threshold(
+        self,
+        strategy: PriceLagStrategy,
+        book_manager: MockOrderBookManager,
+    ) -> None:
+        """In middle third, profit above 20% should trigger exit."""
+        market = _make_market(start_offset=-450.0, end_offset=450.0)
+        position = Position(
+            market=market,
+            yes_shares=50.0,
+            yes_cost_basis=23.0,
+            strategy=StrategyType.PRICE_LAG,
+        )
+        # value = 50 * 0.58 = 29.0, pnl_pct = (29-23)/23 = 0.2609 > 20%
+        book_manager.yes_book = _make_orderbook("YES_TOKEN", best_bid=0.58)
+
+        assert strategy.should_exit(position, market) is True
+
+    def test_last_third_disables_take_profit(
+        self,
+        strategy: PriceLagStrategy,
+        book_manager: MockOrderBookManager,
+    ) -> None:
+        """In last third, take-profit is disabled — let winners ride."""
+        # progress = 700/900 = 0.778 (last third)
+        market = _make_market(start_offset=-700.0, end_offset=200.0)
+        position = Position(
+            market=market,
+            yes_shares=50.0,
+            yes_cost_basis=23.0,
+            strategy=StrategyType.PRICE_LAG,
+        )
+        # value = 50 * 0.70 = 35.0, pnl_pct = (35-23)/23 = 0.5217 = 52%!
+        book_manager.yes_book = _make_orderbook("YES_TOKEN", best_bid=0.70)
+
+        assert strategy.should_exit(position, market) is False
+
+    def test_take_profit_decay_disabled_uses_flat(
+        self,
+        strategy: PriceLagStrategy,
+        book_manager: MockOrderBookManager,
+    ) -> None:
+        """With take_profit_time_decay=False, always uses flat threshold."""
+        strategy._settings = Settings(
+            private_key="0x" + "ab" * 32,
+            take_profit_pct=0.10,
+            take_profit_time_decay=False,
+            stop_loss_pct=0.05,
+            stop_loss_confirmations=3,
+            time_exit_seconds=60.0,
+        )
+        # Last third — but decay disabled so 10% take-profit should fire
+        market = _make_market(start_offset=-700.0, end_offset=200.0)
+        position = Position(
+            market=market,
+            yes_shares=50.0,
+            yes_cost_basis=23.0,
+            strategy=StrategyType.PRICE_LAG,
+        )
+        # pnl_pct = (27.5-23)/23 = 0.1957 > 10%
+        book_manager.yes_book = _make_orderbook("YES_TOKEN", best_bid=0.55)
+
+        assert strategy.should_exit(position, market) is True
 
     def test_cleanup_market_removes_stop_loss_counts(
         self,

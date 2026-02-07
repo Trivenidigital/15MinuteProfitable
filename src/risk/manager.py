@@ -31,6 +31,8 @@ class StateProvider(Protocol):
 
     def daily_pnl(self) -> DailyPnL: ...
 
+    def position_entry_count(self, condition_id: str) -> int: ...
+
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -129,6 +131,16 @@ class RiskManager:
                 f"{self._settings.max_position_per_market:.2f}"
             )
             self._log.warning("risk_rejected", check="market_exposure", reason=reason)
+            return False, reason
+
+        # 3b. Max entries per market (prevent stacking)
+        entry_count = self._state.position_entry_count(condition_id)
+        if entry_count >= self._settings.max_entries_per_market:
+            reason = (
+                f"max entries reached: {entry_count} >= "
+                f"{self._settings.max_entries_per_market}"
+            )
+            self._log.warning("risk_rejected", check="max_entries", reason=reason)
             return False, reason
 
         # 4. Total exposure

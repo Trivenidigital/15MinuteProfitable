@@ -50,6 +50,7 @@ class StateManager:
         self._settings = settings
         self._positions: dict[str, Position] = {}
         self._daily_pnl: dict[str, DailyPnL] = {}
+        self._entry_counts: dict[str, int] = {}  # condition_id -> trade entry count
         self._sim_balance_value: float = settings.sim_balance
         self._trade_db: TradeDatabase | None = None
         self._lock = asyncio.Lock()
@@ -168,6 +169,7 @@ class StateManager:
             self._sim_balance_value += gross_payout - actual_winner_fee
 
         del self._positions[condition_id]
+        self._entry_counts.pop(condition_id, None)
 
         logger.info(
             "position_closed",
@@ -192,6 +194,10 @@ class StateManager:
         """total_investment for a specific market. Returns 0.0 if no position."""
         pos = self._positions.get(condition_id)
         return pos.total_investment if pos else 0.0
+
+    def position_entry_count(self, condition_id: str) -> int:
+        """Number of trade entries recorded for a market. Returns 0 if none."""
+        return self._entry_counts.get(condition_id, 0)
 
     def total_unhedged_exposure(self) -> float:
         """Sum of abs(net_directional_exposure * avg_price) across all positions.
@@ -251,6 +257,9 @@ class StateManager:
                     opened_at=opportunity.timestamp,
                 )
                 self._positions[cid] = pos
+
+            # Track entry count for stacking prevention
+            self._entry_counts[cid] = self._entry_counts.get(cid, 0) + 1
 
             for order in filled_orders:
                 is_yes = order.token_id == opportunity.market.yes_token_id
@@ -598,6 +607,7 @@ class StateManager:
                     self._sim_balance_value += gross_payout - actual_winner_fee
 
                 del self._positions[cid]
+                self._entry_counts.pop(cid, None)
                 logger.info(
                     "position_resolved_hedged",
                     condition_id=cid,
@@ -668,6 +678,7 @@ class StateManager:
                     self._sim_balance_value += gross_payout - actual_winner_fee
 
                 del self._positions[cid]
+                self._entry_counts.pop(cid, None)
                 logger.info(
                     "position_resolved_unhedged",
                     condition_id=cid,
@@ -726,6 +737,7 @@ class StateManager:
 
         for cid in orphaned:
             del self._positions[cid]
+            self._entry_counts.pop(cid, None)
             logger.warning("orphaned_position_removed", condition_id=cid)
 
         report["orphaned_removed"] = orphaned

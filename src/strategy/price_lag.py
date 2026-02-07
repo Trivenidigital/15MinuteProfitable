@@ -344,12 +344,34 @@ class PriceLagStrategy(BaseStrategy):
             self._stop_loss_counts.pop(cid, None)
             return True
 
-        # 4. Take-profit
-        if pnl_pct >= self._settings.take_profit_pct:
+        # 3. Dynamic take-profit
+        # Time-based curve: early → take profit quickly, late → let it ride to resolution
+        duration = end_ts - start_ts
+        if duration > 0:
+            progress = (now_ts - start_ts) / duration
+        else:
+            progress = 1.0
+
+        if self._settings.take_profit_time_decay:
+            if progress >= 2 / 3:
+                # Last third: disable take-profit, let winners ride to resolution
+                effective_tp = None
+            elif progress >= 1 / 3:
+                # Middle third: double the threshold
+                effective_tp = self._settings.take_profit_pct * 2
+            else:
+                # First third: use as-is
+                effective_tp = self._settings.take_profit_pct
+        else:
+            effective_tp = self._settings.take_profit_pct
+
+        if effective_tp is not None and pnl_pct >= effective_tp:
             self._log.info(
                 "take_profit_triggered",
                 market=market.slug,
                 pnl_pct=round(pnl_pct * 100, 2),
+                effective_threshold=round(effective_tp * 100, 2),
+                progress=round(progress, 2),
             )
             self._stop_loss_counts.pop(cid, None)
             return True
@@ -376,7 +398,7 @@ class PriceLagStrategy(BaseStrategy):
         if total_shares > 0:
             avg_entry_price = cost_basis / total_shares
             if avg_entry_price < self._settings.stop_loss_cheap_threshold:
-                self._log.debug(
+                self._log.info(
                     "stop_loss_skipped_cheap",
                     market=market.slug,
                     avg_entry_price=round(avg_entry_price, 4),
@@ -395,7 +417,7 @@ class PriceLagStrategy(BaseStrategy):
         if self._settings.stop_loss_time_decay:
             if progress >= 2 / 3:
                 # Last third: disable stop-loss entirely
-                self._log.debug(
+                self._log.info(
                     "stop_loss_disabled_late_market",
                     market=market.slug,
                     progress=round(progress, 2),
@@ -427,7 +449,7 @@ class PriceLagStrategy(BaseStrategy):
                 )
                 return True
 
-            self._log.debug(
+            self._log.info(
                 "stop_loss_pending_confirmation",
                 market=market.slug,
                 pnl_pct=round(pnl_pct * 100, 2),

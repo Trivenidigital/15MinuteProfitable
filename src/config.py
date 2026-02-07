@@ -50,6 +50,7 @@ class Settings(BaseSettings):
     time_exit_seconds: float = 45.0  # exit 45s before expiry
     lag_confirmations: int = 1  # react immediately, no confirmation wait
     stop_loss_time_decay: bool = True  # widen stop-loss as market nears expiry
+    take_profit_time_decay: bool = True  # widen take-profit as market nears expiry
     stop_loss_cheap_threshold: float = 0.10  # no stop-loss for contracts < $0.10 avg price
     stop_loss_confirmations: int = 3  # consecutive triggers before exit (6s at 2s interval)
 
@@ -74,6 +75,7 @@ class Settings(BaseSettings):
     market_slug_override: str = ""
 
     # Risk Limits (AGGRESSIVE MODE)
+    max_entries_per_market: int = 2  # cap directional entries per 15-min market
     max_position_per_market: float = 1000.0  # 2x increase
     max_total_position: float = 5000.0  # 2.5x increase
     max_daily_loss: float = 250.0  # 5x increase (matches position size)

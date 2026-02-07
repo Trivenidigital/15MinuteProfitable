@@ -819,7 +819,7 @@ class TestEdgeCases:
         mock_clob_ws: MagicMock,
     ) -> None:
         """If OrderBookManager has no remove_book, _remove_book is a no-op."""
-        book_mgr = MagicMock(spec=["ensure_book", "get_book"])
+        book_mgr = MagicMock(spec=["ensure_book", "get_book", "remove_stale_books"])
         # No remove_book attribute
         mgr = MarketManager(
             settings=settings,

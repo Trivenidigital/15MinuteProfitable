@@ -37,11 +37,13 @@ class MockState:
         market_exp: float = 0.0,
         unhedged_exp: float = 0.0,
         daily_loss: float = 0.0,
+        entry_count: int = 0,
     ) -> None:
         self._total_exp = total_exp
         self._market_exp = market_exp
         self._unhedged_exp = unhedged_exp
         self._daily_loss = daily_loss
+        self._entry_count = entry_count
 
     def total_exposure(self) -> float:
         return self._total_exp
@@ -54,6 +56,9 @@ class MockState:
 
     def daily_pnl(self) -> DailyPnL:
         return DailyPnL(date="2024-01-01", net_profit=-self._daily_loss)
+
+    def position_entry_count(self, condition_id: str) -> int:
+        return self._entry_count
 
 
 # ---------------------------------------------------------------------------
@@ -519,3 +524,66 @@ class TestRateLimitTimeoutRecording:
         approved, reason = rm.check_opportunity(opp)
         assert approved is False
         assert "circuit breaker" in reason
+
+
+# ---------------------------------------------------------------------------
+# Max entries per market (stacking prevention)
+# ---------------------------------------------------------------------------
+
+
+class TestMaxEntriesPerMarket:
+    """Tests for the entry cap that prevents triple-stacking."""
+
+    def test_rejected_when_entry_count_at_max(self, settings: Settings) -> None:
+        """Should reject when entries >= max_entries_per_market (default 2)."""
+        state = MockState(entry_count=2)
+        rm = RiskManager(settings, state)
+        opp = _make_opportunity()
+        approved, reason = rm.check_opportunity(opp)
+        assert approved is False
+        assert "max entries" in reason
+
+    def test_rejected_when_entry_count_above_max(self, settings: Settings) -> None:
+        """Should reject when entries > max_entries_per_market."""
+        state = MockState(entry_count=5)
+        rm = RiskManager(settings, state)
+        opp = _make_opportunity()
+        approved, reason = rm.check_opportunity(opp)
+        assert approved is False
+        assert "max entries" in reason
+
+    def test_approved_when_entry_count_below_max(self, settings: Settings) -> None:
+        """Should approve when entries < max_entries_per_market."""
+        state = MockState(entry_count=1)
+        rm = RiskManager(settings, state)
+        opp = _make_opportunity()
+        approved, reason = rm.check_opportunity(opp)
+        assert approved is True
+        assert reason == "approved"
+
+    def test_approved_when_zero_entries(self, settings: Settings) -> None:
+        """First entry should always be approved (0 < 2)."""
+        state = MockState(entry_count=0)
+        rm = RiskManager(settings, state)
+        opp = _make_opportunity()
+        approved, reason = rm.check_opportunity(opp)
+        assert approved is True
+        assert reason == "approved"
+
+    def test_custom_max_entries_setting(self) -> None:
+        """Respect custom max_entries_per_market value."""
+        custom_settings = Settings(
+            private_key="0x" + "ab" * 32,
+            max_position_per_market=500.0,
+            max_total_position=2000.0,
+            max_daily_loss=50.0,
+            max_unhedged_exposure=100.0,
+            cooldown_seconds=5.0,
+            max_entries_per_market=1,
+        )
+        state = MockState(entry_count=1)
+        rm = RiskManager(custom_settings, state)
+        opp = _make_opportunity()
+        approved, reason = rm.check_opportunity(opp)
+        assert approved is False
+        assert "max entries" in reason
