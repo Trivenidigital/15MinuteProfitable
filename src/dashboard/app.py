@@ -193,6 +193,7 @@ def create_app() -> FastAPI:
 
         return JSONResponse({
             "today": pnl_dict,
+            "lifetime_net_profit": state.lifetime_net_profit,
             "history": snapshots,
         })
 
@@ -498,6 +499,7 @@ def create_app() -> FastAPI:
                     "positions_count": len(state.get_all_positions()),
                     "total_exposure": state.total_exposure(),
                     "daily_pnl_net": pnl.net_profit,
+                    "lifetime_pnl_net": state.lifetime_net_profit,
                     "sim_balance": state.sim_balance,
                     "circuit_breaker_active": risk_mgr.is_circuit_breaker_active(),
                     "uptime": time.time() - _start_time,

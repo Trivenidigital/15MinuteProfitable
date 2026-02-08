@@ -434,8 +434,9 @@
         <!-- Overview cards -->
         <div class="cards-row">
             <div class="card">
-                <div class="label">Net P&amp;L</div>
+                <div class="label">Net P&amp;L (Lifetime)</div>
                 <div class="value" id="cardPnl">$0.00</div>
+                <div class="label" style="font-size:0.65rem;margin-top:4px">Today: <span id="cardDailyPnl" style="font-weight:600">$0.00</span></div>
             </div>
             <div class="card">
                 <div class="label">Total Trades</div>
@@ -655,8 +656,13 @@
            ---------------------------------------------------------------- */
         function updateCards(data) {
             const pnlEl = document.getElementById('cardPnl');
-            pnlEl.textContent = fmtDollars(data.daily_pnl_net);
-            pnlEl.className = 'value ' + (data.daily_pnl_net >= 0 ? 'green' : 'red');
+            const lifetimePnl = data.lifetime_pnl_net != null ? data.lifetime_pnl_net : data.daily_pnl_net;
+            pnlEl.textContent = fmtDollars(lifetimePnl);
+            pnlEl.className = 'value ' + (lifetimePnl >= 0 ? 'green' : 'red');
+
+            const dailyPnlEl = document.getElementById('cardDailyPnl');
+            dailyPnlEl.textContent = fmtDollars(data.daily_pnl_net);
+            dailyPnlEl.style.color = data.daily_pnl_net >= 0 ? 'var(--green)' : 'var(--red)';
 
             document.getElementById('cardBalance').textContent = fmtDollars(data.sim_balance);
             document.getElementById('cardExposure').textContent = fmtDollars(data.total_exposure);

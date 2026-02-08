@@ -462,6 +462,22 @@ class TradeDatabase:
         self._conn.commit()
         logger.debug("daily_snapshot_saved", date=snapshot.date)
 
+    def get_historical_net_profit(self, exclude_date: str | None = None) -> float:
+        """Sum net_profit from all daily_snapshots, optionally excluding a date.
+
+        Used to compute lifetime P&L: historical (from DB) + today (in-memory).
+        """
+        if exclude_date:
+            row = self._conn.execute(
+                "SELECT COALESCE(SUM(net_profit), 0.0) FROM daily_snapshots WHERE date != ?",
+                (exclude_date,),
+            ).fetchone()
+        else:
+            row = self._conn.execute(
+                "SELECT COALESCE(SUM(net_profit), 0.0) FROM daily_snapshots",
+            ).fetchone()
+        return float(row[0]) if row else 0.0
+
     def get_daily_snapshots(self, limit: int = 30) -> list[DailySnapshot]:
         """Fetch recent daily snapshots in reverse chronological order."""
         rows = self._conn.execute(

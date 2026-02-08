@@ -344,6 +344,21 @@ class StateManager:
         """Return the P&L record for today."""
         return self._get_or_create_daily_pnl()
 
+    @property
+    def lifetime_net_profit(self) -> float:
+        """Cumulative net profit across all time (historical days + today).
+
+        Historical days are summed from SQLite daily_snapshots (excluding
+        today to avoid double-counting with the in-memory DailyPnL).
+        """
+        today_pnl = self._get_or_create_daily_pnl().net_profit
+        if self._trade_db is None:
+            # No DB attached: sum all in-memory daily entries
+            return sum(pnl.net_profit for pnl in self._daily_pnl.values())
+        today = datetime.now(timezone.utc).date().isoformat()
+        historical = self._trade_db.get_historical_net_profit(exclude_date=today)
+        return historical + today_pnl
+
     def _get_or_create_daily_pnl(self) -> DailyPnL:
         """Get or lazily create today's DailyPnL record (UTC-based)."""
         today = datetime.now(timezone.utc).date().isoformat()
