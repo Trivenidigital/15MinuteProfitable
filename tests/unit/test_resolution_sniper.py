@@ -133,10 +133,13 @@ def _make_price_history(
     base_price: float = 100000.0,
     vol: float = 0.001,
     interval: float = 2.0,
+    trend: float = 0.0,
 ) -> list[tuple[float, float]]:
     """Generate synthetic price history with controlled volatility.
 
     Creates n data points with prices oscillating around base_price.
+    If *trend* > 0 the series drifts upward (momentum UP);
+    if *trend* < 0 it drifts downward.
     """
     now = time.time()
     history: list[tuple[float, float]] = []
@@ -144,7 +147,8 @@ def _make_price_history(
         ts = now - (n - 1 - i) * interval
         # Alternate small movements to create measurable vol
         sign = 1.0 if i % 2 == 0 else -1.0
-        price = base_price * (1.0 + sign * vol * (i % 3))
+        drift = trend * (i / max(n - 1, 1))
+        price = base_price * (1.0 + sign * vol * (i % 3) + drift)
         history.append((ts, price))
     return history
 
@@ -163,8 +167,16 @@ def _setup_for_sniper(
     """Configure mocks for a successful sniper evaluation."""
     spot_buffer._has_data_val = True
     spot_buffer._prices["BTCUSDT"] = current_spot
+    # Determine trend direction from open_price vs current_spot so that
+    # the momentum confirmation check sees a consistent trend.
+    if current_spot > open_price:
+        trend = 0.002  # upward drift
+    elif current_spot < open_price:
+        trend = -0.002  # downward drift
+    else:
+        trend = 0.0
     spot_buffer._price_history["BTCUSDT"] = _make_price_history(
-        n=n_points, base_price=current_spot, vol=vol,
+        n=n_points, base_price=current_spot, vol=vol, trend=trend,
     )
     book_manager.yes_book = OrderBook(
         token_id="YES_TOKEN",

@@ -1,7 +1,14 @@
+from __future__ import annotations
+
+import os
 from enum import IntEnum
+from pathlib import Path
+from typing import ClassVar
 
 from pydantic import SecretStr
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, PydanticBaseSettingsSource
+
+from src.utils.vault import SecretVault, VaultError
 
 
 class SignatureType(IntEnum):
@@ -10,8 +17,68 @@ class SignatureType(IntEnum):
     GNOSIS_SAFE = 2
 
 
+# ---------------------------------------------------------------------------
+# Vault settings source for Pydantic
+# ---------------------------------------------------------------------------
+
+# Fields that live in the vault (vault key -> settings field name).
+# Vault keys are lowercase, matching the Settings field names.
+_VAULT_SECRET_FIELDS: dict[str, str] = {
+    "private_key": "private_key",
+    "telegram_bot_token": "telegram_bot_token",
+    "discord_webhook_url": "discord_webhook_url",
+    "dashboard_password": "dashboard_password",
+    "funder": "funder",
+}
+
+
+class VaultSettingsSource(PydanticBaseSettingsSource):
+    """Load secret fields from an encrypted vault file.
+
+    Activated only when ``VAULT_PASSWORD`` env var is set **and** the vault
+    file exists.  Otherwise returns an empty dict (transparent fallback to
+    ``.env``).
+    """
+
+    def get_field_value(self, field: ..., field_name: str) -> tuple[..., str, bool]:  # type: ignore[override]
+        # Not used — we override __call__ directly.
+        return None, field_name, False  # type: ignore[return-value]
+
+    def __call__(self) -> dict[str, SecretStr | str]:
+        vault_password = os.environ.get("VAULT_PASSWORD", "")
+        if not vault_password:
+            return {}
+
+        vault_path = Path(os.environ.get("VAULT_PATH", "data/secrets.vault"))
+        if not vault_path.is_file():
+            return {}
+
+        try:
+            vault = SecretVault(vault_path, vault_password)
+            secrets = vault.load()
+        except VaultError:
+            # Vault exists but can't be read — fall back to .env silently
+            return {}
+
+        result: dict[str, SecretStr | str] = {}
+        for vault_key, field_name in _VAULT_SECRET_FIELDS.items():
+            value = secrets.get(vault_key, "")
+            if value:
+                result[field_name] = value
+
+        return result
+
+
+# ---------------------------------------------------------------------------
+# Settings model
+# ---------------------------------------------------------------------------
+
+
 class Settings(BaseSettings):
     model_config = {"env_prefix": "BOT_", "env_file": ".env"}
+
+    # Vault secret fields (keys that can be stored in the vault)
+    VAULT_SECRET_FIELDS: ClassVar[dict[str, str]] = _VAULT_SECRET_FIELDS
 
     # Wallet & Auth
     private_key: SecretStr
@@ -79,6 +146,11 @@ class Settings(BaseSettings):
     sniper_exit_confidence_floor: float = 0.0 # Emergency exit threshold (0 = disabled)
     sniper_min_vol_data_points: int = 10      # Min data points for vol calc
     sniper_vol_floor: float = 0.0001          # Min sigma floor (0.01%/min)
+    sniper_vol_window_seconds: int = 600      # Seconds of spot data for vol calc (10 min)
+    sniper_momentum_window_seconds: int = 30  # Seconds of recent prices for momentum check
+
+    # Spot buffer
+    spot_buffer_window: int = 900             # Max age of spot prices in buffer (15 min)
 
     # Markets (only assets with 15-min up/down markets on Polymarket)
     markets: list[str] = ["BTC", "ETH", "SOL", "XRP"]
@@ -129,3 +201,29 @@ class Settings(BaseSettings):
 
     # Daily Summary
     daily_summary_hour: int = 0  # UTC hour to send daily summary
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        """Insert vault source with highest priority after init_settings.
+
+        Priority order (highest first):
+        1. init_settings (constructor kwargs)
+        2. VaultSettingsSource (encrypted vault)
+        3. env_settings (environment variables)
+        4. dotenv_settings (.env file)
+        5. file_secret_settings
+        """
+        return (
+            init_settings,
+            VaultSettingsSource(settings_cls),
+            env_settings,
+            dotenv_settings,
+            file_secret_settings,
+        )

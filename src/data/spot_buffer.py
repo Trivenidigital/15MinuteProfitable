@@ -50,8 +50,8 @@ class SpotBuffer:
 
     def __init__(
         self,
-        window_seconds: int = 60,
-        max_size: int = 1000,
+        window_seconds: int = 900,
+        max_size: int = 10000,
     ) -> None:
         self._window_seconds = window_seconds
         self._max_size = max_size

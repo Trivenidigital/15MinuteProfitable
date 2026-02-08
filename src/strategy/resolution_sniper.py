@@ -201,6 +201,34 @@ class ResolutionSniperStrategy(BaseStrategy):
             direction = "DOWN"
             target_token_id = market.no_token_id
 
+        # 9b. Momentum confirmation — reject if recent trend opposes direction
+        momentum_window = self._settings.sniper_momentum_window_seconds
+        if momentum_window > 0:
+            recent = self._spot_buffer.get_price_history(
+                binance_symbol, momentum_window
+            )
+            if len(recent) >= 2:
+                first_price = recent[0][1]
+                last_price = recent[-1][1]
+                if direction == "UP" and last_price < first_price:
+                    self._log.debug(
+                        "sniper_momentum_reject",
+                        market=market.slug,
+                        direction=direction,
+                        first_price=first_price,
+                        last_price=last_price,
+                    )
+                    return None
+                if direction == "DOWN" and last_price > first_price:
+                    self._log.debug(
+                        "sniper_momentum_reject",
+                        market=market.slug,
+                        direction=direction,
+                        first_price=first_price,
+                        last_price=last_price,
+                    )
+                    return None
+
         # 10. Book staleness + fill estimate
         if self._is_book_stale(target_token_id):
             self._log.debug("sniper_stale_book", market=market.slug)
@@ -389,7 +417,9 @@ class ResolutionSniperStrategy(BaseStrategy):
         Returns sigma (stddev of log-returns scaled to 1-minute) or None
         if insufficient data.
         """
-        history = self._spot_buffer.get_price_history(binance_symbol, 60)
+        history = self._spot_buffer.get_price_history(
+            binance_symbol, self._settings.sniper_vol_window_seconds
+        )
         if len(history) < self._settings.sniper_min_vol_data_points:
             return None
 

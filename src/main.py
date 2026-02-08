@@ -1708,7 +1708,7 @@ async def _run_bot(settings: Settings, pid_lock: PidLock) -> None:
     risk_manager = RiskManager(settings, state_manager)
     executor = OrderExecutor(settings)
     rate_limiter = RateLimiter(max_per_minute=55)
-    spot_buffer = SpotBuffer(window_seconds=60)
+    spot_buffer = SpotBuffer(window_seconds=settings.spot_buffer_window, max_size=10000)
 
     # Trade database (needed for dashboard or decision logging)
     trade_db: TradeDatabase | None = None
