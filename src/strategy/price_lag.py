@@ -234,6 +234,10 @@ class PriceLagStrategy(BaseStrategy):
             self._log.debug("insufficient_liquidity", market=market.slug)
             return None
 
+        if fill.vwap < self._settings.min_entry_price:
+            self._log.debug("price_floor_rejected", market=market.slug, vwap=round(fill.vwap, 4))
+            return None
+
         # 9. Calculate expected profit
         # For directional trades, expected profit depends on the odds moving
         # to reflect the spot movement. Estimate conservatively.

@@ -162,8 +162,17 @@ class AsymmetricStrategy(BaseStrategy):
         buy_price: float = 0.0
         target_token_id: str = ""
 
-        yes_cheap = yes_ask is not None and yes_ask < self._settings.yes_cheap_threshold
-        no_cheap = no_ask is not None and no_ask < self._settings.no_cheap_threshold
+        min_px = self._settings.min_entry_price
+        yes_cheap = (
+            yes_ask is not None
+            and yes_ask >= min_px
+            and yes_ask < self._settings.yes_cheap_threshold
+        )
+        no_cheap = (
+            no_ask is not None
+            and no_ask >= min_px
+            and no_ask < self._settings.no_cheap_threshold
+        )
 
         if yes_cheap and no_cheap:
             # Both cheap -- prefer the one we have fewer shares of (balance accumulation)

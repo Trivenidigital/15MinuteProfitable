@@ -165,6 +165,10 @@ class DipBuyerStrategy(BaseStrategy):
             self._log.debug("dip_insufficient_liquidity", market=market.slug)
             return None
 
+        if fill.vwap < self._settings.min_entry_price:
+            self._log.debug("dip_price_floor_rejected", market=market.slug, vwap=round(fill.vwap, 4))
+            return None
+
         # Expected profit: conservative — capture half the spike as reversion
         taker_fee = taker_fee_amount(fill.vwap, size)
         expected_reversion = short_movement.change_pct * 0.3  # 30% reversion

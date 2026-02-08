@@ -20,6 +20,10 @@
                 </select>
             </div>
             <div class="form-group">
+                <label>Min Entry Price</label>
+                <input type="number" name="BOT_MIN_ENTRY_PRICE" value="{{ settings.min_entry_price }}" step="0.01">
+            </div>
+            <div class="form-group">
                 <label>Target Pair Cost</label>
                 <input type="number" name="BOT_TARGET_PAIR_COST" value="{{ settings.target_pair_cost }}" step="0.001">
             </div>

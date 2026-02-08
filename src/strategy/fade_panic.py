@@ -169,6 +169,11 @@ class FadePanicStrategy(BaseStrategy):
             self._log.debug("fade_panic_insufficient_liquidity", market=market.slug)
             return None
 
+        # Reject if fill price too cheap (lottery tickets)
+        if fill.vwap < self._settings.min_entry_price:
+            self._log.debug("fade_panic_price_floor_rejected", market=market.slug, vwap=round(fill.vwap, 4))
+            return None
+
         # Reject if fill price too expensive
         if fill.vwap > self._settings.fade_panic_max_entry_price:
             self._log.debug(

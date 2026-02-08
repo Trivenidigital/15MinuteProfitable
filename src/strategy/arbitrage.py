@@ -106,6 +106,16 @@ class ArbitrageStrategy(BaseStrategy):
         if combined_cost >= self._settings.target_pair_cost:
             return None
 
+        # 4b. Reject if either leg is below min entry price
+        if yes_vwap < self._settings.min_entry_price or no_vwap < self._settings.min_entry_price:
+            self._log.debug(
+                "arb_price_floor_rejected",
+                market=market.slug,
+                yes_vwap=round(yes_vwap, 4),
+                no_vwap=round(no_vwap, 4),
+            )
+            return None
+
         # 5. Net profit after all fees
         taker_yes = taker_fee_amount(yes_vwap, size)
         taker_no = taker_fee_amount(no_vwap, size)

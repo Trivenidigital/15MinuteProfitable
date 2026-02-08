@@ -162,7 +162,7 @@ class Settings(BaseSettings):
     fade_panic_odds_shift_threshold: float = 0.08  # 8% odds shift to trigger
     fade_panic_spot_max_change: float = 0.0005 # Max spot change for "no movement" (0.05%)
     fade_panic_odds_window_seconds: int = 60   # Window for measuring odds shift
-    fade_panic_order_size: float = 100.0       # Shares per fade trade
+    fade_panic_order_size: float = 175.0       # Shares per fade trade (scaled up — best strategy)
     fade_panic_max_entry_price: float = 0.92   # Don't buy above this price
 
     # Resolution Sniper Strategy Parameters
@@ -179,6 +179,7 @@ class Settings(BaseSettings):
     sniper_momentum_window_seconds: int = 30  # Seconds of recent prices for momentum check
 
     # Fill quality guards
+    min_entry_price: float = 0.10             # Don't buy contracts below this price
     max_fill_slippage: float = 0.05           # Max VWAP-to-best-price ratio (5% default)
     max_levels_consumed: int = 3              # Max orderbook levels to walk for a fill
 
