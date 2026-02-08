@@ -278,8 +278,18 @@ class DipBuyerStrategy(BaseStrategy):
 
         pnl_pct = (current_value - cost_basis) / cost_basis
 
-        # 1. Time exit
+        # 1. Time exit — but skip if position has lost >70%
         if time_to_close <= self._settings.dip_time_exit_seconds:
+            value_ratio = current_value / cost_basis
+            if value_ratio < 0.30:
+                self._log.info(
+                    "dip_time_exit_skipped_heavy_loss",
+                    market=market.slug,
+                    value_ratio=round(value_ratio, 4),
+                    current_value=round(current_value, 2),
+                    cost_basis=round(cost_basis, 2),
+                )
+                return False
             self._log.info(
                 "dip_time_exit",
                 market=market.slug,
