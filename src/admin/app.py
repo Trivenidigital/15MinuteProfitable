@@ -251,6 +251,12 @@ def create_admin_app() -> FastAPI:
             updates[key] = str(value)
 
         write_env(_env_path(), updates)
+
+        # Sync updated values into os.environ so that Settings() picks
+        # them up immediately (env vars take priority over dotenv).
+        for key, value in updates.items():
+            os.environ[key] = value
+
         return JSONResponse({"status": "ok", "updated": len(updates)})
 
     # ------------------------------------------------------------------
