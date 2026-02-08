@@ -141,10 +141,8 @@ class RiskManager:
             self._log.warning("risk_rejected", check="market_exposure", reason=reason)
             return False, reason
 
-        # 3b. Max entries per market (per-strategy override for sniper)
+        # 3b. Max entries per market
         max_entries = self._settings.max_entries_per_market
-        if opp.strategy == StrategyType.RESOLUTION_SNIPER:
-            max_entries = 3  # 3 tranches by design
         entry_count = self._state.position_entry_count(condition_id)
         if entry_count >= max_entries:
             reason = (
