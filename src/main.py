@@ -38,6 +38,7 @@ from src.strategy.scanner import MarketScanner
 from src.utils.fee_verifier import verify_fees
 from src.utils.pid_lock import PidLock
 from src.utils.rate_limiter import RateLimiter
+from src.utils.time_utils import WINDOW_SECONDS
 
 from src.dashboard.app import configure_dashboard, create_app, start_dashboard
 from src.data.decision_logger import DecisionLogger
@@ -1322,6 +1323,68 @@ async def _snapshot_loop(
 # ---------------------------------------------------------------------------
 
 
+def resolve_outcome(
+    pos: Position,
+    trade_db: TradeDatabase | None,
+    spot_buffer: SpotBuffer | None,
+) -> float | None:
+    """Determine if YES or NO won based on spot price movement.
+
+    Returns 1.0 if YES won (price went up), 0.0 if NO won (price went down).
+    Returns None if unable to determine.
+
+    Uses DB-persisted spot snapshots (5s intervals) for the start price
+    to avoid SpotBuffer overflow issues (raw Binance ticks overflow
+    the deque in ~20-100s for liquid pairs).
+    """
+    # Derive actual 15-min window start from end_time (not market.start_time
+    # which is Gamma API's startDate, ~24h before the actual window)
+    end_ts = pos.market.end_time.timestamp()
+    start_ts = end_ts - WINDOW_SECONDS  # 900s, actual window start
+
+    asset = pos.market.asset
+    symbol = f"{asset}USDT"
+
+    # Use persisted spot snapshots for start price (immune to buffer overflow)
+    start_price = None
+    if trade_db is not None:
+        start_price = trade_db.get_spot_at_time(
+            symbol, start_ts, tolerance_s=30.0
+        )
+
+    # End price: current buffer price is fine (just the latest tick)
+    end_price = spot_buffer.get_price(symbol) if spot_buffer else None
+    # Fallback to DB if buffer unavailable
+    if end_price is None and trade_db is not None:
+        end_price = trade_db.get_spot_at_time(
+            symbol, end_ts, tolerance_s=30.0
+        )
+
+    if start_price is None or end_price is None:
+        _log.warning(
+            "incomplete_spot_data_for_resolution",
+            symbol=symbol,
+            condition_id=pos.market.condition_id,
+            has_start=start_price is not None,
+            has_end=end_price is not None,
+        )
+        return None
+
+    price_went_up = end_price > start_price
+
+    _log.info(
+        "outcome_resolved_from_spot",
+        symbol=symbol,
+        start_price=start_price,
+        end_price=end_price,
+        start_ts=start_ts,
+        end_ts=end_ts,
+        outcome="YES" if price_went_up else "NO",
+    )
+
+    return 1.0 if price_went_up else 0.0
+
+
 async def _resolution_loop(
     state_manager: StateManager,
     spot_buffer: SpotBuffer | None = None,
@@ -1338,62 +1401,7 @@ async def _resolution_loop(
     """
 
     def _outcome_resolver(pos: Position) -> float | None:
-        """Determine if YES or NO won based on spot price movement.
-
-        Returns >0.5 if YES won (price went up), <0.5 if NO won (price went down).
-        Returns None if unable to determine.
-        """
-        if spot_buffer is None:
-            return None
-
-        asset = pos.market.asset
-        symbol = f"{asset}USDT"
-
-        # Get price at market start and end
-        start_ts = pos.market.start_time.timestamp()
-        end_ts = pos.market.end_time.timestamp()
-
-        # Get historical prices from buffer
-        history = spot_buffer.get_price_history(symbol)
-        if not history:
-            _log.warning(
-                "no_spot_history_for_resolution",
-                symbol=symbol,
-                condition_id=pos.market.condition_id,
-            )
-            return None
-
-        # Find prices closest to start and end times
-        start_price = None
-        end_price = None
-
-        for ts, price in history:
-            if start_price is None or abs(ts - start_ts) < abs(start_price[0] - start_ts):
-                start_price = (ts, price)
-            if end_price is None or abs(ts - end_ts) < abs(end_price[0] - end_ts):
-                end_price = (ts, price)
-
-        if start_price is None or end_price is None:
-            _log.warning(
-                "incomplete_spot_history",
-                symbol=symbol,
-                has_start=start_price is not None,
-                has_end=end_price is not None,
-            )
-            return None
-
-        # Determine outcome: YES wins if price went up
-        price_went_up = end_price[1] > start_price[1]
-
-        _log.debug(
-            "outcome_resolved_from_spot",
-            symbol=symbol,
-            start_price=start_price[1],
-            end_price=end_price[1],
-            outcome="YES" if price_went_up else "NO",
-        )
-
-        return 1.0 if price_went_up else 0.0
+        return resolve_outcome(pos, trade_db, spot_buffer)
 
     while _shutdown_event is not None and not _shutdown_event.is_set():
         try:
@@ -1503,8 +1511,19 @@ async def _market_outcome_loop(
                 if market is None:
                     continue
 
-                open_price = _market_start_prices.get(cid, 0.0)
                 symbol = f"{market.asset}USDT"
+
+                # Correct window start: end_time - 900s (not market.start_time
+                # which is Gamma API's startDate, ~24h before the window)
+                window_start = market.end_time.timestamp() - WINDOW_SECONDS
+
+                # Use DB for open price (reliable 5s snapshots)
+                open_price = (
+                    trade_db.get_spot_at_time(
+                        symbol, window_start, tolerance_s=30.0
+                    )
+                    or 0.0
+                )
 
                 # Try to get close price from spot buffer or db
                 close_price = spot_buffer.get_price(symbol)
@@ -1539,7 +1558,7 @@ async def _market_outcome_loop(
                         condition_id=cid,
                         asset=market.asset,
                         market_slug=market.slug,
-                        window_start=market.start_time.timestamp(),
+                        window_start=window_start,
                         window_end=market.end_time.timestamp(),
                         outcome=outcome,
                         spot_open=open_price,
