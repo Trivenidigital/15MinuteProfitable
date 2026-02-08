@@ -234,18 +234,18 @@ class TestAdjustSize:
         assert size == 50.0
 
     def test_caps_to_market_limit(self, settings: Settings) -> None:
-        state = MockState(market_exp=480.0)  # only 20 remaining
+        state = MockState(market_exp=420.0)  # only 80 remaining
         rm = RiskManager(settings, state)
         opp = _make_opportunity()
-        size = rm.adjust_size(opp, 50.0)
-        assert size == pytest.approx(20.0)
+        size = rm.adjust_size(opp, 100.0)
+        assert size == pytest.approx(80.0)
 
     def test_caps_to_total_limit(self, settings: Settings) -> None:
-        state = MockState(total_exp=1990.0)  # only 10 remaining
+        state = MockState(total_exp=1930.0)  # only 70 remaining
         rm = RiskManager(settings, state)
         opp = _make_opportunity()
-        size = rm.adjust_size(opp, 50.0)
-        assert size == pytest.approx(10.0)
+        size = rm.adjust_size(opp, 100.0)
+        assert size == pytest.approx(70.0)
 
     def test_returns_zero_when_no_market_capacity(self, settings: Settings) -> None:
         state = MockState(market_exp=500.0)
@@ -264,11 +264,11 @@ class TestAdjustSize:
     def test_caps_unhedged_for_directional_strategy(
         self, settings: Settings
     ) -> None:
-        state = MockState(unhedged_exp=80.0)  # only 20 remaining
+        state = MockState(unhedged_exp=20.0)  # only 80 remaining
         rm = RiskManager(settings, state)
         opp = _make_opportunity(strategy=StrategyType.PRICE_LAG)
-        size = rm.adjust_size(opp, 50.0)
-        assert size == pytest.approx(20.0)
+        size = rm.adjust_size(opp, 100.0)
+        assert size == pytest.approx(80.0)
 
     def test_hedged_strategy_ignores_unhedged_cap(self, settings: Settings) -> None:
         state = MockState(unhedged_exp=999.0)
@@ -466,16 +466,16 @@ class TestKellySizing:
     def test_kelly_respects_risk_limits(self, settings: Settings) -> None:
         from src.risk.sizing import PositionSizer
 
-        state = MockState(market_exp=490.0)  # only 10 remaining
+        state = MockState(market_exp=440.0)  # only 60 remaining
         rm = RiskManager(settings, state)
-        sizer = PositionSizer(kelly_fraction=1.0, min_size=5.0, max_size=500.0)
+        sizer = PositionSizer(kelly_fraction=1.0, min_size=50.0, max_size=500.0)
         rm.set_sizer(sizer)
 
         opp = _make_opportunity(strategy=StrategyType.ARBITRAGE)
         opp.expected_profit_pct = 0.10  # Large edge → big Kelly size
         size = rm.kelly_adjusted_size(opp, bankroll=100_000.0)
-        # Capped by market remaining (10)
-        assert size == pytest.approx(10.0)
+        # Capped by market remaining (60)
+        assert size == pytest.approx(60.0)
 
 
 # ---------------------------------------------------------------------------

@@ -1792,8 +1792,8 @@ async def _run_bot(settings: Settings, pid_lock: PidLock) -> None:
     # Kelly position sizer
     sizer = PositionSizer(
         kelly_fraction=settings.kelly_fraction,
-        min_size=5.0,
-        max_size=settings.max_position_per_market,
+        min_size=50.0,
+        max_size=200.0,
     )
     risk_manager.set_sizer(sizer)
 

@@ -92,7 +92,7 @@ class Settings(BaseSettings):
     binance_ws_url: str = "wss://stream.binance.com:9443/ws"
 
     # Trading Parameters (AGGRESSIVE MODE)
-    order_size: float = 250.0  # 5x increase from $50
+    order_size: float = 200.0  # max $200 per trade
     order_type: str = "FOK"
     target_pair_cost: float = 0.94
     min_profit_margin: float = 0.003  # lowered from 0.005
@@ -132,7 +132,7 @@ class Settings(BaseSettings):
     # Asymmetric Entry Strategy Parameters
     yes_cheap_threshold: float = 0.42  # buy YES when ask < this
     no_cheap_threshold: float = 0.42  # buy NO when ask < this
-    accumulation_size: float = 10.0  # shares per accumulation buy
+    accumulation_size: float = 50.0  # min $50 per trade
     max_accumulation_per_side: float = 200.0  # max shares before completing pair
     target_avg_combined: float = 0.90  # target avg combined cost for profit
     stale_order_seconds: float = 120.0  # cancel GTC orders older than this
