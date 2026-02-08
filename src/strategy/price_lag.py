@@ -354,14 +354,13 @@ class PriceLagStrategy(BaseStrategy):
 
         pnl_pct = (current_value - cost_basis) / cost_basis
 
-        # 1. Time-based exit — but skip for near-worthless positions.
-        # When a position has lost >95% of its value, the salvage value from
-        # selling is negligible. Better to let it expire: the max additional
-        # downside is the salvage amount, but the upside is full recovery if
-        # the market resolves favorably.
+        # 1. Time-based exit — but skip for positions down >70%.
+        # Selling a position that's lost most of its value recovers little,
+        # while holding to resolution preserves the chance of full recovery
+        # if the market resolves favorably.
         if time_to_close <= self._settings.time_exit_seconds:
             value_ratio = current_value / cost_basis
-            if value_ratio < 0.05:
+            if value_ratio < 0.30:
                 self._log.info(
                     "time_exit_skipped_lottery",
                     market=market.slug,

@@ -659,40 +659,20 @@ class TestShouldExit:
 
         assert strategy.should_exit(position, market) is True
 
-    def test_time_exit_skipped_for_near_worthless_position(
+    def test_time_exit_skipped_for_heavy_loss_position(
         self,
         strategy: PriceLagStrategy,
         book_manager: MockOrderBookManager,
     ) -> None:
-        """Near-worthless positions should NOT be sold at time exit.
+        """Positions down >70% should NOT be sold at time exit.
 
-        When a position has lost >95% of its value, selling for pennies
-        wastes the free lottery ticket. Max additional downside of holding
-        is the salvage amount; upside is full recovery at resolution.
+        Selling recovers little while holding preserves the chance of
+        full recovery if the market resolves favorably.
         """
         # Market ends in 30 seconds -- time_exit_seconds is 60
         market = _make_market(start_offset=-870.0, end_offset=30.0)
-        # Cost basis = 23.0, bid = 0.02 -> value = 50 * 0.02 = 1.0
-        # value_ratio = 1.0 / 23.0 = 0.0435 -> below 5% threshold
-        position = Position(
-            market=market,
-            yes_shares=50.0,
-            yes_cost_basis=23.0,
-            strategy=StrategyType.PRICE_LAG,
-        )
-        book_manager.yes_book = _make_orderbook("YES_TOKEN", best_bid=0.02)
-
-        assert strategy.should_exit(position, market) is False
-
-    def test_time_exit_fires_for_position_with_some_value(
-        self,
-        strategy: PriceLagStrategy,
-        book_manager: MockOrderBookManager,
-    ) -> None:
-        """Positions retaining >5% value should still time-exit normally."""
-        market = _make_market(start_offset=-870.0, end_offset=30.0)
         # Cost basis = 23.0, bid = 0.10 -> value = 50 * 0.10 = 5.0
-        # value_ratio = 5.0 / 23.0 = 0.217 -> above 5% threshold
+        # value_ratio = 5.0 / 23.0 = 0.217 -> below 30% threshold
         position = Position(
             market=market,
             yes_shares=50.0,
@@ -700,6 +680,25 @@ class TestShouldExit:
             strategy=StrategyType.PRICE_LAG,
         )
         book_manager.yes_book = _make_orderbook("YES_TOKEN", best_bid=0.10)
+
+        assert strategy.should_exit(position, market) is False
+
+    def test_time_exit_fires_for_position_with_moderate_value(
+        self,
+        strategy: PriceLagStrategy,
+        book_manager: MockOrderBookManager,
+    ) -> None:
+        """Positions retaining >30% value should still time-exit normally."""
+        market = _make_market(start_offset=-870.0, end_offset=30.0)
+        # Cost basis = 23.0, bid = 0.16 -> value = 50 * 0.16 = 8.0
+        # value_ratio = 8.0 / 23.0 = 0.348 -> above 30% threshold
+        position = Position(
+            market=market,
+            yes_shares=50.0,
+            yes_cost_basis=23.0,
+            strategy=StrategyType.PRICE_LAG,
+        )
+        book_manager.yes_book = _make_orderbook("YES_TOKEN", best_bid=0.16)
 
         assert strategy.should_exit(position, market) is True
 
