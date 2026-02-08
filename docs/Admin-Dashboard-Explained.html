@@ -1,0 +1,1139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard Explained - BTC 15-Minute Bot</title>
+    <style>
+        :root {
+            --bg: #0d1117;
+            --surface: #161b22;
+            --border: #30363d;
+            --text: #e6edf3;
+            --text-muted: #8b949e;
+            --accent: #58a6ff;
+            --green: #3fb950;
+            --red: #f85149;
+            --yellow: #d29922;
+            --orange: #db6d28;
+            --purple: #bc8cff;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            padding: 2rem;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 { font-size: 1.8rem; margin-bottom: 0.5rem; }
+        h2 { font-size: 1.3rem; margin: 2.5rem 0 1rem; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
+        h3 { font-size: 1.1rem; margin: 1.5rem 0 0.5rem; color: var(--text); }
+        h4 { font-size: 0.95rem; margin: 1rem 0 0.4rem; color: var(--purple); }
+        p { margin-bottom: 0.75rem; color: var(--text-muted); font-size: 0.9rem; }
+        .subtitle { color: var(--text-muted); margin-bottom: 2rem; }
+        .badge {
+            display: inline-block;
+            padding: 0.15rem 0.6rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .badge-admin { background: rgba(188, 140, 255, 0.15); color: var(--purple); border: 1px solid rgba(188, 140, 255, 0.3); }
+        .badge-monitor { background: rgba(88, 166, 255, 0.15); color: var(--accent); border: 1px solid rgba(88, 166, 255, 0.3); }
+        .badge-secret { background: rgba(248, 81, 73, 0.15); color: var(--red); border: 1px solid rgba(248, 81, 73, 0.3); }
+        .badge-safe { background: rgba(63, 185, 80, 0.15); color: var(--green); border: 1px solid rgba(63, 185, 80, 0.3); }
+        .badge-caution { background: rgba(210, 153, 34, 0.15); color: var(--yellow); border: 1px solid rgba(210, 153, 34, 0.3); }
+        .badge-neutral { background: rgba(139, 148, 158, 0.15); color: var(--text-muted); border: 1px solid rgba(139, 148, 158, 0.3); }
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.25rem;
+            margin-bottom: 1rem;
+        }
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.75rem;
+        }
+        .card-header h3 { margin: 0; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+            margin: 0.75rem 0;
+        }
+        th, td {
+            text-align: left;
+            padding: 0.5rem 0.75rem;
+            border-bottom: 1px solid var(--border);
+        }
+        th { color: var(--text-muted); font-weight: 600; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.03em; }
+        code {
+            font-family: 'SFMono-Regular', Consolas, monospace;
+            font-size: 0.85rem;
+            background: rgba(110, 118, 129, 0.15);
+            padding: 0.15rem 0.4rem;
+            border-radius: 4px;
+        }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; }
+        @media (max-width: 800px) { .grid, .grid-3 { grid-template-columns: 1fr; } }
+        .stat {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            text-align: center;
+        }
+        .stat-value { font-size: 1.5rem; font-weight: 700; }
+        .stat-label { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; }
+        .green { color: var(--green); }
+        .red { color: var(--red); }
+        .yellow { color: var(--yellow); }
+        .accent { color: var(--accent); }
+        .muted { color: var(--text-muted); }
+        ul, ol { margin: 0.5rem 0 0.75rem 1.5rem; color: var(--text-muted); font-size: 0.9rem; }
+        li { margin-bottom: 0.3rem; }
+        .separator { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+        .callout {
+            border-left: 4px solid var(--accent);
+            background: rgba(88, 166, 255, 0.05);
+            padding: 0.75rem 1rem;
+            margin: 1rem 0;
+            border-radius: 0 6px 6px 0;
+        }
+        .callout.warning { border-left-color: var(--yellow); background: rgba(210, 153, 34, 0.05); }
+        .callout.danger { border-left-color: var(--red); background: rgba(248, 81, 73, 0.05); }
+        .callout.success { border-left-color: var(--green); background: rgba(63, 185, 80, 0.05); }
+        .toc { list-style: none; margin: 0; padding: 0; }
+        .toc li { margin-bottom: 0.4rem; }
+        .toc a { color: var(--accent); text-decoration: none; font-size: 0.9rem; }
+        .toc a:hover { text-decoration: underline; }
+        .toc .sub { margin-left: 1.5rem; }
+        .impact-high { border-left: 3px solid var(--red); padding-left: 0.5rem; }
+        .impact-med { border-left: 3px solid var(--yellow); padding-left: 0.5rem; }
+        .impact-low { border-left: 3px solid var(--green); padding-left: 0.5rem; }
+    </style>
+</head>
+<body>
+
+<!-- ============================================================ -->
+<!-- HEADER                                                        -->
+<!-- ============================================================ -->
+
+<h1>Admin Dashboard &mdash; Settings Explained</h1>
+<div class="subtitle">
+    Complete reference for every setting in the Admin and Monitoring dashboards.
+    <span class="badge badge-admin">ADMIN :8443</span>
+    <span class="badge badge-monitor">MONITOR :8080</span>
+</div>
+
+<!-- ============================================================ -->
+<!-- ARCHITECTURE OVERVIEW                                         -->
+<!-- ============================================================ -->
+
+<h2>Architecture Overview</h2>
+
+<p>The bot has <strong>two separate dashboards</strong> serving different purposes:</p>
+
+<div class="grid">
+    <div class="card">
+        <div class="card-header">
+            <h3>Admin Dashboard</h3>
+            <span class="badge badge-admin">PORT 8443</span>
+        </div>
+        <p><strong>Purpose:</strong> Configuration, secrets management, bot control</p>
+        <p><strong>Access:</strong> HTTPS with HTTP Basic Auth</p>
+        <p><strong>Location:</strong> <code>src/admin/</code></p>
+        <p><strong>Pages:</strong> Settings, Wallet &amp; Secrets, Bot Control</p>
+        <p><strong>Runs:</strong> Separately from the bot process</p>
+    </div>
+    <div class="card">
+        <div class="card-header">
+            <h3>Monitoring Dashboard</h3>
+            <span class="badge badge-monitor">PORT 8080</span>
+        </div>
+        <p><strong>Purpose:</strong> Read-only live monitoring of bot performance</p>
+        <p><strong>Access:</strong> HTTP with optional Basic Auth</p>
+        <p><strong>Location:</strong> <code>src/dashboard/</code></p>
+        <p><strong>Pages:</strong> Single-page with live WebSocket updates</p>
+        <p><strong>Runs:</strong> Embedded in the main bot process</p>
+    </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- TABLE OF CONTENTS                                             -->
+<!-- ============================================================ -->
+
+<h2>Table of Contents</h2>
+
+<div class="card">
+    <p><strong>Admin Dashboard (Settings Page)</strong></p>
+    <ul class="toc">
+        <li><a href="#trading-params">1. Trading Parameters</a></li>
+        <li><a href="#strategy-toggles">2. Strategy Toggles</a></li>
+        <li><a href="#price-lag">3. Price-Lag Parameters</a></li>
+        <li><a href="#asymmetric">4. Asymmetric Entry Parameters</a></li>
+        <li><a href="#maker-arb">5. Maker Arbitrage Parameters</a></li>
+        <li><a href="#sniper">6. Resolution Sniper Parameters</a></li>
+        <li><a href="#markets">7. Markets</a></li>
+        <li><a href="#risk">8. Risk Limits</a></li>
+        <li><a href="#simulation">9. Simulation</a></li>
+        <li><a href="#monitoring-config">10. Monitoring &amp; Alerts</a></li>
+        <li><a href="#operational">11. Operational</a></li>
+        <li><a href="#dashboard-config">12. Dashboard Configuration</a></li>
+        <li><a href="#decision-logging">13. Decision Logging</a></li>
+    </ul>
+    <p style="margin-top: 1rem;"><strong>Admin Dashboard (Other Pages)</strong></p>
+    <ul class="toc">
+        <li><a href="#wallet">14. Wallet &amp; Secrets Page</a></li>
+        <li><a href="#bot-control">15. Bot Control Page</a></li>
+    </ul>
+    <p style="margin-top: 1rem;"><strong>Monitoring Dashboard</strong></p>
+    <ul class="toc">
+        <li><a href="#overview-cards">16. Overview Cards</a></li>
+        <li><a href="#charts">17. Charts</a></li>
+        <li><a href="#positions-table">18. Open Positions Table</a></li>
+        <li><a href="#results-table">19. Trade Results Table</a></li>
+        <li><a href="#trades-table">20. Trade Log Table</a></li>
+        <li><a href="#orderbook-viewer">21. Orderbook Viewer</a></li>
+        <li><a href="#risk-panel">22. Risk Status Panel</a></li>
+        <li><a href="#spot-panel">23. Spot Prices Panel</a></li>
+        <li><a href="#api-endpoints">24. API Endpoints Reference</a></li>
+    </ul>
+</div>
+
+<!-- ============================================================ -->
+<!-- ADMIN DASHBOARD - SETTINGS PAGE                               -->
+<!-- ============================================================ -->
+
+<h2 id="trading-params">1. Trading Parameters</h2>
+<p>Core trade execution settings that apply across all strategies.</p>
+
+<div class="card">
+    <table>
+        <tr><th>Setting</th><th>Env Var</th><th>Type</th><th>Default</th><th>Description</th></tr>
+        <tr>
+            <td><strong>Order Size</strong></td>
+            <td><code>BOT_ORDER_SIZE</code></td>
+            <td>float</td>
+            <td>250.0</td>
+            <td>Dollar amount per order for price-lag and arbitrage strategies. This is the <em>target</em> size &mdash; actual fill size depends on orderbook depth. Larger values mean more exposure per trade but also more potential profit.</td>
+        </tr>
+        <tr>
+            <td><strong>Order Type</strong></td>
+            <td><code>BOT_ORDER_TYPE</code></td>
+            <td>select</td>
+            <td>FOK</td>
+            <td><strong>FOK</strong> (Fill or Kill): order must fill completely and immediately or is cancelled. <strong>GTC</strong> (Good Till Cancelled): order remains open until filled. FOK is safer for directional strategies; GTC is used by the asymmetric strategy for patient accumulation.</td>
+        </tr>
+        <tr>
+            <td><strong>Target Pair Cost</strong></td>
+            <td><code>BOT_TARGET_PAIR_COST</code></td>
+            <td>float</td>
+            <td>0.94</td>
+            <td>For pure arbitrage: the maximum combined YES + NO price at which buying both sides is profitable after fees. Must account for taker fee (~3.15% at 50/50 odds) and winner fee (2%). Lower = stricter but fewer opportunities.</td>
+        </tr>
+        <tr>
+            <td><strong>Min Profit Margin</strong></td>
+            <td><code>BOT_MIN_PROFIT_MARGIN</code></td>
+            <td>float</td>
+            <td>0.003</td>
+            <td>Minimum profit per share ($) required to take an arbitrage trade. Acts as a safety margin above break-even. At 0.003, a $250 order needs at least $0.75 expected profit.</td>
+        </tr>
+        <tr>
+            <td><strong>Cooldown Seconds</strong></td>
+            <td><code>BOT_COOLDOWN_SECONDS</code></td>
+            <td>float</td>
+            <td>2.0</td>
+            <td>Minimum seconds between scan cycles. Prevents excessive API calls and duplicate entries. Lower = more responsive but higher API usage. Must respect the 60 orders/min rate limit.</td>
+        </tr>
+    </table>
+</div>
+
+<!-- ============================================================ -->
+
+<h2 id="strategy-toggles">2. Strategy Toggles</h2>
+<p>Enable or disable individual trading strategies. Multiple strategies can run concurrently.</p>
+
+<div class="card">
+    <table>
+        <tr><th>Setting</th><th>Env Var</th><th>Default</th><th>Description</th></tr>
+        <tr>
+            <td><strong>Arbitrage (A)</strong></td>
+            <td><code>BOT_ENABLE_ARBITRAGE</code></td>
+            <td class="green">true</td>
+            <td>Pure fee-adjusted arbitrage. Buys both YES and NO when combined cost &lt; target pair cost. <em>Nearly impossible to profit at current Polymarket fee levels.</em> Combined spreads consistently &gt; $1.01 vs the $0.94 target.</td>
+        </tr>
+        <tr>
+            <td><strong>Price-Lag (C)</strong></td>
+            <td><code>BOT_ENABLE_PRICE_LAG</code></td>
+            <td class="red">false</td>
+            <td>Exploits the delay between Binance spot price moves and Polymarket odds updates. When BTC moves up on Binance but YES price hasn't adjusted yet, buys the underpriced side. <strong>Primary alpha source</strong> &mdash; generates most of the bot's profit through early exits on directional moves.</td>
+        </tr>
+        <tr>
+            <td><strong>Asymmetric Entry (B)</strong></td>
+            <td><code>BOT_ENABLE_ASYMMETRIC</code></td>
+            <td class="red">false</td>
+            <td>Patient accumulation strategy. Places GTC limit orders on both YES and NO at cheap prices, building a low-cost-basis position. Completes when combined average cost is below target. Slower but lower risk.</td>
+        </tr>
+        <tr>
+            <td><strong>Maker Arbitrage</strong></td>
+            <td><code>BOT_ENABLE_MAKER_ARBITRAGE</code></td>
+            <td class="red">false</td>
+            <td>Like pure arbitrage but uses limit orders (maker, 0% fee) instead of FOK (taker). Can profit at tighter spreads (~$0.985 combined) because there's no taker fee. Downside: fills are not guaranteed and orders can be partially filled.</td>
+        </tr>
+        <tr>
+            <td><strong>Multi-Market Scanner (D)</strong></td>
+            <td><code>BOT_ENABLE_MULTI_MARKET</code></td>
+            <td class="red">false</td>
+            <td>Scans multiple markets simultaneously and picks the best opportunity across all assets. Useful when running multiple assets (BTC, ETH, SOL, XRP) to concentrate capital on the highest-EV trade.</td>
+        </tr>
+        <tr>
+            <td><strong>Resolution Sniper</strong></td>
+            <td><code>BOT_ENABLE_RESOLUTION_SNIPER</code></td>
+            <td class="red">false</td>
+            <td>Enters positions in the final ~2 minutes of a market window when the outcome is highly predictable. Uses spot price momentum and volatility to estimate win probability. Small position sizes but high win rate when calibrated correctly.</td>
+        </tr>
+        <tr>
+            <td><strong>Parallel Strategies</strong></td>
+            <td><code>BOT_ENABLE_PARALLEL_STRATEGIES</code></td>
+            <td class="red">false</td>
+            <td>When enabled, executes the best opportunity from <em>each</em> strategy simultaneously. When disabled (default), only the single best opportunity across all strategies is executed per cycle. Parallel mode uses more capital but captures more opportunities.</td>
+        </tr>
+    </table>
+</div>
+
+<div class="callout warning">
+    <strong>Note:</strong> Arbitrage alone produces zero opportunities at current market conditions. You must enable at least <code>price_lag</code> or <code>resolution_sniper</code> for the bot to trade.
+</div>
+
+<!-- ============================================================ -->
+
+<h2 id="price-lag">3. Price-Lag Parameters</h2>
+<p>Controls for the price-lag strategy &mdash; the primary profit driver. These determine when to enter, when to exit, and how aggressively to trade.</p>
+
+<h3>Entry Parameters</h3>
+
+<div class="card">
+    <table>
+        <tr><th>Setting</th><th>Env Var</th><th>Default</th><th>Description</th></tr>
+        <tr>
+            <td><strong>Spot Move Threshold</strong></td>
+            <td><code>BOT_SPOT_MOVE_THRESHOLD</code></td>
+            <td>0.0005</td>
+            <td class="impact-high">Minimum spot price movement (as a fraction) required to trigger a signal. At 0.0005, BTC at $97K needs a $48.50 move. <strong>Lower = more signals but more noise/false positives. Higher = fewer but higher-quality signals.</strong> Current production: 0.0015.</td>
+        </tr>
+        <tr>
+            <td><strong>Spot Window Seconds</strong></td>
+            <td><code>BOT_SPOT_WINDOW_SECONDS</code></td>
+            <td>10</td>
+            <td>Lookback window (seconds) for measuring spot price movement. The strategy compares current price to the price N seconds ago. Shorter = more responsive to sudden moves. Longer = smoother but slower to react.</td>
+        </tr>
+        <tr>
+            <td><strong>Odds Lag Threshold</strong></td>
+            <td><code>BOT_ODDS_LAG_THRESHOLD</code></td>
+            <td>0.01</td>
+            <td class="impact-high">Minimum discrepancy between the implied probability (from spot move) and Polymarket odds before entering. At 0.01, the market must be at least 1 cent mispriced. <strong>Higher = fewer but higher-conviction trades.</strong> Current production: 0.015.</td>
+        </tr>
+        <tr>
+            <td><strong>Lag Confirmations</strong></td>
+            <td><code>BOT_LAG_CONFIRMATIONS</code></td>
+            <td>1</td>
+            <td>Number of consecutive scan cycles the signal must persist before entering. At 1, enters immediately. At 3 (with 2s cooldown), waits ~6 seconds of sustained signal. Higher = fewer whipsaw entries but may miss fast opportunities. Current production: 3.</td>
+        </tr>
+        <tr>
+            <td><strong>Dead Zone Start</strong></td>
+            <td><code>BOT_LAG_ENTRY_DEAD_ZONE_START</code></td>
+            <td>30.0</td>
+            <td>Don't enter in the first N seconds after a market opens. Markets are chaotic at open with wide spreads and unreliable prices. 30 seconds lets the orderbook stabilize.</td>
+        </tr>
+        <tr>
+            <td><strong>Dead Zone End</strong></td>
+            <td><code>BOT_LAG_ENTRY_DEAD_ZONE_END</code></td>
+            <td>15.0</td>
+            <td>Don't enter in the last N seconds before a market closes. Not enough time for the trade to play out, and the resolution sniper handles the end-of-window period instead.</td>
+        </tr>
+    </table>
+</div>
+
+<h3>Exit Parameters</h3>
+
+<div class="callout">
+    <strong>How exits work:</strong> The exit check loop runs every 2 seconds and evaluates three independent conditions: stop-loss, take-profit, and time-based exit. The first condition to trigger causes an immediate FOK sell at market.
+</div>
+
+<div class="card">
+    <table>
+        <tr><th>Setting</th><th>Env Var</th><th>Default</th><th>Description</th></tr>
+        <tr>
+            <td><strong>Stop Loss %</strong></td>
+            <td><code>BOT_STOP_LOSS_PCT</code></td>
+            <td>0.08</td>
+            <td class="impact-high">Exit when position P&L drops below this percentage. At 0.08 (8%), a $50 position exits at -$4. <strong>With time decay enabled:</strong> First third of window: base threshold (8%). Middle third: doubled (16%). Last third: disabled entirely. Current production: 0.15 (15%).</td>
+        </tr>
+        <tr>
+            <td><strong>Take Profit %</strong></td>
+            <td><code>BOT_TAKE_PROFIT_PCT</code></td>
+            <td>0.15</td>
+            <td class="impact-high">Exit when position P&L exceeds this percentage. At 0.15 (15%), a $50 position exits at +$7.50. <strong>With time decay enabled:</strong> First third: base (15%). Middle third: doubled (30%). Last third: disabled (let winners run to resolution for full $1.00 payout). Current production: 0.25 (25%).</td>
+        </tr>
+        <tr>
+            <td><strong>Time Exit Seconds</strong></td>
+            <td><code>BOT_TIME_EXIT_SECONDS</code></td>
+            <td>45.0</td>
+            <td>Exit all directional positions N seconds before the market closes, regardless of P&L. Acts as a safety net to avoid holding through resolution with uncertain outcomes. <strong>Exception:</strong> "Lottery ticket" positions (&lt;5% of cost value) are held to resolution instead. Current production: 30.</td>
+        </tr>
+        <tr>
+            <td><strong>Stop Loss Time Decay</strong></td>
+            <td><code>BOT_STOP_LOSS_TIME_DECAY</code></td>
+            <td class="green">true</td>
+            <td class="impact-high"><strong>Do not disable.</strong> When enabled, the stop-loss threshold widens as the market ages (doubled in middle third, disabled in last third). This is critical because late-window prices are extremely volatile on 15-min markets &mdash; a temporary -15% dip often reverses before resolution. Disabling this kills recovery plays. (Experiment #2: disabled &rarr; 0 winners in 15 trades, reverted.)</td>
+        </tr>
+        <tr>
+            <td><strong>Take Profit Time Decay</strong></td>
+            <td><code>BOT_TAKE_PROFIT_TIME_DECAY</code></td>
+            <td class="green">true</td>
+            <td>When enabled, the take-profit threshold widens in the middle third (lets winners grow more) and is disabled in the last third (lets winners run to full $1.00 payout at resolution). Correct behavior for asymmetric payoff markets.</td>
+        </tr>
+        <tr>
+            <td><strong>Stop Loss Confirmations</strong></td>
+            <td><code>BOT_STOP_LOSS_CONFIRMATIONS</code></td>
+            <td>3</td>
+            <td>Number of consecutive 2-second intervals the stop-loss must be breached before exiting. At 3, requires ~6 seconds of sustained loss. Prevents whipsaw exits on momentary price noise.</td>
+        </tr>
+        <tr>
+            <td><strong>Cheap Contract Threshold</strong></td>
+            <td><code>BOT_STOP_LOSS_CHEAP_THRESHOLD</code></td>
+            <td>0.10</td>
+            <td>Skip stop-loss entirely for positions with average entry price below this value. Contracts bought at $0.05&ndash;$0.10 are treated as "lottery tickets" &mdash; the downside is minimal but the upside is a $1.00 payout. Not worth stopping out.</td>
+        </tr>
+    </table>
+</div>
+
+<!-- ============================================================ -->
+
+<h2 id="asymmetric">4. Asymmetric Entry Parameters</h2>
+<p>Controls for the patient accumulation strategy. Builds positions gradually with limit orders.</p>
+
+<div class="card">
+    <table>
+        <tr><th>Setting</th><th>Env Var</th><th>Default</th><th>Description</th></tr>
+        <tr>
+            <td><strong>YES Cheap Threshold</strong></td>
+            <td><code>BOT_YES_CHEAP_THRESHOLD</code></td>
+            <td>0.42</td>
+            <td>Buy YES tokens when the ask price is below this level. Lower = more selective but fewer fills.</td>
+        </tr>
+        <tr>
+            <td><strong>NO Cheap Threshold</strong></td>
+            <td><code>BOT_NO_CHEAP_THRESHOLD</code></td>
+            <td>0.42</td>
+            <td>Buy NO tokens when the ask price is below this level. Typically set equal to YES threshold for balanced accumulation.</td>
+        </tr>
+        <tr>
+            <td><strong>Accumulation Size</strong></td>
+            <td><code>BOT_ACCUMULATION_SIZE</code></td>
+            <td>10.0</td>
+            <td>Number of shares per buy order. Small sizes allow gradual position building and better average prices. Too small increases order count and API usage.</td>
+        </tr>
+        <tr>
+            <td><strong>Max Accumulation/Side</strong></td>
+            <td><code>BOT_MAX_ACCUMULATION_PER_SIDE</code></td>
+            <td>200.0</td>
+            <td>Maximum shares to accumulate on one side (YES or NO) before the strategy considers the position "complete." The hedge pair is then sought on the opposite side.</td>
+        </tr>
+        <tr>
+            <td><strong>Target Avg Combined</strong></td>
+            <td><code>BOT_TARGET_AVG_COMBINED</code></td>
+            <td>0.90</td>
+            <td>Target combined average cost for YES + NO. The strategy aims to build a hedged position where the total cost basis is below this level, guaranteeing profit at resolution.</td>
+        </tr>
+        <tr>
+            <td><strong>Stale Order Seconds</strong></td>
+            <td><code>BOT_STALE_ORDER_SECONDS</code></td>
+            <td>120.0</td>
+            <td>Cancel unfilled GTC orders after this many seconds. Prevents orders from lingering across market windows or at stale prices.</td>
+        </tr>
+    </table>
+</div>
+
+<!-- ============================================================ -->
+
+<h2 id="maker-arb">5. Maker Arbitrage Parameters</h2>
+<p>Controls for the zero-fee arbitrage strategy using limit orders.</p>
+
+<div class="card">
+    <table>
+        <tr><th>Setting</th><th>Env Var</th><th>Default</th><th>Description</th></tr>
+        <tr>
+            <td><strong>Pair Cost Target</strong></td>
+            <td><code>BOT_MAKER_TARGET_PAIR_COST</code></td>
+            <td>0.985</td>
+            <td>Maximum combined YES + NO limit order cost for maker arb. Since maker orders have 0% fee, this target is much higher than the taker arb target ($0.94). At $0.985, the guaranteed profit is $0.015/share.</td>
+        </tr>
+        <tr>
+            <td><strong>Price Offset</strong></td>
+            <td><code>BOT_MAKER_PRICE_OFFSET</code></td>
+            <td>0.01</td>
+            <td>Place limit orders this amount below the best ask. Ensures orders are maker (not taker) and sit in the book for fills. At 0.01, if best ask is $0.50, the limit order is at $0.49.</td>
+        </tr>
+        <tr>
+            <td><strong>Pair Timeout</strong></td>
+            <td><code>BOT_MAKER_PAIR_TIMEOUT_SECONDS</code></td>
+            <td>180.0</td>
+            <td>Cancel unfilled pair orders after this many seconds. If only one leg fills and the other doesn't within the timeout, the partial fill is unwound to avoid unhedged exposure.</td>
+        </tr>
+        <tr>
+            <td><strong>Max Pending Pairs</strong></td>
+            <td><code>BOT_MAKER_MAX_PENDING_PAIRS</code></td>
+            <td>5</td>
+            <td>Maximum number of concurrent maker arb attempts. More pairs = more chances for fills but also more capital tied up in pending orders.</td>
+        </tr>
+        <tr>
+            <td><strong>Min Profit Margin</strong></td>
+            <td><code>BOT_MAKER_MIN_PROFIT_MARGIN</code></td>
+            <td>0.002</td>
+            <td>Minimum profit per share required. At 0.002, each share must yield at least $0.002 profit. Acts as a dust filter to avoid negligible-profit trades.</td>
+        </tr>
+    </table>
+</div>
+
+<!-- ============================================================ -->
+
+<h2 id="sniper">6. Resolution Sniper Parameters</h2>
+<p>Controls for the end-of-window sniper. Enters when the outcome is near-certain based on spot price analysis.</p>
+
+<div class="card">
+    <table>
+        <tr><th>Setting</th><th>Env Var</th><th>Default</th><th>Description</th></tr>
+        <tr>
+            <td><strong>Order Size</strong></td>
+            <td><code>BOT_SNIPER_ORDER_SIZE</code></td>
+            <td>150.0</td>
+            <td>Total dollar size for sniper entries. Smaller than the main order size because sniper has less time for the trade to play out. Current production: 30.</td>
+        </tr>
+        <tr>
+            <td><strong>Min Confidence</strong></td>
+            <td><code>BOT_SNIPER_MIN_CONFIDENCE</code></td>
+            <td>0.90</td>
+            <td class="impact-high">Minimum estimated win probability before entering. The sniper calculates probability from spot price distance to the open price, adjusted for remaining time and volatility. At 0.90, only enters when 90%+ confident. <strong>Higher = fewer trades but higher win rate.</strong> Current production: 0.92.</td>
+        </tr>
+        <tr>
+            <td><strong>Window Seconds</strong></td>
+            <td><code>BOT_SNIPER_WINDOW_SECONDS</code></td>
+            <td>120.0</td>
+            <td>Activate the sniper this many seconds before market close. At 120, starts evaluating at T-2 minutes. Earlier activation = more time to find entries but lower confidence.</td>
+        </tr>
+        <tr>
+            <td><strong>Hard Stop Seconds</strong></td>
+            <td><code>BOT_SNIPER_HARD_STOP_SECONDS</code></td>
+            <td>15.0</td>
+            <td>Stop placing new sniper entries this many seconds before close. Prevents entering too late when orderbook depth may be thin and execution risky.</td>
+        </tr>
+        <tr>
+            <td><strong>Max Entry Price</strong></td>
+            <td><code>BOT_SNIPER_MAX_ENTRY_PRICE</code></td>
+            <td>0.97</td>
+            <td class="impact-high">Reject sniper entries above this price. At $0.97, a winning trade yields only $0.03/share minus fees. A single loss at $0.97 wipes ~30 wins. <strong>Lower = better risk/reward but fewer opportunities.</strong> Current production: 0.80.</td>
+        </tr>
+        <tr>
+            <td><strong>Exit Confidence Floor</strong></td>
+            <td><code>BOT_SNIPER_EXIT_CONFIDENCE_FLOOR</code></td>
+            <td>0.0</td>
+            <td>Emergency exit if win probability drops below this level after entry. At 0.0, disabled (hold to resolution). Set to e.g. 0.50 to exit sniper positions that become 50/50 coin flips.</td>
+        </tr>
+        <tr>
+            <td><strong>Vol Window Seconds</strong></td>
+            <td><code>BOT_SNIPER_VOL_WINDOW_SECONDS</code></td>
+            <td>600</td>
+            <td>Lookback window (seconds) for calculating spot price volatility. Used to estimate the probability of price reversal before resolution. 600s = 10 minutes of data.</td>
+        </tr>
+        <tr>
+            <td><strong>Momentum Window</strong></td>
+            <td><code>BOT_SNIPER_MOMENTUM_WINDOW_SECONDS</code></td>
+            <td>30</td>
+            <td>Short lookback window for momentum calculation. Captures the very recent price direction to boost or reduce confidence.</td>
+        </tr>
+        <tr>
+            <td><strong>Vol Floor</strong></td>
+            <td><code>BOT_SNIPER_VOL_FLOOR</code></td>
+            <td>0.001</td>
+            <td>Minimum volatility floor. If measured volatility is below this, use this value instead. Prevents division-by-zero and overly confident predictions during flat markets.</td>
+        </tr>
+    </table>
+</div>
+
+<!-- ============================================================ -->
+
+<h2 id="markets">7. Markets</h2>
+<p>Which assets and intervals the bot monitors and trades.</p>
+
+<div class="card">
+    <table>
+        <tr><th>Setting</th><th>Env Var</th><th>Default</th><th>Description</th></tr>
+        <tr>
+            <td><strong>Markets</strong></td>
+            <td><code>BOT_MARKETS</code></td>
+            <td>BTC,ETH,SOL,XRP</td>
+            <td>Comma-separated list of crypto assets to trade. Each asset gets its own 15-minute prediction market on Polymarket. More assets = more opportunities but more capital spread.</td>
+        </tr>
+        <tr>
+            <td><strong>Market Intervals</strong></td>
+            <td><code>BOT_MARKET_INTERVALS</code></td>
+            <td>15m</td>
+            <td>Market window duration. Currently only 15-minute markets are supported on Polymarket for these assets. Do not change unless new intervals become available.</td>
+        </tr>
+        <tr>
+            <td><strong>Slug Override</strong></td>
+            <td><code>BOT_MARKET_SLUG_OVERRIDE</code></td>
+            <td><em>empty</em></td>
+            <td>Override automatic market slug discovery. Useful for testing with a specific market or when the Gamma API returns unexpected results. Leave empty for automatic detection.</td>
+        </tr>
+    </table>
+</div>
+
+<!-- ============================================================ -->
+
+<h2 id="risk">8. Risk Limits</h2>
+<p>Position sizing and loss limits that protect against catastrophic drawdowns.</p>
+
+<div class="card">
+    <table>
+        <tr><th>Setting</th><th>Env Var</th><th>Default</th><th>Description</th></tr>
+        <tr>
+            <td><strong>Max Entries/Market</strong></td>
+            <td><code>BOT_MAX_ENTRIES_PER_MARKET</code></td>
+            <td>2</td>
+            <td class="impact-high">Maximum directional entries allowed per market window. At 2, the bot can buy into the same market twice (e.g., averaging down). Resolution sniper overrides this to 3. Higher = more averaging but more exposure to a single outcome.</td>
+        </tr>
+        <tr>
+            <td><strong>Max Position/Market</strong></td>
+            <td><code>BOT_MAX_POSITION_PER_MARKET</code></td>
+            <td>1000.0</td>
+            <td>Dollar cap on total position (investment) in a single market. Prevents concentration risk. At $1000 with $250 order size, allows 4 entries max. Current production: $750.</td>
+        </tr>
+        <tr>
+            <td><strong>Max Total Position</strong></td>
+            <td><code>BOT_MAX_TOTAL_POSITION</code></td>
+            <td>5000.0</td>
+            <td>Dollar cap on total exposure across all markets combined. Acts as a global position limit. Should be set relative to your total capital (sim or real).</td>
+        </tr>
+        <tr>
+            <td><strong>Max Daily Loss</strong></td>
+            <td><code>BOT_MAX_DAILY_LOSS</code></td>
+            <td>250.0</td>
+            <td class="impact-high">Daily loss limit that triggers the circuit breaker. When realized daily losses exceed this amount, <strong>all new trading is halted for 24 hours</strong>. Does not unwind existing positions. Current production: $1000.</td>
+        </tr>
+        <tr>
+            <td><strong>Max Unhedged Exposure</strong></td>
+            <td><code>BOT_MAX_UNHEDGED_EXPOSURE</code></td>
+            <td>500.0</td>
+            <td>Dollar cap on total unhedged (directional) exposure. Hedged positions (both YES + NO) don't count. Limits the bot's directional risk at any given moment. Current production: $250.</td>
+        </tr>
+        <tr>
+            <td><strong>Kelly Fraction</strong></td>
+            <td><code>BOT_KELLY_FRACTION</code></td>
+            <td>0.25</td>
+            <td>Fraction of the Kelly criterion used for position sizing. Full Kelly (1.0) is mathematically optimal but extremely volatile. Quarter Kelly (0.25) reduces variance at the cost of slower capital growth. The risk manager uses this to scale order sizes based on estimated win probability and payoff ratio.</td>
+        </tr>
+    </table>
+</div>
+
+<div class="callout danger">
+    <strong>Circuit Breaker:</strong> When daily losses exceed <code>max_daily_loss</code>, the circuit breaker activates for 24 hours. It persists across restarts (saved in DB). The breaker also triggers after 4 consecutive execution failures. Check the Risk Status panel on the monitoring dashboard to see if it's active.
+</div>
+
+<!-- ============================================================ -->
+
+<h2 id="simulation">9. Simulation</h2>
+<p>Paper trading mode for testing without real money.</p>
+
+<div class="card">
+    <table>
+        <tr><th>Setting</th><th>Env Var</th><th>Default</th><th>Description</th></tr>
+        <tr>
+            <td><strong>Dry Run</strong></td>
+            <td><code>BOT_DRY_RUN</code></td>
+            <td class="green">true</td>
+            <td class="impact-high"><strong>When enabled:</strong> The bot simulates all trades without submitting real orders to Polymarket. Uses the actual orderbook to simulate fills at realistic prices. All P&L is tracked in the sim balance. <strong>Always test with dry run before going live.</strong></td>
+        </tr>
+        <tr>
+            <td><strong>Sim Balance</strong></td>
+            <td><code>BOT_SIM_BALANCE</code></td>
+            <td>1000.0</td>
+            <td>Starting balance for simulation mode. All trades deduct from / add to this balance. The equity curve and daily snapshots track this value over time. Current production: $10,000.</td>
+        </tr>
+    </table>
+</div>
+
+<!-- ============================================================ -->
+
+<h2 id="monitoring-config">10. Monitoring &amp; Alerts</h2>
+<p>Notification settings for trade alerts and errors.</p>
+
+<div class="card">
+    <table>
+        <tr><th>Setting</th><th>Env Var</th><th>Default</th><th>Description</th></tr>
+        <tr>
+            <td><strong>Telegram Chat ID</strong></td>
+            <td><code>BOT_TELEGRAM_CHAT_ID</code></td>
+            <td><em>empty</em></td>
+            <td>Your Telegram chat ID for receiving alerts. Use @userinfobot on Telegram to find your chat ID. Requires a Telegram bot token (set in Wallet page).</td>
+        </tr>
+        <tr>
+            <td><strong>Alert on Trade</strong></td>
+            <td><code>BOT_ALERT_ON_TRADE</code></td>
+            <td class="red">false</td>
+            <td>Send a Telegram/Discord notification every time a trade is executed. Can be noisy with active strategies. Best for low-frequency strategies or initial testing.</td>
+        </tr>
+        <tr>
+            <td><strong>Alert on Error</strong></td>
+            <td><code>BOT_ALERT_ON_ERROR</code></td>
+            <td class="red">false</td>
+            <td>Send a notification when errors occur (WebSocket disconnects, order failures, circuit breaker activation). Recommended for production to catch issues early.</td>
+        </tr>
+    </table>
+</div>
+
+<!-- ============================================================ -->
+
+<h2 id="operational">11. Operational</h2>
+<p>Logging and system-level settings.</p>
+
+<div class="card">
+    <table>
+        <tr><th>Setting</th><th>Env Var</th><th>Default</th><th>Description</th></tr>
+        <tr>
+            <td><strong>Log Level</strong></td>
+            <td><code>BOT_LOG_LEVEL</code></td>
+            <td>INFO</td>
+            <td>Logging verbosity. <strong>DEBUG:</strong> Everything including orderbook deltas (very noisy). <strong>INFO:</strong> Trade decisions, exits, market events (recommended). <strong>WARNING:</strong> Only problems and risk events. <strong>ERROR:</strong> Only failures.</td>
+        </tr>
+        <tr>
+            <td><strong>Log Format</strong></td>
+            <td><code>BOT_LOG_FORMAT</code></td>
+            <td>json</td>
+            <td><strong>json:</strong> Structured JSON logs, ideal for parsing and analysis with tools like <code>jq</code>. <strong>console:</strong> Human-readable colored output, better for watching logs in real time. Production should use <code>json</code>.</td>
+        </tr>
+        <tr>
+            <td><strong>Neg Risk</strong></td>
+            <td><code>BOT_NEG_RISK</code></td>
+            <td class="green">true</td>
+            <td>Must be <code>true</code> for BTC/ETH/SOL/XRP 15-minute markets on Polymarket. This is a Polymarket protocol requirement &mdash; neg_risk markets use a different order signing flow. <strong>Do not change.</strong></td>
+        </tr>
+    </table>
+</div>
+
+<!-- ============================================================ -->
+
+<h2 id="dashboard-config">12. Dashboard Configuration</h2>
+<p>Settings for the monitoring dashboard (the read-only one on port 8080).</p>
+
+<div class="card">
+    <table>
+        <tr><th>Setting</th><th>Env Var</th><th>Default</th><th>Description</th></tr>
+        <tr>
+            <td><strong>Dashboard Enabled</strong></td>
+            <td><code>BOT_DASHBOARD_ENABLED</code></td>
+            <td class="red">false</td>
+            <td>Enable the monitoring dashboard web server. When enabled, the bot serves a real-time monitoring page and API endpoints. Required for the decision logging and trade database features.</td>
+        </tr>
+        <tr>
+            <td><strong>Dashboard Host</strong></td>
+            <td><code>BOT_DASHBOARD_HOST</code></td>
+            <td>127.0.0.1</td>
+            <td>Bind address for the dashboard. Use <code>127.0.0.1</code> for local-only access (secure). Use <code>0.0.0.0</code> to expose to the network (required for remote access). Current production: <code>0.0.0.0</code>.</td>
+        </tr>
+        <tr>
+            <td><strong>Dashboard Port</strong></td>
+            <td><code>BOT_DASHBOARD_PORT</code></td>
+            <td>8080</td>
+            <td>HTTP port for the monitoring dashboard.</td>
+        </tr>
+        <tr>
+            <td><strong>Dashboard Username</strong></td>
+            <td><code>BOT_DASHBOARD_USERNAME</code></td>
+            <td>admin</td>
+            <td>Username for HTTP Basic Auth on the monitoring dashboard. Only enforced if a password is also set.</td>
+        </tr>
+    </table>
+</div>
+
+<!-- ============================================================ -->
+
+<h2 id="decision-logging">13. Decision Logging</h2>
+<p>Observability settings for recording strategy decisions, spot prices, and daily summaries.</p>
+
+<div class="card">
+    <table>
+        <tr><th>Setting</th><th>Env Var</th><th>Default</th><th>Description</th></tr>
+        <tr>
+            <td><strong>Decision Logging</strong></td>
+            <td><code>BOT_ENABLE_DECISION_LOGGING</code></td>
+            <td class="red">false</td>
+            <td>Record every strategy evaluation to the <code>strategy_decisions</code> database table. Captures opportunities seen, risk rejections, and execution decisions. Essential for self-learning analysis. Enabled automatically when dashboard is enabled.</td>
+        </tr>
+        <tr>
+            <td><strong>Spot Snapshot Interval</strong></td>
+            <td><code>BOT_SPOT_SNAPSHOT_INTERVAL</code></td>
+            <td>5.0</td>
+            <td>Save spot prices to the database every N seconds. Used for historical price lookups during outcome resolution and self-learning analysis. Lower = more precise but more DB writes.</td>
+        </tr>
+        <tr>
+            <td><strong>Daily Summary Hour</strong></td>
+            <td><code>BOT_DAILY_SUMMARY_HOUR</code></td>
+            <td>0</td>
+            <td>UTC hour at which the daily performance snapshot is saved. At 0, the snapshot is taken at midnight UTC. The snapshot captures trades, P&L, win rate, fees, and drawdown for the day.</td>
+        </tr>
+    </table>
+</div>
+
+<!-- ============================================================ -->
+<!-- ADMIN DASHBOARD - WALLET & SECRETS PAGE                       -->
+<!-- ============================================================ -->
+
+<h2 id="wallet">14. Wallet &amp; Secrets Page</h2>
+<p>Manages encrypted secrets and wallet configuration. Accessible at <code>/wallet</code> on the admin dashboard.</p>
+
+<div class="callout danger">
+    <strong>Security:</strong> All secrets are stored in an AES-encrypted vault file (<code>data/vault.enc</code>). Private keys are <strong>write-only</strong> &mdash; they are never sent back to the browser after being saved. The admin dashboard uses HTTPS with auto-generated self-signed certificates.
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3>Vault Management</h3>
+        <span class="badge badge-secret">ENCRYPTED</span>
+    </div>
+    <table>
+        <tr><th>Feature</th><th>Description</th></tr>
+        <tr>
+            <td><strong>Initialize Vault</strong></td>
+            <td>Create a new empty encrypted vault. Required before storing any secrets. The vault password is set via the <code>VAULT_PASSWORD</code> environment variable.</td>
+        </tr>
+        <tr>
+            <td><strong>Change Password</strong></td>
+            <td>Re-encrypt the vault with a new password. All existing secrets are preserved.</td>
+        </tr>
+        <tr>
+            <td><strong>Vault Status</strong></td>
+            <td>Shows whether the vault is initialized, unlocked, and how many secrets are stored.</td>
+        </tr>
+    </table>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3>Secret Fields</h3>
+        <span class="badge badge-secret">WRITE-ONLY</span>
+    </div>
+    <table>
+        <tr><th>Secret</th><th>Env Var</th><th>Description</th></tr>
+        <tr>
+            <td><strong>Private Key</strong></td>
+            <td><code>BOT_PRIVATE_KEY</code></td>
+            <td>Ethereum private key (0x...) for signing Polymarket orders. Write-only &mdash; displayed as "********" after saving. This key controls your trading wallet.</td>
+        </tr>
+        <tr>
+            <td><strong>Funder Address</strong></td>
+            <td><code>BOT_FUNDER</code></td>
+            <td>Polymarket proxy wallet address (Gnosis Safe). For Magic.link accounts (signature_type=1), this is the proxy wallet, NOT the signer address. Auto-detected via the Derive Wallet feature.</td>
+        </tr>
+        <tr>
+            <td><strong>Telegram Bot Token</strong></td>
+            <td><code>BOT_TELEGRAM_BOT_TOKEN</code></td>
+            <td>Token for the Telegram bot that sends alerts. Create a bot via @BotFather on Telegram to get this token.</td>
+        </tr>
+        <tr>
+            <td><strong>Discord Webhook URL</strong></td>
+            <td><code>BOT_DISCORD_WEBHOOK_URL</code></td>
+            <td>Webhook URL for Discord channel notifications. Create in Discord channel settings &rarr; Integrations &rarr; Webhooks.</td>
+        </tr>
+        <tr>
+            <td><strong>Dashboard Password</strong></td>
+            <td><code>BOT_DASHBOARD_PASSWORD</code></td>
+            <td>Password for the monitoring dashboard HTTP Basic Auth. Leave empty to disable auth on the monitoring dashboard.</td>
+        </tr>
+    </table>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3>Wallet Derivation</h3>
+    </div>
+    <p>The <strong>Derive Wallet</strong> feature (<code>/api/wallet/derive</code>) performs these steps:</p>
+    <ol>
+        <li>Derives the Ethereum address from your private key</li>
+        <li>Auto-detects signature type (EOA vs Gnosis Safe / Magic.link)</li>
+        <li>Verifies the wallet against the Polymarket API</li>
+        <li>Returns API key preview (first 12 characters)</li>
+        <li>Stores the detected <code>signature_type</code> to <code>.env</code></li>
+    </ol>
+</div>
+
+<!-- ============================================================ -->
+<!-- ADMIN DASHBOARD - BOT CONTROL PAGE                            -->
+<!-- ============================================================ -->
+
+<h2 id="bot-control">15. Bot Control Page</h2>
+<p>Start, stop, and restart the bot service. Accessible at <code>/control</code> on the admin dashboard.</p>
+
+<div class="card">
+    <table>
+        <tr><th>Control</th><th>API</th><th>Description</th></tr>
+        <tr>
+            <td><strong>Start Bot</strong></td>
+            <td><code>POST /api/bot/start</code></td>
+            <td>Starts the <code>btc15minutebot</code> systemd service. Equivalent to <code>systemctl start btc15minutebot</code>.</td>
+        </tr>
+        <tr>
+            <td><strong>Stop Bot</strong></td>
+            <td><code>POST /api/bot/stop</code></td>
+            <td>Stops the bot service gracefully. Open positions are <strong>not</strong> unwound automatically &mdash; they will be held to resolution.</td>
+        </tr>
+        <tr>
+            <td><strong>Restart Bot</strong></td>
+            <td><code>POST /api/bot/restart</code></td>
+            <td>Restarts the bot service. Settings changes in <code>.env</code> take effect after restart. State (positions, daily P&L) is recovered from the database on startup.</td>
+        </tr>
+        <tr>
+            <td><strong>Bot Status</strong></td>
+            <td><code>GET /api/bot/status</code></td>
+            <td>Returns current status (active/inactive) and uptime. Displayed in the status card on the control page.</td>
+        </tr>
+    </table>
+</div>
+
+<div class="callout warning">
+    <strong>Note:</strong> The bot control page requires the admin dashboard to be running on the same server as the bot (uses <code>systemctl</code> directly). Settings changes via the Settings page require a bot restart to take effect.
+</div>
+
+<!-- ============================================================ -->
+<!-- MONITORING DASHBOARD                                          -->
+<!-- ============================================================ -->
+
+<h2 id="overview-cards">16. Monitoring Dashboard &mdash; Overview Cards</h2>
+<p>The top section of the monitoring dashboard shows 6 live-updating summary cards (via WebSocket, every 3 seconds).</p>
+
+<div class="card">
+    <table>
+        <tr><th>Card</th><th>Source</th><th>Description</th></tr>
+        <tr>
+            <td><strong>Net P&L (Lifetime)</strong></td>
+            <td><code>/api/pnl</code></td>
+            <td>Total cumulative profit/loss since the bot started tracking. Green if positive, red if negative. Sub-value shows today's P&L separately.</td>
+        </tr>
+        <tr>
+            <td><strong>Total Trades</strong></td>
+            <td>WebSocket</td>
+            <td>Count of all trades executed (filled orders). Includes all strategies.</td>
+        </tr>
+        <tr>
+            <td><strong>Win Rate</strong></td>
+            <td><code>/api/metrics</code></td>
+            <td>Percentage of trade results with positive net profit. Note: a low win rate (30&ndash;40%) can still be profitable with asymmetric payoffs.</td>
+        </tr>
+        <tr>
+            <td><strong>Balance</strong></td>
+            <td>WebSocket</td>
+            <td>Current simulation balance (in DRY_RUN mode) or USDC balance (in live mode). Updates with every trade result.</td>
+        </tr>
+        <tr>
+            <td><strong>Exposure</strong></td>
+            <td>WebSocket</td>
+            <td>Total dollar value of all open positions. Includes both hedged and unhedged positions.</td>
+        </tr>
+        <tr>
+            <td><strong>Circuit Breaker</strong></td>
+            <td>WebSocket</td>
+            <td>Shows <span class="green">OFF</span> (normal) or <span class="red">ACTIVE</span> (trading halted). Triggers on daily loss limit or consecutive failures.</td>
+        </tr>
+    </table>
+</div>
+
+<!-- ============================================================ -->
+
+<h2 id="charts">17. Charts</h2>
+
+<div class="grid">
+    <div class="card">
+        <h4>Equity Curve (Line Chart)</h4>
+        <p><strong>Source:</strong> <code>/api/equity-curve</code> (up to 90 days)</p>
+        <p>Shows the sim balance over time as a line chart. Each data point is an end-of-day snapshot. The slope of this line is the bot's overall performance trajectory. A steady upward slope = consistent profits. Large drops indicate drawdown events.</p>
+    </div>
+    <div class="card">
+        <h4>Strategy Breakdown (Doughnut Chart)</h4>
+        <p><strong>Source:</strong> <code>/api/strategies</code></p>
+        <p>Shows the proportion of trades by strategy as a doughnut chart. Helps visualize which strategy is generating the most activity. Colors: blue (arbitrage), green (price_lag), yellow (asymmetric), red (maker_arb), purple (sniper).</p>
+    </div>
+</div>
+
+<!-- ============================================================ -->
+
+<h2 id="positions-table">18. Open Positions Table</h2>
+<p><strong>Source:</strong> <code>/api/positions</code></p>
+
+<div class="card">
+    <table>
+        <tr><th>Column</th><th>Description</th></tr>
+        <tr><td><strong>Market</strong></td><td>Market slug (e.g., <code>btc-updown-15m-1770559200</code>). The trailing number is the market's end timestamp.</td></tr>
+        <tr><td><strong>Asset</strong></td><td>Which crypto asset (BTC, ETH, SOL, XRP).</td></tr>
+        <tr><td><strong>Strategy</strong></td><td>Which strategy opened this position. Shown as a colored badge.</td></tr>
+        <tr><td><strong>YES Shares</strong></td><td>Number of YES tokens held. Pay $1.00 each if the asset goes UP in the window.</td></tr>
+        <tr><td><strong>NO Shares</strong></td><td>Number of NO tokens held. Pay $1.00 each if the asset goes DOWN in the window.</td></tr>
+        <tr><td><strong>Investment</strong></td><td>Total dollar cost of the position (sum of all entry costs).</td></tr>
+        <tr><td><strong>Hedged</strong></td><td><span class="green">YES</span> = both sides held (guaranteed payout, arb position). <span class="yellow">NO</span> = directional (one side only, risky).</td></tr>
+        <tr><td><strong>Opened</strong></td><td>How long ago the position was opened (e.g., "2m ago").</td></tr>
+    </table>
+</div>
+
+<!-- ============================================================ -->
+
+<h2 id="results-table">19. Trade Results Table</h2>
+<p><strong>Source:</strong> <code>/api/trade-results?limit=50&amp;offset=N</code> (paginated)</p>
+
+<div class="card">
+    <table>
+        <tr><th>Column</th><th>Description</th></tr>
+        <tr><td><strong>Time</strong></td><td>When the position was resolved or exited. Format: HH:MM:SS.</td></tr>
+        <tr><td><strong>Market</strong></td><td>Market slug for this result.</td></tr>
+        <tr><td><strong>Asset</strong></td><td>Crypto asset (BTC, ETH, SOL, XRP).</td></tr>
+        <tr><td><strong>Strategy</strong></td><td>Strategy that opened the position.</td></tr>
+        <tr><td><strong>Hedged</strong></td><td>Whether the position had both YES and NO tokens.</td></tr>
+        <tr><td><strong>Investment</strong></td><td>Total cost basis of the position.</td></tr>
+        <tr><td><strong>Payout</strong></td><td>Gross payout received (before winner fee). $0 for losing positions. For hedged positions, always the number of shares (one side pays out $1.00/share).</td></tr>
+        <tr><td><strong>P&L</strong></td><td>Net profit/loss after all fees. <span class="green">Green</span> = profit. <span class="red">Red</span> = loss.</td></tr>
+        <tr><td><strong>Outcome</strong></td><td><strong>YES/NO:</strong> Held to resolution, market resolved this way. <strong>early_exit:</strong> Sold before resolution (stop-loss, take-profit, or time exit). <strong>empty:</strong> Hedged position resolved normally.</td></tr>
+    </table>
+</div>
+
+<!-- ============================================================ -->
+
+<h2 id="trades-table">20. Trade Log Table</h2>
+<p><strong>Source:</strong> <code>/api/trades?limit=50&amp;offset=N</code> (paginated)</p>
+
+<div class="card">
+    <table>
+        <tr><th>Column</th><th>Description</th></tr>
+        <tr><td><strong>Time</strong></td><td>When the order was placed/filled.</td></tr>
+        <tr><td><strong>Market</strong></td><td>Market slug.</td></tr>
+        <tr><td><strong>Strategy</strong></td><td>Strategy that placed this order.</td></tr>
+        <tr><td><strong>Side</strong></td><td><span class="green">BUY</span> (opening a position) or <span class="red">SELL</span> (early exit).</td></tr>
+        <tr><td><strong>Token</strong></td><td>YES or NO &mdash; which token was bought/sold.</td></tr>
+        <tr><td><strong>Price</strong></td><td>Fill price per share (4 decimal places). Range: $0.01&ndash;$0.99.</td></tr>
+        <tr><td><strong>Size</strong></td><td>Number of shares in this order.</td></tr>
+        <tr><td><strong>Cost</strong></td><td>Total dollar cost (price &times; size).</td></tr>
+        <tr><td><strong>Status</strong></td><td><span class="green">filled</span> = executed. <span class="yellow">pending</span> = GTC order waiting. <span class="red">cancelled</span> = order cancelled/expired.</td></tr>
+    </table>
+</div>
+
+<!-- ============================================================ -->
+
+<h2 id="orderbook-viewer">21. Orderbook Viewer</h2>
+<p><strong>Source:</strong> <code>/api/orderbooks</code></p>
+
+<div class="card">
+    <p>Displays the top 5 bid and ask levels for a selected token. Use the dropdown to switch between active token IDs (YES and NO tokens for each market).</p>
+    <table>
+        <tr><th>Element</th><th>Description</th></tr>
+        <tr><td><strong>Bids (Green)</strong></td><td>Buy orders in the book. Sorted highest price first. Visual bar shows relative size. The top bid is the best price you can sell at.</td></tr>
+        <tr><td><strong>Asks (Red)</strong></td><td>Sell orders in the book. Sorted lowest price first. Visual bar shows relative size. The top ask is the best price you can buy at.</td></tr>
+        <tr><td><strong>Spread</strong></td><td>Gap between best bid and best ask. Tighter spread = more liquid market. Shown above the book.</td></tr>
+    </table>
+</div>
+
+<!-- ============================================================ -->
+
+<h2 id="risk-panel">22. Risk Status Panel</h2>
+<p><strong>Source:</strong> <code>/api/risk</code></p>
+
+<div class="card">
+    <table>
+        <tr><th>Metric</th><th>Description</th></tr>
+        <tr><td><strong>Circuit Breaker</strong></td><td>Status and reason if active. Reasons: "daily loss limit exceeded" or "N consecutive failures."</td></tr>
+        <tr><td><strong>Total Exposure</strong></td><td>Current dollar exposure vs. maximum. Progress bar: <span class="green">green</span> (&lt;50%), <span class="yellow">yellow</span> (50&ndash;80%), <span class="red">red</span> (&gt;80%).</td></tr>
+        <tr><td><strong>Unhedged Exposure</strong></td><td>Directional-only exposure vs. maximum. Same color coding as total exposure.</td></tr>
+        <tr><td><strong>Per-Market Limit</strong></td><td>Shows the configured per-market position cap.</td></tr>
+        <tr><td><strong>Daily P&L</strong></td><td>Today's realized P&L vs. the daily loss limit. Progress bar fills toward the loss limit, turning red as it approaches.</td></tr>
+    </table>
+</div>
+
+<!-- ============================================================ -->
+
+<h2 id="spot-panel">23. Spot Prices Panel</h2>
+<p><strong>Source:</strong> <code>/api/spot-prices</code></p>
+
+<div class="card">
+    <p>Shows the current spot price for each tracked asset, sourced from the Binance WebSocket feed. Updates every few seconds.</p>
+    <table>
+        <tr><th>Symbol</th><th>Description</th></tr>
+        <tr><td><code>BTCUSDT</code></td><td>Bitcoin spot price from Binance.</td></tr>
+        <tr><td><code>ETHUSDT</code></td><td>Ethereum spot price from Binance.</td></tr>
+        <tr><td><code>SOLUSDT</code></td><td>Solana spot price from Binance.</td></tr>
+        <tr><td><code>XRPUSDT</code></td><td>XRP spot price from Binance.</td></tr>
+    </table>
+    <p>These prices are the reference for the price-lag strategy. The bot compares Binance spot moves to Polymarket odds to find mispricing.</p>
+</div>
+
+<!-- ============================================================ -->
+
+<h2 id="api-endpoints">24. API Endpoints Reference</h2>
+<p>Complete list of all API endpoints across both dashboards.</p>
+
+<h3>Admin Dashboard API (port 8443)</h3>
+
+<div class="card">
+    <table>
+        <tr><th>Method</th><th>Endpoint</th><th>Description</th></tr>
+        <tr><td>GET</td><td><code>/</code></td><td>Settings page (HTML)</td></tr>
+        <tr><td>GET</td><td><code>/wallet</code></td><td>Wallet &amp; secrets page (HTML)</td></tr>
+        <tr><td>GET</td><td><code>/control</code></td><td>Bot control page (HTML)</td></tr>
+        <tr><td>POST</td><td><code>/api/settings</code></td><td>Save non-secret settings to .env</td></tr>
+        <tr><td>POST</td><td><code>/api/secrets</code></td><td>Save secrets to encrypted vault</td></tr>
+        <tr><td>POST</td><td><code>/api/wallet/derive</code></td><td>Derive address + verify wallet</td></tr>
+        <tr><td>GET</td><td><code>/api/vault/status</code></td><td>Check vault initialized/unlocked/key count</td></tr>
+        <tr><td>POST</td><td><code>/api/vault/init</code></td><td>Initialize new vault</td></tr>
+        <tr><td>POST</td><td><code>/api/vault/change-password</code></td><td>Re-encrypt vault with new password</td></tr>
+        <tr><td>GET</td><td><code>/api/bot/status</code></td><td>Get bot active/inactive + uptime</td></tr>
+        <tr><td>POST</td><td><code>/api/bot/start</code></td><td>Start bot service</td></tr>
+        <tr><td>POST</td><td><code>/api/bot/stop</code></td><td>Stop bot service</td></tr>
+        <tr><td>POST</td><td><code>/api/bot/restart</code></td><td>Restart bot service</td></tr>
+    </table>
+</div>
+
+<h3>Monitoring Dashboard API (port 8080)</h3>
+
+<div class="card">
+    <table>
+        <tr><th>Method</th><th>Endpoint</th><th>Description</th></tr>
+        <tr><td>GET</td><td><code>/</code></td><td>Monitoring dashboard page (HTML)</td></tr>
+        <tr><td>WS</td><td><code>/ws</code></td><td>WebSocket &mdash; live updates every 3s</td></tr>
+        <tr><td>GET</td><td><code>/api/status</code></td><td>Bot uptime, dry_run flag, start time</td></tr>
+        <tr><td>GET</td><td><code>/api/positions</code></td><td>All open positions</td></tr>
+        <tr><td>GET</td><td><code>/api/pnl</code></td><td>Today + lifetime P&L, 30-day history</td></tr>
+        <tr><td>GET</td><td><code>/api/orderbooks</code></td><td>L2 orderbook for all active tokens</td></tr>
+        <tr><td>GET</td><td><code>/api/trades</code></td><td>Trade log (paginated: <code>?limit=&amp;offset=&amp;strategy=</code>)</td></tr>
+        <tr><td>GET</td><td><code>/api/trade-results</code></td><td>Trade results (paginated: <code>?limit=&amp;offset=</code>)</td></tr>
+        <tr><td>GET</td><td><code>/api/strategies</code></td><td>Enabled strategies + trade count breakdown</td></tr>
+        <tr><td>GET</td><td><code>/api/risk</code></td><td>Circuit breaker, exposure, daily loss</td></tr>
+        <tr><td>GET</td><td><code>/api/markets</code></td><td>Active markets with expiry countdown</td></tr>
+        <tr><td>GET</td><td><code>/api/config</code></td><td>Safe config (excludes secrets)</td></tr>
+        <tr><td>GET</td><td><code>/api/metrics</code></td><td>Dashboard summary metrics</td></tr>
+        <tr><td>GET</td><td><code>/api/equity-curve</code></td><td>Daily equity snapshots (up to 90 days)</td></tr>
+        <tr><td>GET</td><td><code>/api/spot-prices</code></td><td>Current spot prices from Binance</td></tr>
+    </table>
+</div>
+
+<hr class="separator">
+<p class="muted" style="text-align: center; font-size: 0.8rem;">
+    BTC 15-Minute Bot &mdash; Admin Dashboard Reference. Last updated: 2026-02-08.
+</p>
+
+</body>
+</html>

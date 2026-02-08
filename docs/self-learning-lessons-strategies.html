@@ -171,7 +171,7 @@
 
 <div class="grid-3">
     <div class="stat">
-        <div class="stat-value accent">1</div>
+        <div class="stat-value accent">3</div>
         <div class="stat-label">Experiments Run</div>
     </div>
     <div class="stat">
@@ -179,19 +179,19 @@
         <div class="stat-label">Changes Kept</div>
     </div>
     <div class="stat">
-        <div class="stat-value red">0</div>
+        <div class="stat-value red">1</div>
         <div class="stat-label">Changes Reverted</div>
     </div>
 </div>
 
 <div class="grid">
     <div class="stat">
-        <div class="stat-value accent">???</div>
+        <div class="stat-value accent">37%</div>
         <div class="stat-label">Current Win Rate</div>
     </div>
     <div class="stat">
-        <div class="stat-value accent">???</div>
-        <div class="stat-label">Cumulative Sim P&amp;L</div>
+        <div class="stat-value green">+$370</div>
+        <div class="stat-label">Cumulative Sim P&amp;L (Feb 8)</div>
     </div>
 </div>
 
@@ -208,32 +208,33 @@
 
 <div class="card">
     <table>
-        <tr><th>Parameter</th><th>Current Value</th><th>Baseline</th><th>Last Changed</th><th>Experiment #</th></tr>
-        <tr><td><code>enable_arbitrage</code></td><td class="green">true</td><td>true</td><td>—</td><td>—</td></tr>
-        <tr><td><code>enable_price_lag</code></td><td class="red">false</td><td>false</td><td>—</td><td>—</td></tr>
-        <tr><td><code>enable_asymmetric</code></td><td class="red">false</td><td>false</td><td>—</td><td>—</td></tr>
-        <tr><td><code>enable_maker_arbitrage</code></td><td class="red">false</td><td>false</td><td>—</td><td>—</td></tr>
-        <tr><td><code>enable_resolution_sniper</code></td><td class="red">false</td><td>false</td><td>—</td><td>—</td></tr>
-        <tr><td><code>enable_parallel_strategies</code></td><td class="red">false</td><td>false</td><td>—</td><td>—</td></tr>
-        <tr><td><code>min_profit_margin</code></td><td>0.003</td><td>0.003</td><td>—</td><td>—</td></tr>
-        <tr><td><code>target_pair_cost</code></td><td>0.94</td><td>0.94</td><td>—</td><td>—</td></tr>
-        <tr><td><code>spot_move_threshold</code></td><td>0.0005</td><td>0.0005</td><td>—</td><td>—</td></tr>
-        <tr><td><code>odds_lag_threshold</code></td><td>0.01</td><td>0.01</td><td>—</td><td>—</td></tr>
-        <tr><td><code>lag_confirmations</code></td><td>1</td><td>1</td><td>—</td><td>—</td></tr>
-        <tr><td><code>stop_loss_pct</code></td><td>0.08</td><td>0.08</td><td>—</td><td>—</td></tr>
-        <tr><td><code>take_profit_pct</code></td><td>0.15</td><td>0.15</td><td>—</td><td>—</td></tr>
-        <tr><td><code>time_exit_seconds</code></td><td>45.0</td><td>45.0</td><td>—</td><td>—</td></tr>
-        <tr><td><code>stop_loss_confirmations</code></td><td>3</td><td>3</td><td>—</td><td>—</td></tr>
-        <tr><td><code>lag_entry_dead_zone_start</code></td><td>30.0</td><td>30.0</td><td>—</td><td>—</td></tr>
-        <tr><td><code>lag_entry_dead_zone_end</code></td><td>15.0</td><td>15.0</td><td>—</td><td>—</td></tr>
-        <tr><td><code>spot_window_seconds</code></td><td>10</td><td>10</td><td>—</td><td>—</td></tr>
-        <tr><td><code>cooldown_seconds</code></td><td>2.0</td><td>2.0</td><td>—</td><td>—</td></tr>
-        <tr><td><code>order_size</code></td><td>250.0</td><td>250.0</td><td>—</td><td>—</td></tr>
-        <tr><td><code>kelly_fraction</code></td><td>0.25</td><td>0.25</td><td>—</td><td>—</td></tr>
-        <tr><td><code>max_entries_per_market</code></td><td>2</td><td>2</td><td>—</td><td>—</td></tr>
-        <tr><td><code>max_position_per_market</code></td><td>1000.0</td><td>1000.0</td><td>—</td><td>—</td></tr>
-        <tr><td><code>max_total_position</code></td><td>5000.0</td><td>5000.0</td><td>—</td><td>—</td></tr>
-        <tr><td><code>max_daily_loss</code></td><td>250.0</td><td>250.0</td><td>—</td><td>—</td></tr>
+        <tr><th>Parameter</th><th>Current Value</th><th>Pre-Sprint Baseline</th><th>Last Changed</th><th>Experiment #</th></tr>
+        <!-- Strategy Enables -->
+        <tr><td><code>enable_price_lag</code></td><td class="green">true</td><td>false</td><td>2026-02-07</td><td>#1</td></tr>
+        <tr><td><code>enable_maker_arbitrage</code></td><td class="green">true</td><td>false</td><td>2026-02-07</td><td>#1</td></tr>
+        <tr><td><code>enable_resolution_sniper</code></td><td class="green">true</td><td>false</td><td>2026-02-07</td><td>#1</td></tr>
+        <tr><td><code>enable_parallel_strategies</code></td><td class="red">false</td><td>false</td><td>&mdash;</td><td>&mdash;</td></tr>
+        <!-- Entry Parameters -->
+        <tr><td><code>spot_move_threshold</code></td><td>0.0015</td><td>0.0005</td><td>2026-02-07</td><td>#1</td></tr>
+        <tr><td><code>odds_lag_threshold</code></td><td>0.015</td><td>0.01</td><td>2026-02-07</td><td>#1</td></tr>
+        <tr><td><code>lag_confirmations</code></td><td>3</td><td>1</td><td>2026-02-07</td><td>#1</td></tr>
+        <tr><td><code>order_size</code></td><td>150.0</td><td>250.0</td><td>2026-02-07</td><td>#1</td></tr>
+        <!-- Exit Parameters -->
+        <tr><td><code>stop_loss_pct</code></td><td>0.15</td><td>0.08</td><td>2026-02-07</td><td>#1</td></tr>
+        <tr><td><code>take_profit_pct</code></td><td>0.17</td><td>0.15</td><td>2026-02-08 16:05</td><td>#3</td></tr>
+        <tr><td><code>time_exit_seconds</code></td><td>30.0</td><td>45.0</td><td>2026-02-07</td><td>#1</td></tr>
+        <tr><td><code>stop_loss_time_decay</code></td><td>true (code default)</td><td>true (code default)</td><td>2026-02-08 15:17 (reverted)</td><td>#2 <span class="badge badge-reverted">REVERTED</span></td></tr>
+        <tr><td><code>take_profit_time_decay</code></td><td>true (code default)</td><td>true</td><td>&mdash;</td><td>&mdash;</td></tr>
+        <tr><td><code>stop_loss_confirmations</code></td><td>3</td><td>3</td><td>&mdash;</td><td>&mdash;</td></tr>
+        <!-- Sniper Parameters -->
+        <tr><td><code>sniper_min_confidence</code></td><td>0.92</td><td>&mdash;</td><td>2026-02-07</td><td>#1</td></tr>
+        <tr><td><code>sniper_max_entry_price</code></td><td>0.80</td><td>&mdash;</td><td>2026-02-07</td><td>#1</td></tr>
+        <tr><td><code>sniper_order_size</code></td><td>30</td><td>&mdash;</td><td>2026-02-07</td><td>#1</td></tr>
+        <!-- Risk Parameters -->
+        <tr><td><code>max_unhedged_exposure</code></td><td>250.0</td><td>&mdash;</td><td>2026-02-07</td><td>#1</td></tr>
+        <tr><td><code>max_position_per_market</code></td><td>750.0</td><td>1000.0</td><td>2026-02-07</td><td>#1</td></tr>
+        <tr><td><code>max_daily_loss</code></td><td>1000.0</td><td>250.0</td><td>2026-02-07</td><td>#1</td></tr>
+        <tr><td><code>sim_balance</code></td><td>10000</td><td>&mdash;</td><td>2026-02-07</td><td>#1</td></tr>
     </table>
 </div>
 
@@ -244,6 +245,125 @@
 <h2>3. Experiment Timeline</h2>
 
 <p>Chronological record of every parameter change. Newest entries at the top. Each entry includes hypothesis, before/after metrics, and verdict.</p>
+
+<div class="timeline-entry pending">
+    <div class="timeline-date">2026-02-08 17:25 UTC &mdash; Experiment #4</div>
+    <div class="timeline-title">
+        Take-profit time decay: inverted from 2x &rarr; 0.6x in middle third <strong>(CODE FIX)</strong>
+        <span class="badge badge-pending">OBSERVING</span>
+    </div>
+    <p><strong>Root cause:</strong> TP time decay was copied from stop-loss logic where doubling the threshold (harder to trigger) is protective. For take-profit, doubling made it unreachable: with TP at 0.17 base, middle third doubled to 0.34 (34%) which no 15-min position can reach. Last third disabled entirely. Net effect: TP only had a 5-minute window (first third) to fire.</p>
+    <p><strong>Fix:</strong> Middle third now uses <code>take_profit_pct * 0.6</code> instead of <code>* 2</code>. With TP at 0.17: first third = 17%, middle third = 10.2%, last third = disabled. This captures gains during peak-profit window before late volatility hits.</p>
+    <p><strong>Effective thresholds now (with TP = 0.17):</strong></p>
+    <ul>
+        <li>First 5 min: 17% (give position time to develop)</li>
+        <li>Middle 5 min: 10.2% (capture gains at likely peak)</li>
+        <li>Last 5 min: disabled (let winners ride to resolution)</li>
+    </ul>
+    <p><strong>Bottleneck:</strong> 0 take-profit triggers all day across Experiments #1&ndash;#3. The decay curve was inverted.</p>
+    <p><strong>Before metrics:</strong> 0 TP triggers in ~11 hours of operation.</p>
+    <p><strong>Success criteria:</strong> TP triggers &gt; 0. Improved win rate on early exits. Net P&amp;L per early exit improves.</p>
+    <p><strong>After metrics:</strong></p>
+    <div class="experiment-metrics">
+        <div class="stat"><div class="stat-value">???</div><div class="stat-label">TP Triggers</div></div>
+        <div class="stat"><div class="stat-value">???</div><div class="stat-label">Win Rate</div></div>
+        <div class="stat"><div class="stat-value">???</div><div class="stat-label">Avg TP P&amp;L</div></div>
+        <div class="stat"><div class="stat-value">???</div><div class="stat-label">Net P&amp;L</div></div>
+    </div>
+    <p><strong>Verdict:</strong> <em>Pending &mdash; review after observation period</em></p>
+</div>
+
+<div class="timeline-entry pending">
+    <div class="timeline-date">2026-02-08 16:05 UTC &mdash; Experiment #3</div>
+    <div class="timeline-title">
+        <code>take_profit_pct</code>: 0.25 &rarr; 0.17
+        <span class="badge badge-pending">OBSERVING</span>
+    </div>
+    <p><strong>Hypothesis:</strong> Lowering TP from 25% to 17% should allow take-profit exits to actually fire. At 25% with time decay (doubles to 50% in middle, disabled in last third), TP never triggered. At 17% (first third: 17%, middle: 34%, last: disabled), the threshold is reachable during early strong moves. <em>Note: This alone didn't fix TP &mdash; Experiment #4 (code fix) was also needed because the decay itself was inverted.</em></p>
+    <p><strong>Bottleneck:</strong> 0 take-profit triggers all day &mdash; the threshold is unreachable at 25%.</p>
+    <p><strong>Before metrics (full day Feb 8 up to 16:05 UTC):</strong></p>
+    <div class="experiment-metrics">
+        <div class="stat"><div class="stat-value">84</div><div class="stat-label">Results</div></div>
+        <div class="stat"><div class="stat-value">27%</div><div class="stat-label">Win Rate (23W/61L)</div></div>
+        <div class="stat"><div class="stat-value red">-$56</div><div class="stat-label">Net P&amp;L</div></div>
+        <div class="stat"><div class="stat-value">0</div><div class="stat-label">TP Triggers</div></div>
+    </div>
+    <p><strong>Observation period:</strong> 6&ndash;8h &mdash; review tonight</p>
+    <p><strong>Success criteria:</strong> TP triggers &gt; 0. Maintained or improved net P&amp;L.</p>
+    <p><strong>After metrics:</strong></p>
+    <div class="experiment-metrics">
+        <div class="stat"><div class="stat-value">???</div><div class="stat-label">Results</div></div>
+        <div class="stat"><div class="stat-value">???</div><div class="stat-label">Win Rate</div></div>
+        <div class="stat"><div class="stat-value">???</div><div class="stat-label">Net P&amp;L</div></div>
+        <div class="stat"><div class="stat-value">???</div><div class="stat-label">TP Triggers</div></div>
+    </div>
+    <p><strong>Verdict:</strong> <em>Pending &mdash; review after observation period</em></p>
+</div>
+
+<div class="timeline-entry reverted">
+    <div class="timeline-date">2026-02-08 14:02 UTC &mdash; Experiment #2</div>
+    <div class="timeline-title">
+        <code>stop_loss_time_decay</code>: true &rarr; false &rarr; REVERTED at 15:17 UTC
+        <span class="badge badge-reverted">REVERTED</span>
+    </div>
+    <p><strong>Hypothesis:</strong> Disabling stop-loss time decay will prevent the SL from widening (middle third: 15%&rarr;30%) and disabling entirely (last third). This should catch losing positions earlier before they bleed to zero at resolution. Today's data shows 0 stop-loss triggers because the thresholds are effectively unreachable.</p>
+    <p><strong>Bottleneck:</strong> losing_trades &mdash; 22 positions held to resolution lost an average of -$50 each ($-1,050 total). SL never fired to cut them.</p>
+    <p><strong>Before metrics (observation period: ~7h, Feb 8 06:33&ndash;14:02 UTC):</strong></p>
+    <div class="experiment-metrics">
+        <div class="stat"><div class="stat-value">23/hr</div><div class="stat-label">Opps/hr</div></div>
+        <div class="stat"><div class="stat-value">108</div><div class="stat-label">Trades</div></div>
+        <div class="stat"><div class="stat-value">37%</div><div class="stat-label">Win Rate (22W/38L)</div></div>
+        <div class="stat"><div class="stat-value green">+$370</div><div class="stat-label">Net P&amp;L</div></div>
+        <div class="stat"><div class="stat-value">0</div><div class="stat-label">SL Triggers</div></div>
+        <div class="stat"><div class="stat-value">0</div><div class="stat-label">TP Triggers</div></div>
+        <div class="stat"><div class="stat-value">29</div><div class="stat-label">Time Exits</div></div>
+    </div>
+    <p><strong>Key pre-change data:</strong></p>
+    <ul>
+        <li>Early exits: 25 trades, +$1,206 total (+$48 avg). 13 winners (+$114 avg), 12 losers (-$23 avg)</li>
+        <li>Held to YES resolution: 21 trades, -$688 total (-$33 avg) &mdash; all losses</li>
+        <li>Held to NO resolution: 12 trades, -$363 total (-$30 avg) &mdash; all losses</li>
+        <li>Hedged/resolved: 4 trades, +$164 total (+$41 avg)</li>
+        <li>Early exit is the ONLY source of alpha. Held-to-resolution trades are consistently losing.</li>
+    </ul>
+    <p><strong>Observation period:</strong> 6&ndash;8h &mdash; review by ~2026-02-08 22:00 UTC</p>
+    <p><strong>Success criteria:</strong> Stop-loss triggers &gt; 0 (SL is actually firing). Fewer positions expiring worthless. Improved or maintained net P&amp;L.</p>
+    <p><strong>After metrics (observation: 1h15m, 14:02&ndash;15:17 UTC):</strong></p>
+    <div class="experiment-metrics">
+        <div class="stat"><div class="stat-value">15/hr</div><div class="stat-label">Results/hr</div></div>
+        <div class="stat"><div class="stat-value">15</div><div class="stat-label">Trades</div></div>
+        <div class="stat"><div class="stat-value red">0%</div><div class="stat-label">Win Rate (0W/15L)</div></div>
+        <div class="stat"><div class="stat-value red">-$239</div><div class="stat-label">Net P&amp;L</div></div>
+        <div class="stat"><div class="stat-value green">9</div><div class="stat-label">SL Triggers</div></div>
+        <div class="stat"><div class="stat-value">0</div><div class="stat-label">TP Triggers</div></div>
+        <div class="stat"><div class="stat-value">1</div><div class="stat-label">Time Exits</div></div>
+    </div>
+    <p><strong>Verdict:</strong> <span class="red"><strong>REVERTED</strong></span> after 1h15m. Stop losses fired (9 triggers, working as intended), but 0 winners in the observation period. SL was cutting positions in the last third of the window that previously would have held through volatile swings and recovered. The time decay design (disable SL in last third) matches market behavior &mdash; late-window prices are extremely volatile and reversals are common. Disabling time decay converted potential recovery plays into guaranteed small losses. Individual losses were smaller (-$16 avg vs -$33 resolution avg), but the total absence of winners made the change net negative. <strong>Key lesson:</strong> The problem isn't time decay &mdash; it's that the base SL (15%) and TP (25%) are too wide to trigger in the first/middle portions where time decay doesn't interfere.</p>
+</div>
+
+<div class="timeline-entry kept">
+    <div class="timeline-date">2026-02-07 ~evening &mdash; Experiment #1</div>
+    <div class="timeline-title">
+        Multi-Strategy Activation &amp; Config Overhaul
+        <span class="badge badge-kept">ACTIVE</span>
+    </div>
+    <p><strong>Action:</strong> Enabled price_lag, maker_arbitrage, and resolution_sniper strategies. Adjusted entry/exit parameters and risk limits for live DRY_RUN testing. This was a bulk config change to get the bot trading (not a single-variable experiment).</p>
+    <p><strong>Key changes from baseline:</strong></p>
+    <ul>
+        <li><code>enable_price_lag</code>: false &rarr; true</li>
+        <li><code>enable_maker_arbitrage</code>: false &rarr; true</li>
+        <li><code>enable_resolution_sniper</code>: true (with min_confidence=0.92, max_entry=0.80, size=30)</li>
+        <li><code>spot_move_threshold</code>: 0.0005 &rarr; 0.0015</li>
+        <li><code>odds_lag_threshold</code>: 0.01 &rarr; 0.015</li>
+        <li><code>lag_confirmations</code>: 1 &rarr; 3</li>
+        <li><code>order_size</code>: 250 &rarr; 150</li>
+        <li><code>stop_loss_pct</code>: 0.08 &rarr; 0.15 (widened)</li>
+        <li><code>take_profit_pct</code>: 0.15 &rarr; 0.25 (widened)</li>
+        <li><code>time_exit_seconds</code>: 45 &rarr; 30 (shortened)</li>
+        <li><code>max_daily_loss</code>: 250 &rarr; 1000</li>
+    </ul>
+    <p><strong>Result after ~7h:</strong> Bot generating 108 trades, +$370 net P&amp;L. Alpha comes from early exits (+$1,206), offset by resolution losses (-$1,050). Maker arbitrage effectively dead (1 trade, -$2.13).</p>
+</div>
 
 <div class="timeline-entry baseline">
     <div class="timeline-date">2026-02-07 22:25 UTC &mdash; Experiment #0 (Pre-Sprint)</div>
@@ -321,7 +441,12 @@ TEMPLATE — Copy this block for each new experiment. Place ABOVE previous entri
         <th>Cum P&amp;L</th>
         <th>Active Strategies</th>
     </tr>
-    <tr><td colspan="10" class="muted" style="text-align: center;">Sprint not yet started</td></tr>
+    <tr>
+        <td>1</td><td>2026-02-08</td><td>#1, #2</td><td>0 / 0</td>
+        <td>~160</td><td>108 (so far)</td><td>37%</td>
+        <td class="green">+$370</td><td class="green">+$370</td>
+        <td>price_lag, maker_arb, sniper</td>
+    </tr>
 </table>
 
 <!-- ============================================================ -->
@@ -371,21 +496,41 @@ TEMPLATE — Copy this block for each new experiment. Place ABOVE previous entri
     <p><strong>Recommended action:</strong> Tune <code>sniper_max_entry_price</code> downward if sniper losses on high-price entries are observed.</p>
 </div>
 
-<!--
-TEMPLATE for strategy insights:
+<div class="card">
+    <div class="card-header">
+        <h3>Early exits are the sole source of alpha</h3>
+        <span class="badge badge-active">CRITICAL</span>
+    </div>
+    <p><strong>Discovered:</strong> 2026-02-08 | <strong>Source:</strong> Morning analysis of 7h overnight data</p>
+    <p>Every dollar of profit comes from early exits. Positions held to resolution (YES or NO) are consistently losing (-$33 to -$51 avg). The asymmetric payoff profile &mdash; winning exits avg +$114, losing exits avg -$23 &mdash; is what makes the bot profitable despite a 37% win rate.</p>
+    <p><strong>Evidence:</strong> 25 early exits = +$1,206. 33 held-to-resolution = -$1,050. Net = +$156 from early exits alone, plus $164 from hedged positions and +$25 from sniper.</p>
+    <p><strong>Implication:</strong> The exit mechanism is more important than the entry mechanism. Tuning exit parameters (SL, TP, time exit, lottery threshold) has higher impact than tuning entry parameters. Priority: (1) stop-loss time decay, (2) take-profit threshold, (3) time_exit_seconds, (4) stop_loss_pct.</p>
+    <p><strong>Recommended action:</strong> Systematically tune exit parameters one at a time. Current experiment: disable SL time decay. Next candidates: lower TP to 15%, extend time exit to 45s, lower SL to 8%.</p>
+</div>
 
 <div class="card">
     <div class="card-header">
-        <h3>[Insight Title]</h3>
+        <h3>Stop-loss and take-profit never fire with current settings</h3>
         <span class="badge badge-active">ACTIONABLE</span>
     </div>
-    <p><strong>Discovered:</strong> 2026-02-XX | <strong>Source:</strong> Experiment #N</p>
-    <p>[Description of the pattern or insight]</p>
-    <p><strong>Evidence:</strong> [Data supporting the insight — specific numbers]</p>
-    <p><strong>Implication:</strong> [What this means for strategy design]</p>
-    <p><strong>Recommended action:</strong> [Parameter change / strategy code proposal / no action]</p>
+    <p><strong>Discovered:</strong> 2026-02-08 | <strong>Source:</strong> Log analysis of exit events</p>
+    <p>With SL at 15% + time decay and TP at 25% + time decay, neither threshold is reachable in practice. All 29 early exits today were time-based (30s before expiry), zero were SL or TP triggered.</p>
+    <p><strong>Evidence:</strong> 0 stop_loss_triggered on Feb 8. 0 take_profit_triggered on Feb 8. 29 time_exit events. Compare to Feb 7 with 8%/15% thresholds: SL and TP firing regularly.</p>
+    <p><strong>Implication:</strong> Widening SL 8%&rarr;15% and TP 15%&rarr;25% in Experiment #1 effectively disabled these mechanisms. The bot runs with only time-based exits.</p>
+    <p><strong>Recommended action:</strong> First disable SL time decay (#2, done). Then consider reverting SL/TP if they still don't fire.</p>
 </div>
--->
+
+<div class="card">
+    <div class="card-header">
+        <h3>Lottery ticket preservation is net negative</h3>
+        <span class="badge badge-pending">MONITOR</span>
+    </div>
+    <p><strong>Discovered:</strong> 2026-02-08 | <strong>Source:</strong> Log analysis of time_exit_skipped_lottery events</p>
+    <p>Positions below 5% of cost basis are skipped by time exit and held as "lottery tickets." These almost never recover. Multiple positions with 0.37&ndash;3.9% value ratios expired at $0.</p>
+    <p><strong>Evidence:</strong> ETH: $0.30/$80 cost (0.37%) &rarr; $0. SOL: $1.84/$47 (3.9%) &rarr; $0. Salvage value forfeited each time.</p>
+    <p><strong>Implication:</strong> May need to lower or remove the lottery skip threshold. But first see if disabling SL time decay prevents positions from reaching lottery territory.</p>
+    <p><strong>Recommended action:</strong> Monitor after Experiment #2. If lottery skips persist, propose code change.</p>
+</div>
 
 <!-- ============================================================ -->
 <!-- MARKET BEHAVIOR PATTERNS                                      -->
@@ -425,9 +570,16 @@ TEMPLATE for strategy insights:
     Recording them prevents re-trying the same failed approaches.
 </p>
 
-<div class="callout warning">
-    <strong>Nothing failed yet.</strong> This section captures reverted experiments and why they didn't work.
-    Patterns here help avoid repeating mistakes.
+<div class="card">
+    <div class="card-header">
+        <h3>Disabling stop-loss time decay kills late-window recovery plays</h3>
+        <span class="badge badge-reverted">FAILED</span>
+    </div>
+    <p><strong>Experiment:</strong> #2 | <strong>Date:</strong> 2026-02-08</p>
+    <p><strong>Hypothesis:</strong> Keeping SL active in the last third of the window would prevent positions from bleeding to zero at resolution.</p>
+    <p><strong>What actually happened:</strong> 0 winners in 15 trades. SL fired 9 times, cutting positions at -15% to -54%. All 13 early exits were losses. The bot went from +$48/exit avg to -$16/exit avg.</p>
+    <p><strong>Root cause:</strong> Late-window prices are extremely volatile on 15-min markets. A -15% dip in the last 5 minutes is often a temporary swing that reverses before resolution. The time decay design (disable SL in last third) correctly models this &mdash; it lets positions ride through noise for the potential recovery to $1.00 payout. Stopping them out converts potential asymmetric winners into guaranteed small losses.</p>
+    <p><strong>Lesson:</strong> Don't touch SL time decay. The real bottleneck is the base SL/TP thresholds (15%/25%) being too wide for the first/middle portions where time decay isn't active. Future tuning should target base thresholds, not the decay mechanism.</p>
 </div>
 
 <!--
@@ -481,7 +633,7 @@ TEMPLATE for code change proposals:
 
 <hr class="separator">
 <p class="muted" style="text-align: center; font-size: 0.8rem;">
-    This document is auto-maintained by the Claude analysis agent. Last updated: 2026-02-07.
+    This document is auto-maintained by the Claude analysis agent. Last updated: 2026-02-08 14:02 UTC.
 </p>
 
 </body>

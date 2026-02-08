@@ -243,12 +243,17 @@ def create_admin_app() -> FastAPI:
         """Save non-secret settings to .env file."""
         body = await request.json()
 
-        # Filter out secret keys — those go through /api/secrets
+        # Filter out secret keys — those go through /api/secrets.
+        # Skip empty string values so Pydantic code defaults apply
+        # instead of writing unparesable "" for numeric fields.
         updates: dict[str, str] = {}
         for key, value in body.items():
             if key in _SECRET_ENV_KEYS:
                 continue
-            updates[key] = str(value)
+            str_val = str(value)
+            if str_val == "":
+                continue
+            updates[key] = str_val
 
         write_env(_env_path(), updates)
 
