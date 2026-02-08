@@ -162,6 +162,7 @@ class Settings(BaseSettings):
     market_slug_override: str = ""
 
     # Risk Limits (AGGRESSIVE MODE)
+    disable_circuit_breaker: bool = False  # skip circuit breaker (useful in DRY_RUN)
     max_entries_per_market: int = 2  # cap directional entries per 15-min market
     max_position_per_market: float = 1000.0  # 2x increase
     max_total_position: float = 5000.0  # 2.5x increase

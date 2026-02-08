@@ -109,26 +109,27 @@ class RiskManager:
         """
         condition_id = opp.market.condition_id
 
-        # 1. Circuit breaker
-        if self.is_circuit_breaker_active():
-            reason = f"circuit breaker active: {self._circuit_breaker_reason}"
-            self._log.warning("risk_rejected", check="circuit_breaker", reason=reason)
-            return False, reason
+        # 1. Circuit breaker (skipped when disabled via config)
+        if not self._settings.disable_circuit_breaker:
+            if self.is_circuit_breaker_active():
+                reason = f"circuit breaker active: {self._circuit_breaker_reason}"
+                self._log.warning("risk_rejected", check="circuit_breaker", reason=reason)
+                return False, reason
 
-        # 2. Daily loss limit — also auto-trips circuit breaker for 24h
-        pnl = self._state.daily_pnl()
-        if pnl.net_profit < -self._settings.max_daily_loss:
-            reason = (
-                f"daily loss limit exceeded: net_profit={pnl.net_profit:.2f}, "
-                f"limit=-{self._settings.max_daily_loss:.2f}"
-            )
-            self._log.warning("risk_rejected", check="daily_loss", reason=reason)
-            if not self._circuit_breaker_active:
-                self.activate_circuit_breaker(
-                    reason=f"daily loss limit: {pnl.net_profit:.2f}",
-                    duration_seconds=_DAILY_LOSS_BREAKER_DURATION,
+            # 2. Daily loss limit — also auto-trips circuit breaker for 24h
+            pnl = self._state.daily_pnl()
+            if pnl.net_profit < -self._settings.max_daily_loss:
+                reason = (
+                    f"daily loss limit exceeded: net_profit={pnl.net_profit:.2f}, "
+                    f"limit=-{self._settings.max_daily_loss:.2f}"
                 )
-            return False, reason
+                self._log.warning("risk_rejected", check="daily_loss", reason=reason)
+                if not self._circuit_breaker_active:
+                    self.activate_circuit_breaker(
+                        reason=f"daily loss limit: {pnl.net_profit:.2f}",
+                        duration_seconds=_DAILY_LOSS_BREAKER_DURATION,
+                    )
+                return False, reason
 
         # 3. Market exposure
         market_exp = self._state.market_exposure(condition_id)
