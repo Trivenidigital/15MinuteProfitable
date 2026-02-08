@@ -210,30 +210,37 @@
     <table>
         <tr><th>Parameter</th><th>Current Value</th><th>Pre-Sprint Baseline</th><th>Last Changed</th><th>Experiment #</th></tr>
         <!-- Strategy Enables -->
-        <tr><td><code>enable_price_lag</code></td><td class="green">true</td><td>false</td><td>2026-02-07</td><td>#1</td></tr>
+        <tr><td><code>enable_arbitrage</code></td><td class="green">true</td><td>true</td><td>&mdash;</td><td>&mdash;</td></tr>
+        <tr><td><code>enable_price_lag</code></td><td class="red">false</td><td>false</td><td>2026-02-08 ~18:00</td><td>User toggle</td></tr>
+        <tr><td><code>enable_asymmetric</code></td><td class="green">true</td><td>true</td><td>&mdash;</td><td>&mdash;</td></tr>
         <tr><td><code>enable_maker_arbitrage</code></td><td class="green">true</td><td>false</td><td>2026-02-07</td><td>#1</td></tr>
-        <tr><td><code>enable_resolution_sniper</code></td><td class="green">true</td><td>false</td><td>2026-02-07</td><td>#1</td></tr>
-        <tr><td><code>enable_parallel_strategies</code></td><td class="red">false</td><td>false</td><td>&mdash;</td><td>&mdash;</td></tr>
+        <tr><td><code>enable_multi_market</code></td><td class="green">true</td><td>true</td><td>&mdash;</td><td>&mdash;</td></tr>
+        <tr><td><code>enable_dip_buyer</code></td><td class="green">true</td><td>false</td><td>2026-02-08 ~18:00</td><td>User toggle</td></tr>
+        <tr><td><code>enable_fade_panic</code></td><td class="green">true</td><td>false</td><td>2026-02-08 ~18:00</td><td>User toggle</td></tr>
+        <tr><td><code>enable_resolution_sniper</code></td><td class="red">false</td><td>false</td><td>2026-02-08 ~18:00</td><td>User toggle</td></tr>
+        <tr><td><code>enable_parallel_strategies</code></td><td class="green">true</td><td>false</td><td>2026-02-08 ~18:00</td><td>User toggle</td></tr>
         <!-- Entry Parameters -->
         <tr><td><code>spot_move_threshold</code></td><td>0.0015</td><td>0.0005</td><td>2026-02-07</td><td>#1</td></tr>
         <tr><td><code>odds_lag_threshold</code></td><td>0.015</td><td>0.01</td><td>2026-02-07</td><td>#1</td></tr>
         <tr><td><code>lag_confirmations</code></td><td>3</td><td>1</td><td>2026-02-07</td><td>#1</td></tr>
-        <tr><td><code>order_size</code></td><td>150.0</td><td>250.0</td><td>2026-02-07</td><td>#1</td></tr>
+        <tr><td><code>order_size</code></td><td>100.0</td><td>250.0</td><td>2026-02-08 ~18:00</td><td>Admin</td></tr>
         <!-- Exit Parameters -->
         <tr><td><code>stop_loss_pct</code></td><td>0.15</td><td>0.08</td><td>2026-02-07</td><td>#1</td></tr>
         <tr><td><code>take_profit_pct</code></td><td>0.17</td><td>0.15</td><td>2026-02-08 16:05</td><td>#3</td></tr>
         <tr><td><code>time_exit_seconds</code></td><td>30.0</td><td>45.0</td><td>2026-02-07</td><td>#1</td></tr>
-        <tr><td><code>stop_loss_time_decay</code></td><td>true (code default)</td><td>true (code default)</td><td>2026-02-08 15:17 (reverted)</td><td>#2 <span class="badge badge-reverted">REVERTED</span></td></tr>
-        <tr><td><code>take_profit_time_decay</code></td><td>true (code default)</td><td>true</td><td>&mdash;</td><td>&mdash;</td></tr>
+        <tr><td><code>stop_loss_time_decay</code></td><td>true (code default)</td><td>true</td><td>2026-02-08 15:17 (reverted)</td><td>#2 <span class="badge badge-reverted">REVERTED</span></td></tr>
+        <tr><td><code>take_profit_time_decay</code></td><td>true (code: 0.6x mid)</td><td>true (code: 2x mid)</td><td>2026-02-08 17:25</td><td>#4 <strong>(CODE FIX)</strong></td></tr>
         <tr><td><code>stop_loss_confirmations</code></td><td>3</td><td>3</td><td>&mdash;</td><td>&mdash;</td></tr>
+        <tr><td><code>early_exit_loss_guard</code></td><td>70% (code: 0.30)</td><td>95% (code: 0.05)</td><td>2026-02-08 21:10</td><td>#6 <strong>(CODE FIX)</strong></td></tr>
         <!-- Sniper Parameters -->
         <tr><td><code>sniper_min_confidence</code></td><td>0.92</td><td>&mdash;</td><td>2026-02-07</td><td>#1</td></tr>
         <tr><td><code>sniper_max_entry_price</code></td><td>0.80</td><td>&mdash;</td><td>2026-02-07</td><td>#1</td></tr>
         <tr><td><code>sniper_order_size</code></td><td>30</td><td>&mdash;</td><td>2026-02-07</td><td>#1</td></tr>
         <!-- Risk Parameters -->
+        <tr><td><code>max_entries_per_market</code></td><td>5</td><td>2</td><td>2026-02-08 ~19:30</td><td>#5</td></tr>
         <tr><td><code>max_unhedged_exposure</code></td><td>250.0</td><td>&mdash;</td><td>2026-02-07</td><td>#1</td></tr>
         <tr><td><code>max_position_per_market</code></td><td>750.0</td><td>1000.0</td><td>2026-02-07</td><td>#1</td></tr>
-        <tr><td><code>max_daily_loss</code></td><td>1000.0</td><td>250.0</td><td>2026-02-07</td><td>#1</td></tr>
+        <tr><td><code>max_daily_loss</code></td><td>1000.0</td><td>250.0</td><td>2026-02-08 16:50</td><td>CB fix</td></tr>
         <tr><td><code>sim_balance</code></td><td>10000</td><td>&mdash;</td><td>2026-02-07</td><td>#1</td></tr>
     </table>
 </div>
@@ -245,6 +252,43 @@
 <h2>3. Experiment Timeline</h2>
 
 <p>Chronological record of every parameter change. Newest entries at the top. Each entry includes hypothesis, before/after metrics, and verdict.</p>
+
+<div class="timeline-entry pending">
+    <div class="timeline-date">2026-02-08 ~21:10 UTC &mdash; Experiment #6</div>
+    <div class="timeline-title">
+        Early exit loss guard: 95% &rarr; 70% loss threshold <strong>(CODE FIX, all strategies)</strong>
+        <span class="badge badge-pending">OBSERVING</span>
+    </div>
+    <p><strong>Root cause:</strong> Time-based exits were selling positions at 90-99% loss for pennies. Example: $104.77 invested, sold for $0.40 (99.6% loss, -$104.37). The old threshold only skipped exits at &gt;95% loss (value_ratio &lt; 0.05). Positions at 70-95% loss were being sold for negligible salvage instead of held to resolution.</p>
+    <p><strong>Fix:</strong> Changed <code>value_ratio</code> threshold from <code>0.05</code> to <code>0.30</code> across ALL strategies: price_lag, asymmetric, and dip_buyer. Positions down &gt;70% are now held to resolution. Fade_panic was unaffected (never exits early).</p>
+    <p><strong>Critical finding:</strong> Only price_lag had this guard. Asymmetric and dip_buyer had NO value check at all in their time exit &mdash; they dumped everything regardless of loss size.</p>
+    <p><strong>Success criteria:</strong> Zero early exits with &gt;70% loss. No impact on profitable early exits (those have positive value_ratio &gt; 1.0).</p>
+    <p><strong>After metrics:</strong></p>
+    <div class="experiment-metrics">
+        <div class="stat"><div class="stat-value">???</div><div class="stat-label">Heavy-loss exits blocked</div></div>
+        <div class="stat"><div class="stat-value">???</div><div class="stat-label">Normal exits (unaffected)</div></div>
+        <div class="stat"><div class="stat-value">???</div><div class="stat-label">Net P&amp;L impact</div></div>
+    </div>
+    <p><strong>Verdict:</strong> <em>Pending &mdash; review after observation period</em></p>
+</div>
+
+<div class="timeline-entry pending">
+    <div class="timeline-date">2026-02-08 ~19:30 UTC &mdash; Experiment #5</div>
+    <div class="timeline-title">
+        <code>max_entries_per_market</code>: 2 &rarr; 5
+        <span class="badge badge-pending">OBSERVING</span>
+    </div>
+    <p><strong>Root cause:</strong> Parallel strategies were blocking each other. When asymmetric took 2 entries on a market, fade_panic (or any other strategy) was rejected with <code>max entries reached: 2 &ge; 2</code> on the same condition_id. The entry cap is shared across all strategy types, not per-strategy.</p>
+    <p><strong>Evidence:</strong> Decision log analysis showed every multi-strategy cycle had the second strategy rejected. In cycles 695-1276, asymmetric was always approved first, fade_panic always rejected with entry cap.</p>
+    <p><strong>Fix:</strong> Increased <code>max_entries_per_market</code> from 2 to 5, allowing multiple strategies to operate independently on the same market.</p>
+    <p><strong>Success criteria:</strong> Multiple strategies executing on the same market in the same cycle. Reduced risk_rejected rate for entry cap reasons.</p>
+    <p><strong>After metrics:</strong></p>
+    <div class="experiment-metrics">
+        <div class="stat"><div class="stat-value">???</div><div class="stat-label">Multi-strategy cycles</div></div>
+        <div class="stat"><div class="stat-value">???</div><div class="stat-label">Entry cap rejections</div></div>
+    </div>
+    <p><strong>Verdict:</strong> <em>Pending &mdash; review after observation period</em></p>
+</div>
 
 <div class="timeline-entry pending">
     <div class="timeline-date">2026-02-08 17:25 UTC &mdash; Experiment #4</div>
@@ -442,10 +486,10 @@ TEMPLATE — Copy this block for each new experiment. Place ABOVE previous entri
         <th>Active Strategies</th>
     </tr>
     <tr>
-        <td>1</td><td>2026-02-08</td><td>#1, #2</td><td>0 / 0</td>
-        <td>~160</td><td>108 (so far)</td><td>37%</td>
-        <td class="green">+$370</td><td class="green">+$370</td>
-        <td>price_lag, maker_arb, sniper</td>
+        <td>1</td><td>2026-02-08</td><td>#1&ndash;#6</td><td>0 kept / 1 reverted (#2)</td>
+        <td>~160+</td><td>567+ (ongoing)</td><td>~25%</td>
+        <td class="red">-$384</td><td class="red">-$384</td>
+        <td>arb, asym, maker_arb, dip_buyer, fade_panic</td>
     </tr>
 </table>
 
@@ -522,14 +566,56 @@ TEMPLATE — Copy this block for each new experiment. Place ABOVE previous entri
 
 <div class="card">
     <div class="card-header">
-        <h3>Lottery ticket preservation is net negative</h3>
-        <span class="badge badge-pending">MONITOR</span>
+        <h3>Lottery ticket preservation is net negative &rarr; FIXED in Experiment #6</h3>
+        <span class="badge badge-kept">RESOLVED</span>
     </div>
     <p><strong>Discovered:</strong> 2026-02-08 | <strong>Source:</strong> Log analysis of time_exit_skipped_lottery events</p>
-    <p>Positions below 5% of cost basis are skipped by time exit and held as "lottery tickets." These almost never recover. Multiple positions with 0.37&ndash;3.9% value ratios expired at $0.</p>
-    <p><strong>Evidence:</strong> ETH: $0.30/$80 cost (0.37%) &rarr; $0. SOL: $1.84/$47 (3.9%) &rarr; $0. Salvage value forfeited each time.</p>
-    <p><strong>Implication:</strong> May need to lower or remove the lottery skip threshold. But first see if disabling SL time decay prevents positions from reaching lottery territory.</p>
-    <p><strong>Recommended action:</strong> Monitor after Experiment #2. If lottery skips persist, propose code change.</p>
+    <p>Positions below 5% of cost basis were skipped by time exit and held as "lottery tickets." These almost never recover. Multiple positions with 0.37&ndash;3.9% value ratios expired at $0.</p>
+    <p><strong>Resolution:</strong> Experiment #6 raised the threshold from 5% to 30% (positions down &gt;70% are now held to resolution). This captures the lottery ticket behavior plus the broader class of heavy-loss positions that were being sold for pennies (e.g., $104.77 &rarr; $0.40).</p>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3>Parallel strategies are blocked by shared entry cap</h3>
+        <span class="badge badge-kept">RESOLVED</span>
+    </div>
+    <p><strong>Discovered:</strong> 2026-02-08 | <strong>Source:</strong> Decision log analysis of multi-strategy cycles</p>
+    <p><code>max_entries_per_market</code> (default 2) is shared across ALL strategy types for the same condition_id. When asymmetric takes 2 entries on BTC, fade_panic is rejected even though it found a valid opportunity. The parallel mode correctly finds opportunities from multiple strategies, but sequential execution + shared cap means only the first strategy gets to trade.</p>
+    <p><strong>Evidence:</strong> Cycles 695-1276: every fade_panic opportunity rejected with <code>max entries reached: 2 &ge; 2</code> after asymmetric already executed.</p>
+    <p><strong>Resolution:</strong> Increased <code>max_entries_per_market</code> from 2 to 5 (Experiment #5). Future improvement: per-(strategy, market) entry tracking instead of global per-market.</p>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3>Take-profit time decay was inverted (copied from stop-loss)</h3>
+        <span class="badge badge-kept">RESOLVED</span>
+    </div>
+    <p><strong>Discovered:</strong> 2026-02-08 | <strong>Source:</strong> Code review after 0 TP triggers all day</p>
+    <p>TP time decay used the same <code>* 2</code> multiplier as SL. For SL, doubling = harder to trigger = protective. For TP, doubling = harder to trigger = can never capture gains. With TP at 0.17, the middle third required 34% gain (impossible on 15-min markets).</p>
+    <p><strong>Evidence:</strong> 0 take-profit triggers in 11+ hours across all strategies and all config changes.</p>
+    <p><strong>Resolution:</strong> Fixed in Experiment #4 &mdash; middle third now uses <code>* 0.6</code> (0.17 &rarr; 0.102). Key lesson: never copy SL patterns to TP without inverting the logic.</p>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3>Admin dashboard writes empty strings for numeric fields</h3>
+        <span class="badge badge-kept">RESOLVED</span>
+    </div>
+    <p><strong>Discovered:</strong> 2026-02-08 | <strong>Source:</strong> Bot crash loop after admin dashboard save</p>
+    <p>When dip_buyer and fade_panic were enabled via admin dashboard, the save endpoint wrote <code>BOT_DIP_SPOT_WINDOW_SECONDS=""</code> for all 20 numeric parameters. Pydantic can't parse empty strings as int/float &rarr; 20 validation errors &rarr; crash loop for ~15 min.</p>
+    <p><strong>Root cause:</strong> <code>env_manager._quote("")</code> returns <code>""</code>. The admin save handler converts all values to string, including empty ones.</p>
+    <p><strong>Resolution:</strong> Fixed save handler to skip empty string values. Also: always check bot logs after admin dashboard changes.</p>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3>Early exits selling positions at 90-99% loss</h3>
+        <span class="badge badge-kept">RESOLVED</span>
+    </div>
+    <p><strong>Discovered:</strong> 2026-02-08 | <strong>Source:</strong> Trade results showing $104.77 &rarr; $0.40 early exit</p>
+    <p>Only price_lag had a value check before time exits. Asymmetric and dip_buyer had NO guard &mdash; they dumped every unhedged position near expiry regardless of value. A position that lost 99.6% of its value was sold for $0.40 instead of being held to resolution where it could recover to $104.77.</p>
+    <p><strong>Evidence:</strong> Multiple early exits with &gt;90% loss: $104.77 &rarr; $0.40, $56.89 &rarr; $2.50, etc.</p>
+    <p><strong>Resolution:</strong> Experiment #6 added the 70% loss guard to all three strategies (price_lag, asymmetric, dip_buyer).</p>
 </div>
 
 <!-- ============================================================ -->
@@ -609,9 +695,44 @@ TEMPLATE for failed hypotheses:
     These <strong>require human approval</strong> before implementation.
 </p>
 
-<div class="callout">
-    <strong>No proposals yet.</strong> If parameter tuning reveals structural limitations in the strategy code,
-    proposals will appear here for discussion.
+<div class="card">
+    <div class="card-header">
+        <h3>TP time decay inversion fix</h3>
+        <span class="badge badge-active">IMPLEMENTED</span>
+    </div>
+    <p><strong>Problem:</strong> TP time decay used <code>* 2</code> in middle third (copied from SL), making threshold unreachable.</p>
+    <p><strong>Change:</strong> <code>src/strategy/price_lag.py</code> &mdash; middle third multiplier from <code>* 2</code> to <code>* 0.6</code>.</p>
+    <p><strong>Status:</strong> Deployed 2026-02-08 17:25 UTC (Experiment #4)</p>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3>Early exit 70% loss guard (all strategies)</h3>
+        <span class="badge badge-active">IMPLEMENTED</span>
+    </div>
+    <p><strong>Problem:</strong> Asymmetric and dip_buyer had no value check on time exits, dumping positions at 90-99% loss.</p>
+    <p><strong>Change:</strong> <code>src/strategy/price_lag.py</code>, <code>asymmetric.py</code>, <code>dip_buyer.py</code> &mdash; skip time exit when <code>value_ratio &lt; 0.30</code>.</p>
+    <p><strong>Status:</strong> Deployed 2026-02-08 ~21:10 UTC (Experiment #6)</p>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3>Admin dashboard empty string save bug fix</h3>
+        <span class="badge badge-active">IMPLEMENTED</span>
+    </div>
+    <p><strong>Problem:</strong> Saving settings with blank numeric fields wrote <code>""</code> to .env, crashing the bot (20 Pydantic validation errors).</p>
+    <p><strong>Change:</strong> <code>src/admin/app.py</code> &mdash; skip empty string values in save handler.</p>
+    <p><strong>Status:</strong> Deployed 2026-02-08 ~18:15 UTC</p>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3>Monitoring dashboard password removal</h3>
+        <span class="badge badge-active">IMPLEMENTED</span>
+    </div>
+    <p><strong>Problem:</strong> Read-only monitoring dashboard was prompting for HTTP Basic auth.</p>
+    <p><strong>Change:</strong> <code>src/dashboard/app.py</code> &mdash; removed auth dependency from router.</p>
+    <p><strong>Status:</strong> Deployed 2026-02-08 ~18:15 UTC</p>
 </div>
 
 <!--
@@ -633,7 +754,7 @@ TEMPLATE for code change proposals:
 
 <hr class="separator">
 <p class="muted" style="text-align: center; font-size: 0.8rem;">
-    This document is auto-maintained by the Claude analysis agent. Last updated: 2026-02-08 14:02 UTC.
+    This document is auto-maintained by the Claude analysis agent. Last updated: 2026-02-08 21:30 UTC.
 </p>
 
 </body>
