@@ -449,5 +449,14 @@ class RiskManager:
         if kelly_size <= 0:
             return self.adjust_size(opp, self._settings.order_size)
 
+        # Divergence-weighted scaling: higher KL → larger position
+        if self._settings.divergence_kelly_scaling:
+            kl = opp.metadata.get("kl_kl_divergence", 0.0)
+            if isinstance(kl, (int, float)) and kl > 0:
+                from src.utils.divergence import divergence_scaling_factor
+
+                scale = divergence_scaling_factor(kl)
+                kelly_size *= scale
+
         # Still apply risk limits on the Kelly-derived size
         return self.adjust_size(opp, kelly_size)

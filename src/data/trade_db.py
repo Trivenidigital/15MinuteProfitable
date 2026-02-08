@@ -817,6 +817,41 @@ class TradeDatabase:
         }
 
     # ------------------------------------------------------------------
+    # Spot series for correlation computation
+    # ------------------------------------------------------------------
+
+    def get_spot_series_for_correlation(
+        self,
+        symbols: list[str],
+        window_seconds: int = 3600,
+    ) -> dict[str, list[tuple[float, float]]]:
+        """Fetch aligned spot histories for cross-asset correlation computation.
+
+        Returns a dict mapping each symbol to a list of (timestamp, price)
+        tuples within the last ``window_seconds``.
+
+        Args:
+            symbols: List of Binance symbols (e.g. ["BTCUSDT", "ETHUSDT"]).
+            window_seconds: How far back to look (default 1 hour).
+
+        Returns:
+            Dict of symbol -> [(timestamp, price), ...] sorted by timestamp.
+        """
+        cutoff = time.time() - window_seconds
+        result: dict[str, list[tuple[float, float]]] = {}
+
+        for symbol in symbols:
+            rows = self._conn.execute(
+                "SELECT timestamp, price FROM spot_snapshots "
+                "WHERE symbol = ? AND timestamp >= ? "
+                "ORDER BY timestamp ASC",
+                (symbol, cutoff),
+            ).fetchall()
+            result[symbol] = [(float(r["timestamp"]), float(r["price"])) for r in rows]
+
+        return result
+
+    # ------------------------------------------------------------------
     # Analytics
     # ------------------------------------------------------------------
 

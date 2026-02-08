@@ -36,6 +36,7 @@ from src.strategy.fade_panic import FadePanicStrategy
 from src.strategy.maker_arbitrage import ArbPair, MakerArbitrageStrategy
 from src.strategy.price_lag import ASSET_TO_BINANCE_SYMBOL, PriceLagStrategy
 from src.strategy.resolution_sniper import ResolutionSniperStrategy
+from src.strategy.cross_asset import CrossAssetCorrelationStrategy
 from src.strategy.scanner import MarketScanner
 from src.utils.fee_verifier import verify_fees
 from src.utils.pid_lock import PidLock
@@ -1636,6 +1637,7 @@ def _build_strategies(
     settings: Settings,
     book_manager: OrderBookManager,
     spot_buffer: SpotBuffer | None = None,
+    trade_db: object | None = None,
 ) -> list[BaseStrategy]:
     """Build the list of enabled strategies based on settings."""
     strategies: list[BaseStrategy] = []
@@ -1667,6 +1669,12 @@ def _build_strategies(
     if settings.enable_resolution_sniper and spot_buffer is not None:
         strategies.append(ResolutionSniperStrategy(
             settings=settings, book_manager=book_manager, spot_buffer=spot_buffer,
+        ))
+
+    if settings.enable_cross_asset_strategy and spot_buffer is not None:
+        strategies.append(CrossAssetCorrelationStrategy(
+            settings=settings, book_manager=book_manager,
+            spot_buffer=spot_buffer, trade_db=trade_db,
         ))
 
     return strategies
@@ -1743,6 +1751,8 @@ async def _run_bot(settings: Settings, pid_lock: PidLock) -> None:
         enable_resolution_sniper=settings.enable_resolution_sniper,
         enable_dip_buyer=settings.enable_dip_buyer,
         enable_fade_panic=settings.enable_fade_panic,
+        enable_divergence_scoring=settings.enable_divergence_scoring,
+        enable_cross_asset_strategy=settings.enable_cross_asset_strategy,
     )
 
     # Alert dispatcher
@@ -1836,12 +1846,12 @@ async def _run_bot(settings: Settings, pid_lock: PidLock) -> None:
         return
 
     # Build enabled strategies and scanner
-    strategies = _build_strategies(settings, book_manager, spot_buffer)
+    strategies = _build_strategies(settings, book_manager, spot_buffer, trade_db)
     if not strategies:
         _log.warning("no_strategies_enabled", msg="Enable at least one strategy.")
         return
 
-    scanner = MarketScanner(strategies=strategies)
+    scanner = MarketScanner(strategies=strategies, settings=settings)
     _log.info(
         "strategies_loaded",
         count=scanner.strategy_count,

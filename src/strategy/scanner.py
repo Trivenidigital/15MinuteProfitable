@@ -6,6 +6,9 @@ viable.
 
 Also supports parallel A/B testing mode where the best opportunity from
 each strategy type is returned for simultaneous execution.
+
+When divergence scoring is enabled, opportunities are ranked using a
+composite score: ``alpha * profit_pct + (1 - alpha) * kl_divergence``.
 """
 
 from __future__ import annotations
@@ -13,6 +16,7 @@ from __future__ import annotations
 import asyncio
 from collections import defaultdict
 
+from src.config import Settings
 from src.core.models import Market, Opportunity, StrategyType
 from src.monitoring.logger import get_logger
 from src.strategy.base import BaseStrategy
@@ -28,8 +32,13 @@ class MarketScanner:
     opportunity from each strategy type for parallel execution.
     """
 
-    def __init__(self, strategies: list[BaseStrategy]) -> None:
+    def __init__(
+        self,
+        strategies: list[BaseStrategy],
+        settings: Settings | None = None,
+    ) -> None:
         self._strategies = strategies
+        self._settings = settings
         self._log = get_logger("scanner")
 
     # -- public API -----------------------------------------------------------
@@ -59,41 +68,42 @@ class MarketScanner:
         return best
 
     async def scan_all(self, markets: list[Market]) -> list[Opportunity]:
-        """Return ALL opportunities sorted by expected_profit_pct descending.
+        """Return ALL opportunities sorted by ranking score descending.
 
-        Unlike scan() which returns only the best, this returns the full
-        ranked list for logging/monitoring purposes.
+        Uses ``evaluate_all(markets)`` for each strategy, which allows
+        cross-market strategies to see all markets at once.  Default
+        ``evaluate_all`` falls back to per-market ``evaluate`` calls.
+
+        When divergence scoring is enabled, ranking uses a composite score:
+        ``alpha * profit_pct + (1 - alpha) * kl_divergence``.
+        Otherwise falls back to pure ``expected_profit_pct``.
         """
         if not self._strategies or not markets:
             return []
 
-        # Build a coroutine for every (strategy, market) pair
-        tasks: list[asyncio.Task[Opportunity | None]] = []
-        task_labels: list[tuple[str, str]] = []
+        # Evaluate each strategy against all markets via evaluate_all
+        tasks: list[asyncio.Task[list[Opportunity]]] = []
         for strategy in self._strategies:
-            for market in markets:
-                tasks.append(
-                    asyncio.ensure_future(self._safe_evaluate(strategy, market)),
-                )
-                task_labels.append((strategy.name, market.slug))
+            tasks.append(
+                asyncio.ensure_future(self._safe_evaluate_all(strategy, markets)),
+            )
 
         results = await asyncio.gather(*tasks)
 
-        # Collect non-None results
+        # Flatten results
         opportunities: list[Opportunity] = []
-        for (strat_name, market_slug), result in zip(task_labels, results):
-            if result is not None:
+        for strategy, opps in zip(self._strategies, results, strict=True):
+            for opp in opps:
                 self._log.debug(
                     "opportunity_found",
-                    strategy=strat_name,
-                    market=market_slug,
-                    profit_pct=round(result.expected_profit_pct, 6),
+                    strategy=strategy.name,
+                    market=opp.market.slug,
+                    profit_pct=round(opp.expected_profit_pct, 6),
                 )
-                opportunities.append(result)
+                opportunities.append(opp)
 
-        # Sort by expected_profit_pct descending (stable sort preserves
-        # insertion order for equal values, ensuring deterministic tie-breaking)
-        opportunities.sort(key=lambda o: o.expected_profit_pct, reverse=True)
+        # Sort by ranking score
+        opportunities.sort(key=self._ranking_key, reverse=True)
 
         return opportunities
 
@@ -119,7 +129,7 @@ class MarketScanner:
         for opp in all_opps:
             by_strategy[opp.strategy].append(opp)
 
-        # Pick the best from each group (already sorted by profit_pct desc)
+        # Pick the best from each group (already sorted by ranking score desc)
         best_per_strategy: dict[StrategyType, Opportunity] = {}
         for strat_type, opps in by_strategy.items():
             if opps:
@@ -128,7 +138,7 @@ class MarketScanner:
         self._log.info(
             "scan_per_strategy_complete",
             strategies_with_opps=len(best_per_strategy),
-            strategy_types=[s.value for s in best_per_strategy.keys()],
+            strategy_types=[s.value for s in best_per_strategy],
         )
 
         return best_per_strategy
@@ -147,22 +157,40 @@ class MarketScanner:
 
     # -- internals ------------------------------------------------------------
 
-    async def _safe_evaluate(
+    def _ranking_key(self, opp: Opportunity) -> float:
+        """Compute the ranking key for an opportunity.
+
+        When divergence scoring is enabled:
+            alpha * profit_pct + (1 - alpha) * kl_divergence
+
+        Otherwise: pure expected_profit_pct.
+        """
+        if (
+            self._settings is not None
+            and self._settings.enable_divergence_scoring
+        ):
+            alpha = self._settings.divergence_ranking_alpha
+            kl = opp.metadata.get("kl_kl_divergence", 0.0)
+            if isinstance(kl, (int, float)):
+                return alpha * opp.expected_profit_pct + (1.0 - alpha) * kl
+        return opp.expected_profit_pct
+
+    async def _safe_evaluate_all(
         self,
         strategy: BaseStrategy,
-        market: Market,
-    ) -> Opportunity | None:
-        """Call ``strategy.evaluate(market)`` with exception handling.
+        markets: list[Market],
+    ) -> list[Opportunity]:
+        """Call ``strategy.evaluate_all(markets)`` with exception handling.
 
-        If the strategy raises, log the error and return ``None`` so that
-        one failing strategy does not prevent the rest from being evaluated.
+        If the strategy raises, log the error and return an empty list so
+        that one failing strategy does not prevent the rest from being
+        evaluated.
         """
         try:
-            return await strategy.evaluate(market)
+            return await strategy.evaluate_all(markets)
         except Exception:
             self._log.exception(
-                "strategy_evaluate_error",
+                "strategy_evaluate_all_error",
                 strategy=strategy.name,
-                market=market.slug,
             )
-            return None
+            return []

@@ -270,6 +270,13 @@ class AsymmetricStrategy(BaseStrategy):
             yes_fill = None
             no_fill = fill
 
+        # KL divergence scoring (optional)
+        kl_meta: dict[str, float] = {}
+        if self._settings.enable_divergence_scoring and yes_ask is not None and no_ask is not None:
+            from src.utils.divergence import market_mispricing_score
+
+            kl_meta = {f"kl_{k}": v for k, v in market_mispricing_score(yes_ask, no_ask).items()}
+
         opp = Opportunity(
             strategy=self.strategy_type,
             market=market,
@@ -292,6 +299,7 @@ class AsymmetricStrategy(BaseStrategy):
                 "yes_avg_cost": acc.yes_avg_cost,
                 "no_avg_cost": acc.no_avg_cost,
                 "hypothetical_combined": hypo_combined,
+                **kl_meta,
             },
         )
 

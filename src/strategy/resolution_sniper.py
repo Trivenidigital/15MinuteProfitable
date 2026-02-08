@@ -291,6 +291,20 @@ class ResolutionSniperStrategy(BaseStrategy):
 
         distance_pct = distance * 100.0
 
+        # KL divergence scoring (optional)
+        kl_meta: dict[str, float] = {}
+        if self._settings.enable_divergence_scoring:
+            from src.utils.divergence import market_mispricing_score
+
+            sniper_yes_book = self._book_manager.get_book(market.yes_token_id)
+            sniper_no_book = self._book_manager.get_book(market.no_token_id)
+            if sniper_yes_book and sniper_no_book:
+                s_yes_ask = sniper_yes_book.best_ask
+                s_no_ask = sniper_no_book.best_ask
+                if s_yes_ask is not None and s_no_ask is not None:
+                    kl_data = market_mispricing_score(s_yes_ask, s_no_ask)
+                    kl_meta = {f"kl_{k}": v for k, v in kl_data.items()}
+
         opp = Opportunity(
             strategy=self.strategy_type,
             market=market,
@@ -314,6 +328,7 @@ class ResolutionSniperStrategy(BaseStrategy):
                 "tranche_index": tranche_idx,
                 "tranche_size": tranche_size,
                 "time_remaining": round(time_remaining, 1),
+                **kl_meta,
             },
         )
 

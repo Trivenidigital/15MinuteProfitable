@@ -135,6 +135,13 @@ class ArbitrageStrategy(BaseStrategy):
         # 8. Build opportunity
         confidence = min(1.0, profit_per_share / self._settings.min_profit_margin)
 
+        # KL divergence scoring (optional)
+        kl_meta: dict[str, float] = {}
+        if self._settings.enable_divergence_scoring:
+            from src.utils.divergence import market_mispricing_score
+
+            kl_meta = {f"kl_{k}": v for k, v in market_mispricing_score(yes_vwap, no_vwap).items()}
+
         opportunity = Opportunity(
             strategy=self.strategy_type,
             market=market,
@@ -154,6 +161,7 @@ class ArbitrageStrategy(BaseStrategy):
                 "taker_yes": taker_yes,
                 "taker_no": taker_no,
                 "winner_fee": winner,
+                **kl_meta,
             },
         )
 

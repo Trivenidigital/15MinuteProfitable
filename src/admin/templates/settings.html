@@ -104,6 +104,63 @@
         </div>
     </div>
 
+    <!-- Divergence / Information-Theoretic Features -->
+    <div class="card">
+        <h2>Divergence / Information-Theoretic Features</h2>
+        <div class="form-grid">
+            <div class="form-group">
+                <label>Divergence Scoring</label>
+                <div class="toggle">
+                    <input type="checkbox" name="BOT_ENABLE_DIVERGENCE_SCORING" {{ 'checked' if settings.enable_divergence_scoring }}>
+                    <span>Add KL divergence to opportunity metadata</span>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Ranking Alpha</label>
+                <input type="number" name="BOT_DIVERGENCE_RANKING_ALPHA" value="{{ settings.divergence_ranking_alpha }}" step="0.05" min="0" max="1">
+                <small>Weight of profit_pct in composite ranking (0-1)</small>
+            </div>
+            <div class="form-group">
+                <label>Kelly Scaling</label>
+                <div class="toggle">
+                    <input type="checkbox" name="BOT_DIVERGENCE_KELLY_SCALING" {{ 'checked' if settings.divergence_kelly_scaling }}>
+                    <span>Scale Kelly sizing by KL divergence</span>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Exit Signals</label>
+                <div class="toggle">
+                    <input type="checkbox" name="BOT_DIVERGENCE_EXIT_SIGNALS" {{ 'checked' if settings.divergence_exit_signals }}>
+                    <span>Exit when KL divergence decays</span>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Exit Threshold</label>
+                <input type="number" name="BOT_DIVERGENCE_EXIT_THRESHOLD" value="{{ settings.divergence_exit_threshold }}" step="0.05" min="0" max="1">
+                <small>Exit when current KL &lt; entry KL * threshold</small>
+            </div>
+            <div class="form-group">
+                <label>Cross-Asset Strategy</label>
+                <div class="toggle">
+                    <input type="checkbox" name="BOT_ENABLE_CROSS_ASSET_STRATEGY" {{ 'checked' if settings.enable_cross_asset_strategy }}>
+                    <span>Enable Bregman projection cross-asset trading</span>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Correlation Window (s)</label>
+                <input type="number" name="BOT_CROSS_ASSET_CORRELATION_WINDOW" value="{{ settings.cross_asset_correlation_window }}" step="300">
+            </div>
+            <div class="form-group">
+                <label>Min Divergence</label>
+                <input type="number" name="BOT_CROSS_ASSET_MIN_DIVERGENCE" value="{{ settings.cross_asset_min_divergence }}" step="0.005">
+            </div>
+            <div class="form-group">
+                <label>Cross-Asset Order Size ($)</label>
+                <input type="number" name="BOT_CROSS_ASSET_ORDER_SIZE" value="{{ settings.cross_asset_order_size }}" step="10">
+            </div>
+        </div>
+    </div>
+
     <!-- Price-Lag Parameters -->
     <div class="card">
         <h2>Price-Lag Parameters</h2>

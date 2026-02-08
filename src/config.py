@@ -100,11 +100,11 @@ class Settings(BaseSettings):
 
     # Strategy Toggles
     enable_arbitrage: bool = True
-    enable_asymmetric: bool = False
-    enable_price_lag: bool = False
-    enable_maker_arbitrage: bool = False
+    enable_asymmetric: bool = True
+    enable_price_lag: bool = True
+    enable_maker_arbitrage: bool = True
     enable_multi_market: bool = True
-    enable_parallel_strategies: bool = False  # A/B test mode: execute best opp from each strategy
+    enable_parallel_strategies: bool = True  # A/B test mode: execute best opp from each strategy
 
     # Price-Lag Strategy Parameters (AGGRESSIVE MODE)
     spot_move_threshold: float = 0.0005  # 0.05% - ultra sensitive to spot moves
@@ -145,7 +145,7 @@ class Settings(BaseSettings):
     maker_min_profit_margin: float = 0.002  # 0.2% min profit per share (lower bar)
 
     # Dip Buyer / Mean Reversion Strategy Parameters
-    enable_dip_buyer: bool = False
+    enable_dip_buyer: bool = True
     dip_spot_window_seconds: int = 5        # Short window for detecting sharp moves
     dip_spot_threshold: float = 0.0015      # 0.15% move in dip window to trigger
     dip_mean_window_seconds: int = 60       # Longer window for mean comparison
@@ -156,7 +156,7 @@ class Settings(BaseSettings):
     dip_time_exit_seconds: float = 60.0     # Exit 60s before close
 
     # Fade Panic Strategy Parameters
-    enable_fade_panic: bool = False
+    enable_fade_panic: bool = True
     fade_panic_window_seconds: float = 120.0   # Only active in last 120s
     fade_panic_hard_stop_seconds: float = 15.0 # Stop buying at T-15s
     fade_panic_odds_shift_threshold: float = 0.08  # 8% odds shift to trigger
@@ -166,7 +166,7 @@ class Settings(BaseSettings):
     fade_panic_max_entry_price: float = 0.92   # Don't buy above this price
 
     # Resolution Sniper Strategy Parameters
-    enable_resolution_sniper: bool = False
+    enable_resolution_sniper: bool = True
     sniper_order_size: float = 150.0          # Total across 3 tranches ($50 each)
     sniper_min_confidence: float = 0.90       # Min win probability to enter
     sniper_window_seconds: float = 120.0      # Activate at T-120s
@@ -228,6 +228,17 @@ class Settings(BaseSettings):
     dashboard_username: str = "admin"
     dashboard_password: SecretStr = SecretStr("")  # empty = auth disabled
     db_path: str = "data/trades.db"
+
+    # Divergence / Information-Theoretic Features
+    enable_divergence_scoring: bool = False
+    divergence_ranking_alpha: float = 0.7  # profit_pct weight in composite ranking
+    divergence_kelly_scaling: bool = False
+    divergence_exit_signals: bool = False
+    divergence_exit_threshold: float = 0.5
+    enable_cross_asset_strategy: bool = False
+    cross_asset_correlation_window: int = 3600
+    cross_asset_min_divergence: float = 0.01
+    cross_asset_order_size: float = 100.0
 
     # Decision logging (Phase 1 observability)
     enable_decision_logging: bool = True

@@ -215,6 +215,13 @@ class MakerArbitrageStrategy(BaseStrategy):
         # 8. Build opportunity with GTC metadata
         confidence = min(1.0, profit_per_share / self._settings.maker_min_profit_margin)
 
+        # KL divergence scoring (optional)
+        kl_meta: dict[str, float] = {}
+        if self._settings.enable_divergence_scoring:
+            from src.utils.divergence import market_mispricing_score
+
+            kl_meta = {f"kl_{k}": v for k, v in market_mispricing_score(yes_price, no_price).items()}
+
         opportunity = Opportunity(
             strategy=self.strategy_type,
             market=market,
@@ -234,6 +241,7 @@ class MakerArbitrageStrategy(BaseStrategy):
                 "combined_cost": combined_cost,
                 "gross": gross,
                 "winner_fee": winner_fee,
+                **kl_meta,
             },
         )
 

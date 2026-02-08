@@ -63,6 +63,9 @@ class PriceLagStrategy(BaseStrategy):
         self._consecutive_signals: dict[str, int] = {}  # condition_id -> count
         self._last_signal_direction: dict[str, str] = {}  # condition_id -> "UP"/"DOWN"
         self._stop_loss_counts: dict[str, int] = {}  # condition_id -> consecutive trigger count
+        # Divergence exit tracking
+        self._entry_kl: dict[str, float] = {}  # condition_id -> entry KL divergence
+        self._entry_direction: dict[str, str] = {}  # condition_id -> "UP"/"DOWN"
 
     @property
     def name(self) -> str:
@@ -258,6 +261,13 @@ class PriceLagStrategy(BaseStrategy):
             yes_fill = None
             no_fill = fill
 
+        # KL divergence scoring (optional)
+        kl_meta: dict[str, float] = {}
+        if self._settings.enable_divergence_scoring:
+            from src.utils.divergence import market_mispricing_score
+
+            kl_meta = {f"kl_{k}": v for k, v in market_mispricing_score(yes_ask, no_ask).items()}
+
         opp = Opportunity(
             strategy=self.strategy_type,
             market=market,
@@ -278,8 +288,16 @@ class PriceLagStrategy(BaseStrategy):
                 "sizing_multiplier": sizing_multiplier,
                 "confirmations": confirmations,
                 "binance_symbol": binance_symbol,
+                **kl_meta,
             },
         )
+
+        # Track entry KL for divergence exit signals
+        if self._settings.divergence_exit_signals and kl_meta:
+            entry_kl = kl_meta.get("kl_kl_divergence", 0.0)
+            if isinstance(entry_kl, (int, float)) and entry_kl > 0:
+                self._entry_kl[market.condition_id] = entry_kl
+                self._entry_direction[market.condition_id] = movement.direction
 
         self._log.info(
             "lag_opportunity_found",
@@ -402,6 +420,32 @@ class PriceLagStrategy(BaseStrategy):
             self._stop_loss_counts.pop(cid, None)
             return True
 
+        # 4. Divergence-based exit: KL dropped below ratio of entry KL
+        if self._settings.divergence_exit_signals and cid in self._entry_kl:
+            yes_book = self._book_manager.get_book(market.yes_token_id)
+            no_book = self._book_manager.get_book(market.no_token_id)
+            if yes_book and no_book and yes_book.best_ask and no_book.best_ask:
+                from src.utils.divergence import divergence_exit_signal, market_mispricing_score
+
+                current_kl_data = market_mispricing_score(yes_book.best_ask, no_book.best_ask)
+                current_kl = current_kl_data["kl_divergence"]
+                entry_dir = self._entry_direction.get(cid, "UP")
+                if divergence_exit_signal(
+                    self._entry_kl[cid],
+                    current_kl,
+                    entry_dir,
+                    threshold_ratio=self._settings.divergence_exit_threshold,
+                ):
+                    self._log.info(
+                        "divergence_exit_triggered",
+                        market=market.slug,
+                        entry_kl=round(self._entry_kl[cid], 6),
+                        current_kl=round(current_kl, 6),
+                        threshold=self._settings.divergence_exit_threshold,
+                    )
+                    self._stop_loss_counts.pop(cid, None)
+                    return True
+
         return False
 
     def _check_smart_stop_loss(
@@ -493,6 +537,8 @@ class PriceLagStrategy(BaseStrategy):
         self._consecutive_signals.pop(condition_id, None)
         self._last_signal_direction.pop(condition_id, None)
         self._stop_loss_counts.pop(condition_id, None)
+        self._entry_kl.pop(condition_id, None)
+        self._entry_direction.pop(condition_id, None)
 
     def _vol_adjusted_threshold(self, binance_symbol: str) -> float:
         """Return a volatility-normalized spot_move_threshold for this asset.

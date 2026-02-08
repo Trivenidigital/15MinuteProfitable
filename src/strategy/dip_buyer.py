@@ -45,6 +45,9 @@ class DipBuyerStrategy(BaseStrategy):
     ) -> None:
         super().__init__(settings, book_manager)
         self._spot_buffer = spot_buffer
+        # Divergence exit tracking
+        self._entry_kl: dict[str, float] = {}  # condition_id -> entry KL divergence
+        self._entry_direction: dict[str, str] = {}  # condition_id -> "UP"/"DOWN"
 
     @property
     def name(self) -> str:
@@ -183,6 +186,19 @@ class DipBuyerStrategy(BaseStrategy):
             yes_fill = None
             no_fill = fill
 
+        # KL divergence scoring (optional)
+        kl_meta: dict[str, float] = {}
+        if self._settings.enable_divergence_scoring:
+            from src.utils.divergence import market_mispricing_score
+
+            yes_book = self._book_manager.get_book(market.yes_token_id)
+            no_book = self._book_manager.get_book(market.no_token_id)
+            if yes_book and no_book and yes_book.best_ask and no_book.best_ask:
+                kl_meta = {
+                    f"kl_{k}": v
+                    for k, v in market_mispricing_score(yes_book.best_ask, no_book.best_ask).items()
+                }
+
         opp = Opportunity(
             strategy=self.strategy_type,
             market=market,
@@ -201,8 +217,16 @@ class DipBuyerStrategy(BaseStrategy):
                 "spike_change_pct": short_movement.change_pct,
                 "outlier_ratio": round(outlier_ratio, 2),
                 "binance_symbol": binance_symbol,
+                **kl_meta,
             },
         )
+
+        # Track entry KL for divergence exit signals
+        if self._settings.divergence_exit_signals and kl_meta:
+            entry_kl = kl_meta.get("kl_kl_divergence", 0.0)
+            if isinstance(entry_kl, (int, float)) and entry_kl > 0:
+                self._entry_kl[market.condition_id] = entry_kl
+                self._entry_direction[market.condition_id] = direction
 
         self._log.info(
             "dip_opportunity_found",
@@ -276,5 +300,31 @@ class DipBuyerStrategy(BaseStrategy):
                 pnl_pct=round(pnl_pct * 100, 2),
             )
             return True
+
+        # 4. Divergence-based exit: KL dropped below ratio of entry KL
+        cid = market.condition_id
+        if self._settings.divergence_exit_signals and cid in self._entry_kl:
+            d_yes_book = self._book_manager.get_book(market.yes_token_id)
+            d_no_book = self._book_manager.get_book(market.no_token_id)
+            if d_yes_book and d_no_book and d_yes_book.best_ask and d_no_book.best_ask:
+                from src.utils.divergence import divergence_exit_signal, market_mispricing_score
+
+                current_kl_data = market_mispricing_score(d_yes_book.best_ask, d_no_book.best_ask)
+                current_kl = current_kl_data["kl_divergence"]
+                entry_dir = self._entry_direction.get(cid, "UP")
+                if divergence_exit_signal(
+                    self._entry_kl[cid],
+                    current_kl,
+                    entry_dir,
+                    threshold_ratio=self._settings.divergence_exit_threshold,
+                ):
+                    self._log.info(
+                        "dip_divergence_exit",
+                        market=market.slug,
+                        entry_kl=round(self._entry_kl[cid], 6),
+                        current_kl=round(current_kl, 6),
+                        threshold=self._settings.divergence_exit_threshold,
+                    )
+                    return True
 
         return False

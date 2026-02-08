@@ -56,6 +56,22 @@ class BaseStrategy(ABC):
     def strategy_type(self) -> StrategyType:
         """The :class:`StrategyType` enum member for this strategy."""
 
+    # -- multi-market evaluation (override for cross-market strategies) ------
+
+    async def evaluate_all(self, markets: list[Market]) -> list[Opportunity]:
+        """Evaluate ALL markets simultaneously.
+
+        Override for cross-market strategies that need to see all markets
+        at once (e.g. cross-asset correlation).  Default implementation
+        evaluates each market independently — identical to per-market calls.
+        """
+        results: list[Opportunity] = []
+        for market in markets:
+            opp = await self.evaluate(market)
+            if opp is not None:
+                results.append(opp)
+        return results
+
     # -- helpers --------------------------------------------------------------
 
     def _is_book_stale(self, token_id: str, threshold_s: float = 30.0) -> bool:

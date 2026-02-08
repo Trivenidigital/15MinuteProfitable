@@ -221,6 +221,19 @@ class FadePanicStrategy(BaseStrategy):
             yes_fill = None
             no_fill = fill
 
+        # KL divergence scoring (optional)
+        kl_meta: dict[str, float] = {}
+        if self._settings.enable_divergence_scoring:
+            from src.utils.divergence import market_mispricing_score
+
+            no_book = self._book_manager.get_book(market.no_token_id)
+            no_ask = no_book.best_ask if no_book else None
+            if no_ask is not None:
+                kl_meta = {
+                    f"kl_{k}": v
+                    for k, v in market_mispricing_score(current_yes_ask, no_ask).items()
+                }
+
         opp = Opportunity(
             strategy=self.strategy_type,
             market=market,
@@ -240,6 +253,7 @@ class FadePanicStrategy(BaseStrategy):
                 "win_probability": round(win_prob, 4),
                 "time_remaining": round(time_remaining, 1),
                 "binance_symbol": binance_symbol,
+                **kl_meta,
             },
         )
 

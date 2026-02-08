@@ -25,6 +25,7 @@ class StrategyType(str, Enum):
     RESOLUTION_SNIPER = "resolution_sniper"
     DIP_BUYER = "dip_buyer"
     FADE_PANIC = "fade_panic"
+    CROSS_ASSET = "cross_asset"
 
 
 class OrderStatus(str, Enum):
