@@ -25,6 +25,10 @@ env/
 .env
 .env.local
 .env.*.local
+.admin.env
+.vault-password
+.vault-password.env
+*.vault
 
 # Claude Code
 CLAUDE.local.md

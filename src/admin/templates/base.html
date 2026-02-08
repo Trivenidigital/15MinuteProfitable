@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Admin{% endblock %} — BTC15MinuteBot</title>
+    <style>
+        :root {
+            --bg: #1a1a2e;
+            --bg-card: #16213e;
+            --text: #e0e0e0;
+            --accent: #0f3460;
+            --green: #00b894;
+            --red: #e74c3c;
+            --yellow: #fdcb6e;
+            --blue: #74b9ff;
+            --border: #2d3a5a;
+            --bg-input: #1b2840;
+        }
+
+        *, *::before, *::after {
+            margin: 0; padding: 0; box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        /* Header */
+        .header {
+            background: var(--bg-card);
+            border-bottom: 1px solid var(--border);
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: fixed; top: 0; left: 0; right: 0;
+            z-index: 100; height: 56px;
+        }
+
+        .header h1 {
+            font-size: 18px; font-weight: 600; color: var(--blue);
+        }
+
+        .header h1 span { color: var(--yellow); font-size: 12px; margin-left: 8px; }
+
+        /* Navigation */
+        .nav {
+            display: flex; gap: 4px;
+        }
+
+        .nav a {
+            color: var(--text); text-decoration: none;
+            padding: 8px 16px; border-radius: 6px;
+            font-size: 14px; font-weight: 500;
+            transition: background 0.2s;
+        }
+
+        .nav a:hover { background: var(--accent); }
+        .nav a.active { background: var(--accent); color: var(--blue); }
+
+        /* Container */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 72px 16px 32px;
+        }
+
+        /* Cards */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 20px 24px;
+            margin-bottom: 16px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+
+        .card h2 {
+            font-size: 16px; font-weight: 600; color: var(--blue);
+            margin-bottom: 16px; padding-bottom: 8px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        /* Form elements */
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 12px;
+        }
+
+        .form-group {
+            display: flex; flex-direction: column; gap: 4px;
+        }
+
+        .form-group label {
+            font-size: 12px; color: #8899aa;
+            text-transform: uppercase; letter-spacing: 0.5px;
+        }
+
+        .form-group input[type="text"],
+        .form-group input[type="number"],
+        .form-group input[type="password"] {
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 8px 12px;
+            color: var(--text);
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: var(--blue);
+        }
+
+        .form-group .toggle {
+            display: flex; align-items: center; gap: 8px;
+            height: 36px;
+        }
+
+        .form-group .toggle input[type="checkbox"] {
+            width: 18px; height: 18px; accent-color: var(--green);
+        }
+
+        .form-group .toggle span {
+            font-size: 14px;
+        }
+
+        .form-group select {
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 8px 12px;
+            color: var(--text);
+            font-size: 14px;
+        }
+
+        /* Buttons */
+        .btn {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 8px 20px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 14px; font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-decoration: none;
+        }
+
+        .btn-primary {
+            background: var(--blue); color: #111; border-color: var(--blue);
+        }
+        .btn-primary:hover { opacity: 0.9; }
+
+        .btn-success {
+            background: var(--green); color: #111; border-color: var(--green);
+        }
+        .btn-success:hover { opacity: 0.9; }
+
+        .btn-danger {
+            background: var(--red); color: #fff; border-color: var(--red);
+        }
+        .btn-danger:hover { opacity: 0.9; }
+
+        .btn-secondary {
+            background: var(--accent); color: var(--text); border-color: var(--border);
+        }
+        .btn-secondary:hover { background: var(--border); }
+
+        .btn:disabled {
+            opacity: 0.4; cursor: not-allowed;
+        }
+
+        .btn-row {
+            display: flex; gap: 8px; margin-top: 16px;
+            flex-wrap: wrap;
+        }
+
+        /* Alerts */
+        .alert {
+            padding: 12px 16px; border-radius: 6px;
+            margin-bottom: 16px; font-size: 14px;
+            display: none;
+        }
+
+        .alert-success {
+            background: rgba(0,184,148,0.15); color: var(--green);
+            border: 1px solid rgba(0,184,148,0.3);
+        }
+
+        .alert-error {
+            background: rgba(231,76,60,0.15); color: var(--red);
+            border: 1px solid rgba(231,76,60,0.3);
+        }
+
+        .alert-info {
+            background: rgba(116,185,255,0.15); color: var(--blue);
+            border: 1px solid rgba(116,185,255,0.3);
+        }
+
+        /* Status badge */
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .status-running {
+            background: rgba(0,184,148,0.2); color: var(--green);
+        }
+
+        .status-stopped {
+            background: rgba(231,76,60,0.2); color: var(--red);
+        }
+
+        /* Secret field */
+        .secret-field {
+            display: flex; gap: 4px; align-items: center;
+        }
+
+        .secret-field input { flex: 1; }
+
+        .secret-field button {
+            background: var(--accent);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 8px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .container { padding: 64px 8px 16px; }
+            .form-grid { grid-template-columns: 1fr; }
+            .nav a { padding: 6px 10px; font-size: 12px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>BTC15MinuteBot <span>ADMIN</span></h1>
+        <div class="nav">
+            <a href="/" class="{% if active_tab == 'settings' %}active{% endif %}">Settings</a>
+            <a href="/wallet" class="{% if active_tab == 'wallet' %}active{% endif %}">Wallet & Secrets</a>
+            <a href="/control" class="{% if active_tab == 'control' %}active{% endif %}">Bot Control</a>
+        </div>
+    </div>
+
+    <div class="container">
+        <div id="globalAlert" class="alert"></div>
+        {% block content %}{% endblock %}
+    </div>
+
+    <script>
+        function showAlert(type, message) {
+            const el = document.getElementById('globalAlert');
+            el.className = 'alert alert-' + type;
+            el.textContent = message;
+            el.style.display = 'block';
+            setTimeout(() => { el.style.display = 'none'; }, 5000);
+        }
+
+        async function apiPost(url, data) {
+            try {
+                const resp = await fetch(url, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(data),
+                });
+                const result = await resp.json();
+                if (!resp.ok) {
+                    showAlert('error', result.detail || 'Request failed');
+                    return null;
+                }
+                return result;
+            } catch (e) {
+                showAlert('error', 'Network error: ' + e.message);
+                return null;
+            }
+        }
+
+        async function apiGet(url) {
+            try {
+                const resp = await fetch(url);
+                return await resp.json();
+            } catch (e) {
+                console.error('Fetch error:', url, e);
+                return null;
+            }
+        }
+
+        function toggleSecret(btn) {
+            const input = btn.parentElement.querySelector('input');
+            if (input.type === 'password') {
+                input.type = 'text';
+                btn.textContent = 'Hide';
+            } else {
+                input.type = 'password';
+                btn.textContent = 'Show';
+            }
+        }
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

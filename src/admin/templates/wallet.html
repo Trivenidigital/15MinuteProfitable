@@ -1,0 +1,240 @@
+{% extends "base.html" %}
+{% block title %}Wallet & Secrets{% endblock %}
+
+{% block content %}
+
+<!-- Vault Status -->
+<div class="card">
+    <h2>Vault Status</h2>
+    <div class="form-grid">
+        <div class="form-group">
+            <label>Vault File</label>
+            <div style="padding: 8px 0; font-family: monospace; font-size: 14px;">
+                <span id="vaultExists" class="status-badge status-stopped">Not initialized</span>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Secrets Stored</label>
+            <div style="padding: 8px 0; font-family: monospace; font-size: 14px;">
+                <span id="vaultKeyCount">0</span> key(s)
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Vault Unlocked</label>
+            <div style="padding: 8px 0; font-family: monospace; font-size: 14px;">
+                <span id="vaultUnlocked" class="status-badge status-stopped">No</span>
+            </div>
+        </div>
+    </div>
+    <div class="btn-row">
+        <button type="button" class="btn btn-secondary" onclick="initVault()" id="initVaultBtn">
+            Initialize New Vault
+        </button>
+        <button type="button" class="btn btn-secondary" onclick="showChangePassword()">
+            Change Vault Password
+        </button>
+    </div>
+
+    <!-- Change password form (hidden by default) -->
+    <div id="changePasswordSection" style="display: none; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
+        <div class="form-grid">
+            <div class="form-group">
+                <label>New Vault Password</label>
+                <div class="secret-field">
+                    <input type="password" id="newVaultPassword" placeholder="Enter new password">
+                    <button type="button" onclick="toggleSecret(this)">Show</button>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Confirm Password</label>
+                <div class="secret-field">
+                    <input type="password" id="confirmVaultPassword" placeholder="Confirm new password">
+                    <button type="button" onclick="toggleSecret(this)">Show</button>
+                </div>
+            </div>
+        </div>
+        <div class="btn-row">
+            <button type="button" class="btn btn-primary" onclick="changePassword()">Change Password</button>
+            <button type="button" class="btn btn-secondary" onclick="hideChangePassword()">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<!-- Wallet Configuration -->
+<div class="card">
+    <h2>Wallet Configuration</h2>
+    <div class="form-grid">
+        <div class="form-group">
+            <label>Private Key</label>
+            <div class="secret-field">
+                <input type="password" id="secretPrivateKey" value="{{ secrets.get('private_key', '') }}" placeholder="0x...">
+                <button type="button" onclick="toggleSecret(this)">Show</button>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Signature Type</label>
+            <select id="settingSignatureType">
+                <option value="0" {{ 'selected' if settings.signature_type.value == 0 }}>EOA (0)</option>
+                <option value="1" {{ 'selected' if settings.signature_type.value == 1 }}>Poly Gnosis Safe (1)</option>
+                <option value="2" {{ 'selected' if settings.signature_type.value == 2 }}>Gnosis Safe (2)</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Funder Address</label>
+            <div class="secret-field">
+                <input type="password" id="secretFunder" value="{{ secrets.get('funder', '') }}" placeholder="0x...">
+                <button type="button" onclick="toggleSecret(this)">Show</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Notification Credentials -->
+<div class="card">
+    <h2>Notification Credentials</h2>
+    <div class="form-grid">
+        <div class="form-group">
+            <label>Telegram Bot Token</label>
+            <div class="secret-field">
+                <input type="password" id="secretTelegramBotToken" value="{{ secrets.get('telegram_bot_token', '') }}" placeholder="123456:ABC-DEF...">
+                <button type="button" onclick="toggleSecret(this)">Show</button>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Discord Webhook URL</label>
+            <div class="secret-field">
+                <input type="password" id="secretDiscordWebhookUrl" value="{{ secrets.get('discord_webhook_url', '') }}" placeholder="https://discord.com/api/webhooks/...">
+                <button type="button" onclick="toggleSecret(this)">Show</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Dashboard Password -->
+<div class="card">
+    <h2>Dashboard Password</h2>
+    <div class="form-grid">
+        <div class="form-group">
+            <label>Monitoring Dashboard Password</label>
+            <div class="secret-field">
+                <input type="password" id="secretDashboardPassword" value="{{ secrets.get('dashboard_password', '') }}" placeholder="Leave empty to disable auth">
+                <button type="button" onclick="toggleSecret(this)">Show</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Save Buttons -->
+<div class="btn-row">
+    <button type="button" class="btn btn-primary" onclick="saveSecrets()">Save to Vault</button>
+    <button type="button" class="btn btn-success" onclick="saveSecretsAndRestart()">Save to Vault & Restart Bot</button>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Load vault status on page load
+    async function loadVaultStatus() {
+        const data = await apiGet('/api/vault/status');
+        if (!data) return;
+
+        const existsEl = document.getElementById('vaultExists');
+        const countEl = document.getElementById('vaultKeyCount');
+        const unlockedEl = document.getElementById('vaultUnlocked');
+        const initBtn = document.getElementById('initVaultBtn');
+
+        if (data.exists) {
+            existsEl.textContent = 'Initialized';
+            existsEl.className = 'status-badge status-running';
+            initBtn.disabled = true;
+        } else {
+            existsEl.textContent = 'Not initialized';
+            existsEl.className = 'status-badge status-stopped';
+            initBtn.disabled = false;
+        }
+
+        countEl.textContent = data.key_count || 0;
+
+        if (data.unlocked) {
+            unlockedEl.textContent = 'Yes';
+            unlockedEl.className = 'status-badge status-running';
+        } else {
+            unlockedEl.textContent = 'No';
+            unlockedEl.className = 'status-badge status-stopped';
+        }
+    }
+
+    function collectSecrets() {
+        return {
+            private_key: document.getElementById('secretPrivateKey').value,
+            funder: document.getElementById('secretFunder').value,
+            telegram_bot_token: document.getElementById('secretTelegramBotToken').value,
+            discord_webhook_url: document.getElementById('secretDiscordWebhookUrl').value,
+            dashboard_password: document.getElementById('secretDashboardPassword').value,
+        };
+    }
+
+    async function saveSecrets() {
+        const secrets = collectSecrets();
+
+        // Also save signature_type to .env (non-secret)
+        const sigType = document.getElementById('settingSignatureType').value;
+        await apiPost('/api/settings', {'BOT_SIGNATURE_TYPE': sigType});
+
+        const result = await apiPost('/api/secrets', secrets);
+        if (result) {
+            showAlert('success', 'Secrets saved to vault.');
+            loadVaultStatus();
+        }
+    }
+
+    async function saveSecretsAndRestart() {
+        await saveSecrets();
+        showAlert('info', 'Restarting bot...');
+        await apiPost('/api/bot/restart', {});
+        setTimeout(() => showAlert('success', 'Bot restart requested.'), 2000);
+    }
+
+    async function initVault() {
+        const result = await apiPost('/api/vault/init', {});
+        if (result) {
+            showAlert('success', 'Vault initialized successfully.');
+            loadVaultStatus();
+        }
+    }
+
+    function showChangePassword() {
+        document.getElementById('changePasswordSection').style.display = 'block';
+    }
+
+    function hideChangePassword() {
+        document.getElementById('changePasswordSection').style.display = 'none';
+        document.getElementById('newVaultPassword').value = '';
+        document.getElementById('confirmVaultPassword').value = '';
+    }
+
+    async function changePassword() {
+        const newPw = document.getElementById('newVaultPassword').value;
+        const confirmPw = document.getElementById('confirmVaultPassword').value;
+
+        if (!newPw) {
+            showAlert('error', 'Password cannot be empty.');
+            return;
+        }
+        if (newPw !== confirmPw) {
+            showAlert('error', 'Passwords do not match.');
+            return;
+        }
+
+        const result = await apiPost('/api/vault/change-password', {new_password: newPw});
+        if (result) {
+            showAlert('success', 'Vault password changed. Update VAULT_PASSWORD env var and restart.');
+            hideChangePassword();
+        }
+    }
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', loadVaultStatus);
+</script>
+{% endblock %}

@@ -1,0 +1,460 @@
+{% extends "base.html" %}
+{% block title %}Settings{% endblock %}
+
+{% block content %}
+<form id="settingsForm">
+
+    <!-- Trading Parameters -->
+    <div class="card">
+        <h2>Trading Parameters</h2>
+        <div class="form-grid">
+            <div class="form-group">
+                <label>Order Size ($)</label>
+                <input type="number" name="BOT_ORDER_SIZE" value="{{ settings.order_size }}" step="1">
+            </div>
+            <div class="form-group">
+                <label>Order Type</label>
+                <select name="BOT_ORDER_TYPE">
+                    <option value="FOK" {{ 'selected' if settings.order_type == 'FOK' }}>FOK</option>
+                    <option value="GTC" {{ 'selected' if settings.order_type == 'GTC' }}>GTC</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Target Pair Cost</label>
+                <input type="number" name="BOT_TARGET_PAIR_COST" value="{{ settings.target_pair_cost }}" step="0.001">
+            </div>
+            <div class="form-group">
+                <label>Min Profit Margin</label>
+                <input type="number" name="BOT_MIN_PROFIT_MARGIN" value="{{ settings.min_profit_margin }}" step="0.001">
+            </div>
+            <div class="form-group">
+                <label>Cooldown (seconds)</label>
+                <input type="number" name="BOT_COOLDOWN_SECONDS" value="{{ settings.cooldown_seconds }}" step="0.5">
+            </div>
+        </div>
+    </div>
+
+    <!-- Strategy Toggles -->
+    <div class="card">
+        <h2>Strategy Toggles</h2>
+        <div class="form-grid">
+            <div class="form-group">
+                <label>Arbitrage</label>
+                <div class="toggle">
+                    <input type="checkbox" name="BOT_ENABLE_ARBITRAGE" {{ 'checked' if settings.enable_arbitrage }}>
+                    <span>Enable pure arbitrage (Strategy A)</span>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Price Lag</label>
+                <div class="toggle">
+                    <input type="checkbox" name="BOT_ENABLE_PRICE_LAG" {{ 'checked' if settings.enable_price_lag }}>
+                    <span>Enable price-lag exploitation (Strategy C)</span>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Asymmetric</label>
+                <div class="toggle">
+                    <input type="checkbox" name="BOT_ENABLE_ASYMMETRIC" {{ 'checked' if settings.enable_asymmetric }}>
+                    <span>Enable asymmetric entry (Strategy B)</span>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Maker Arbitrage</label>
+                <div class="toggle">
+                    <input type="checkbox" name="BOT_ENABLE_MAKER_ARBITRAGE" {{ 'checked' if settings.enable_maker_arbitrage }}>
+                    <span>Enable maker arbitrage</span>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Multi-Market</label>
+                <div class="toggle">
+                    <input type="checkbox" name="BOT_ENABLE_MULTI_MARKET" {{ 'checked' if settings.enable_multi_market }}>
+                    <span>Enable multi-market scanner (Strategy D)</span>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Resolution Sniper</label>
+                <div class="toggle">
+                    <input type="checkbox" name="BOT_ENABLE_RESOLUTION_SNIPER" {{ 'checked' if settings.enable_resolution_sniper }}>
+                    <span>Enable resolution sniper</span>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Parallel Strategies</label>
+                <div class="toggle">
+                    <input type="checkbox" name="BOT_ENABLE_PARALLEL_STRATEGIES" {{ 'checked' if settings.enable_parallel_strategies }}>
+                    <span>Execute best from each strategy</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Price-Lag Parameters -->
+    <div class="card">
+        <h2>Price-Lag Parameters</h2>
+        <div class="form-grid">
+            <div class="form-group">
+                <label>Spot Move Threshold</label>
+                <input type="number" name="BOT_SPOT_MOVE_THRESHOLD" value="{{ settings.spot_move_threshold }}" step="0.0001">
+            </div>
+            <div class="form-group">
+                <label>Spot Window (seconds)</label>
+                <input type="number" name="BOT_SPOT_WINDOW_SECONDS" value="{{ settings.spot_window_seconds }}" step="1">
+            </div>
+            <div class="form-group">
+                <label>Odds Lag Threshold</label>
+                <input type="number" name="BOT_ODDS_LAG_THRESHOLD" value="{{ settings.odds_lag_threshold }}" step="0.001">
+            </div>
+            <div class="form-group">
+                <label>Dead Zone Start (s after open)</label>
+                <input type="number" name="BOT_LAG_ENTRY_DEAD_ZONE_START" value="{{ settings.lag_entry_dead_zone_start }}" step="1">
+            </div>
+            <div class="form-group">
+                <label>Dead Zone End (s before close)</label>
+                <input type="number" name="BOT_LAG_ENTRY_DEAD_ZONE_END" value="{{ settings.lag_entry_dead_zone_end }}" step="1">
+            </div>
+            <div class="form-group">
+                <label>Stop Loss %</label>
+                <input type="number" name="BOT_STOP_LOSS_PCT" value="{{ settings.stop_loss_pct }}" step="0.01">
+            </div>
+            <div class="form-group">
+                <label>Take Profit %</label>
+                <input type="number" name="BOT_TAKE_PROFIT_PCT" value="{{ settings.take_profit_pct }}" step="0.01">
+            </div>
+            <div class="form-group">
+                <label>Time Exit (seconds)</label>
+                <input type="number" name="BOT_TIME_EXIT_SECONDS" value="{{ settings.time_exit_seconds }}" step="1">
+            </div>
+            <div class="form-group">
+                <label>Lag Confirmations</label>
+                <input type="number" name="BOT_LAG_CONFIRMATIONS" value="{{ settings.lag_confirmations }}" step="1">
+            </div>
+            <div class="form-group">
+                <label>Stop Loss Confirmations</label>
+                <input type="number" name="BOT_STOP_LOSS_CONFIRMATIONS" value="{{ settings.stop_loss_confirmations }}" step="1">
+            </div>
+            <div class="form-group">
+                <label>Stop Loss Time Decay</label>
+                <div class="toggle">
+                    <input type="checkbox" name="BOT_STOP_LOSS_TIME_DECAY" {{ 'checked' if settings.stop_loss_time_decay }}>
+                    <span>Widen stop-loss near expiry</span>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Take Profit Time Decay</label>
+                <div class="toggle">
+                    <input type="checkbox" name="BOT_TAKE_PROFIT_TIME_DECAY" {{ 'checked' if settings.take_profit_time_decay }}>
+                    <span>Widen take-profit near expiry</span>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Stop Loss Cheap Threshold</label>
+                <input type="number" name="BOT_STOP_LOSS_CHEAP_THRESHOLD" value="{{ settings.stop_loss_cheap_threshold }}" step="0.01">
+            </div>
+        </div>
+    </div>
+
+    <!-- Asymmetric Parameters -->
+    <div class="card">
+        <h2>Asymmetric Entry Parameters</h2>
+        <div class="form-grid">
+            <div class="form-group">
+                <label>YES Cheap Threshold</label>
+                <input type="number" name="BOT_YES_CHEAP_THRESHOLD" value="{{ settings.yes_cheap_threshold }}" step="0.01">
+            </div>
+            <div class="form-group">
+                <label>NO Cheap Threshold</label>
+                <input type="number" name="BOT_NO_CHEAP_THRESHOLD" value="{{ settings.no_cheap_threshold }}" step="0.01">
+            </div>
+            <div class="form-group">
+                <label>Accumulation Size</label>
+                <input type="number" name="BOT_ACCUMULATION_SIZE" value="{{ settings.accumulation_size }}" step="1">
+            </div>
+            <div class="form-group">
+                <label>Max Accumulation Per Side</label>
+                <input type="number" name="BOT_MAX_ACCUMULATION_PER_SIDE" value="{{ settings.max_accumulation_per_side }}" step="10">
+            </div>
+            <div class="form-group">
+                <label>Target Avg Combined</label>
+                <input type="number" name="BOT_TARGET_AVG_COMBINED" value="{{ settings.target_avg_combined }}" step="0.01">
+            </div>
+            <div class="form-group">
+                <label>Stale Order Timeout (s)</label>
+                <input type="number" name="BOT_STALE_ORDER_SECONDS" value="{{ settings.stale_order_seconds }}" step="10">
+            </div>
+        </div>
+    </div>
+
+    <!-- Maker Arbitrage Parameters -->
+    <div class="card">
+        <h2>Maker Arbitrage Parameters</h2>
+        <div class="form-grid">
+            <div class="form-group">
+                <label>Target Pair Cost</label>
+                <input type="number" name="BOT_MAKER_TARGET_PAIR_COST" value="{{ settings.maker_target_pair_cost }}" step="0.001">
+            </div>
+            <div class="form-group">
+                <label>Price Offset</label>
+                <input type="number" name="BOT_MAKER_PRICE_OFFSET" value="{{ settings.maker_price_offset }}" step="0.001">
+            </div>
+            <div class="form-group">
+                <label>Pair Timeout (s)</label>
+                <input type="number" name="BOT_MAKER_PAIR_TIMEOUT_SECONDS" value="{{ settings.maker_pair_timeout_seconds }}" step="10">
+            </div>
+            <div class="form-group">
+                <label>Max Pending Pairs</label>
+                <input type="number" name="BOT_MAKER_MAX_PENDING_PAIRS" value="{{ settings.maker_max_pending_pairs }}" step="1">
+            </div>
+            <div class="form-group">
+                <label>Min Profit Margin</label>
+                <input type="number" name="BOT_MAKER_MIN_PROFIT_MARGIN" value="{{ settings.maker_min_profit_margin }}" step="0.001">
+            </div>
+        </div>
+    </div>
+
+    <!-- Resolution Sniper Parameters -->
+    <div class="card">
+        <h2>Resolution Sniper Parameters</h2>
+        <div class="form-grid">
+            <div class="form-group">
+                <label>Sniper Order Size ($)</label>
+                <input type="number" name="BOT_SNIPER_ORDER_SIZE" value="{{ settings.sniper_order_size }}" step="10">
+            </div>
+            <div class="form-group">
+                <label>Min Confidence</label>
+                <input type="number" name="BOT_SNIPER_MIN_CONFIDENCE" value="{{ settings.sniper_min_confidence }}" step="0.01">
+            </div>
+            <div class="form-group">
+                <label>Window (seconds)</label>
+                <input type="number" name="BOT_SNIPER_WINDOW_SECONDS" value="{{ settings.sniper_window_seconds }}" step="10">
+            </div>
+            <div class="form-group">
+                <label>Hard Stop (seconds)</label>
+                <input type="number" name="BOT_SNIPER_HARD_STOP_SECONDS" value="{{ settings.sniper_hard_stop_seconds }}" step="1">
+            </div>
+            <div class="form-group">
+                <label>Max Entry Price</label>
+                <input type="number" name="BOT_SNIPER_MAX_ENTRY_PRICE" value="{{ settings.sniper_max_entry_price }}" step="0.01">
+            </div>
+            <div class="form-group">
+                <label>Exit Confidence Floor</label>
+                <input type="number" name="BOT_SNIPER_EXIT_CONFIDENCE_FLOOR" value="{{ settings.sniper_exit_confidence_floor }}" step="0.01">
+            </div>
+        </div>
+    </div>
+
+    <!-- Markets -->
+    <div class="card">
+        <h2>Markets</h2>
+        <div class="form-grid">
+            <div class="form-group">
+                <label>Assets (comma-separated)</label>
+                <input type="text" name="BOT_MARKETS" value="{{ settings.markets | join(',') }}">
+            </div>
+            <div class="form-group">
+                <label>Intervals (comma-separated)</label>
+                <input type="text" name="BOT_MARKET_INTERVALS" value="{{ settings.market_intervals | join(',') }}">
+            </div>
+            <div class="form-group">
+                <label>Slug Override</label>
+                <input type="text" name="BOT_MARKET_SLUG_OVERRIDE" value="{{ settings.market_slug_override }}">
+            </div>
+        </div>
+    </div>
+
+    <!-- Risk Limits -->
+    <div class="card">
+        <h2>Risk Limits</h2>
+        <div class="form-grid">
+            <div class="form-group">
+                <label>Max Entries Per Market</label>
+                <input type="number" name="BOT_MAX_ENTRIES_PER_MARKET" value="{{ settings.max_entries_per_market }}" step="1">
+            </div>
+            <div class="form-group">
+                <label>Max Position Per Market ($)</label>
+                <input type="number" name="BOT_MAX_POSITION_PER_MARKET" value="{{ settings.max_position_per_market }}" step="100">
+            </div>
+            <div class="form-group">
+                <label>Max Total Position ($)</label>
+                <input type="number" name="BOT_MAX_TOTAL_POSITION" value="{{ settings.max_total_position }}" step="100">
+            </div>
+            <div class="form-group">
+                <label>Max Daily Loss ($)</label>
+                <input type="number" name="BOT_MAX_DAILY_LOSS" value="{{ settings.max_daily_loss }}" step="10">
+            </div>
+            <div class="form-group">
+                <label>Max Unhedged Exposure ($)</label>
+                <input type="number" name="BOT_MAX_UNHEDGED_EXPOSURE" value="{{ settings.max_unhedged_exposure }}" step="50">
+            </div>
+            <div class="form-group">
+                <label>Kelly Fraction</label>
+                <input type="number" name="BOT_KELLY_FRACTION" value="{{ settings.kelly_fraction }}" step="0.05">
+            </div>
+        </div>
+    </div>
+
+    <!-- Simulation -->
+    <div class="card">
+        <h2>Simulation</h2>
+        <div class="form-grid">
+            <div class="form-group">
+                <label>Dry Run</label>
+                <div class="toggle">
+                    <input type="checkbox" name="BOT_DRY_RUN" {{ 'checked' if settings.dry_run }}>
+                    <span>Paper trading mode (no real orders)</span>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Sim Balance ($)</label>
+                <input type="number" name="BOT_SIM_BALANCE" value="{{ settings.sim_balance }}" step="100">
+            </div>
+        </div>
+    </div>
+
+    <!-- Monitoring -->
+    <div class="card">
+        <h2>Monitoring</h2>
+        <div class="form-grid">
+            <div class="form-group">
+                <label>Telegram Chat ID</label>
+                <input type="text" name="BOT_TELEGRAM_CHAT_ID" value="{{ settings.telegram_chat_id }}">
+            </div>
+            <div class="form-group">
+                <label>Alert on Trade</label>
+                <div class="toggle">
+                    <input type="checkbox" name="BOT_ALERT_ON_TRADE" {{ 'checked' if settings.alert_on_trade }}>
+                    <span>Send alert for each trade</span>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Alert on Error</label>
+                <div class="toggle">
+                    <input type="checkbox" name="BOT_ALERT_ON_ERROR" {{ 'checked' if settings.alert_on_error }}>
+                    <span>Send alert on errors</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Operational -->
+    <div class="card">
+        <h2>Operational</h2>
+        <div class="form-grid">
+            <div class="form-group">
+                <label>Log Level</label>
+                <select name="BOT_LOG_LEVEL">
+                    {% for level in ['DEBUG', 'INFO', 'WARNING', 'ERROR'] %}
+                    <option value="{{ level }}" {{ 'selected' if settings.log_level == level }}>{{ level }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Log Format</label>
+                <select name="BOT_LOG_FORMAT">
+                    <option value="json" {{ 'selected' if settings.log_format == 'json' }}>JSON</option>
+                    <option value="console" {{ 'selected' if settings.log_format == 'console' }}>Console</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Neg Risk</label>
+                <div class="toggle">
+                    <input type="checkbox" name="BOT_NEG_RISK" {{ 'checked' if settings.neg_risk }}>
+                    <span>Use neg_risk=True for 15-min markets</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dashboard -->
+    <div class="card">
+        <h2>Monitoring Dashboard</h2>
+        <div class="form-grid">
+            <div class="form-group">
+                <label>Dashboard Enabled</label>
+                <div class="toggle">
+                    <input type="checkbox" name="BOT_DASHBOARD_ENABLED" {{ 'checked' if settings.dashboard_enabled }}>
+                    <span>Enable monitoring dashboard (:8080)</span>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Dashboard Host</label>
+                <input type="text" name="BOT_DASHBOARD_HOST" value="{{ settings.dashboard_host }}">
+            </div>
+            <div class="form-group">
+                <label>Dashboard Port</label>
+                <input type="number" name="BOT_DASHBOARD_PORT" value="{{ settings.dashboard_port }}" step="1">
+            </div>
+            <div class="form-group">
+                <label>Dashboard Username</label>
+                <input type="text" name="BOT_DASHBOARD_USERNAME" value="{{ settings.dashboard_username }}">
+            </div>
+        </div>
+    </div>
+
+    <!-- Decision Logging -->
+    <div class="card">
+        <h2>Decision Logging</h2>
+        <div class="form-grid">
+            <div class="form-group">
+                <label>Enable Decision Logging</label>
+                <div class="toggle">
+                    <input type="checkbox" name="BOT_ENABLE_DECISION_LOGGING" {{ 'checked' if settings.enable_decision_logging }}>
+                    <span>Log strategy decisions each cycle</span>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Spot Snapshot Interval (s)</label>
+                <input type="number" name="BOT_SPOT_SNAPSHOT_INTERVAL" value="{{ settings.spot_snapshot_interval }}" step="1">
+            </div>
+            <div class="form-group">
+                <label>Daily Summary Hour (UTC)</label>
+                <input type="number" name="BOT_DAILY_SUMMARY_HOUR" value="{{ settings.daily_summary_hour }}" step="1" min="0" max="23">
+            </div>
+        </div>
+    </div>
+
+    <!-- Action buttons -->
+    <div class="btn-row">
+        <button type="button" class="btn btn-primary" onclick="saveSettings(false)">Save Settings</button>
+        <button type="button" class="btn btn-success" onclick="saveSettings(true)">Save & Restart Bot</button>
+    </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    async function saveSettings(restart) {
+        const form = document.getElementById('settingsForm');
+        const data = {};
+
+        // Collect all form values
+        form.querySelectorAll('input, select').forEach(el => {
+            if (!el.name) return;
+            if (el.type === 'checkbox') {
+                data[el.name] = el.checked ? 'true' : 'false';
+            } else {
+                data[el.name] = el.value;
+            }
+        });
+
+        // Handle list fields
+        if (data['BOT_MARKETS']) {
+            data['BOT_MARKETS'] = JSON.stringify(data['BOT_MARKETS'].split(',').map(s => s.trim()));
+        }
+        if (data['BOT_MARKET_INTERVALS']) {
+            data['BOT_MARKET_INTERVALS'] = JSON.stringify(data['BOT_MARKET_INTERVALS'].split(',').map(s => s.trim()));
+        }
+
+        const result = await apiPost('/api/settings', data);
+        if (result) {
+            showAlert('success', 'Settings saved successfully.');
+            if (restart) {
+                showAlert('info', 'Restarting bot...');
+                await apiPost('/api/bot/restart', {});
+                setTimeout(() => showAlert('success', 'Bot restart requested.'), 2000);
+            }
+        }
+    }
+</script>
+{% endblock %}

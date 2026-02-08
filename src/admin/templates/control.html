@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}Bot Control{% endblock %}
+
+{% block content %}
+
+<!-- Bot Status -->
+<div class="card">
+    <h2>Bot Status</h2>
+    <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 16px;">
+        <span id="botStatusBadge" class="status-badge status-stopped">Unknown</span>
+        <span id="botUptime" style="color: #8899aa; font-size: 14px;"></span>
+    </div>
+    <div class="btn-row">
+        <button type="button" class="btn btn-success" onclick="botAction('start')" id="btnStart">
+            Start Bot
+        </button>
+        <button type="button" class="btn btn-danger" onclick="botAction('stop')" id="btnStop">
+            Stop Bot
+        </button>
+        <button type="button" class="btn btn-primary" onclick="botAction('restart')" id="btnRestart">
+            Restart Bot
+        </button>
+    </div>
+</div>
+
+<!-- Quick Links -->
+<div class="card">
+    <h2>Quick Links</h2>
+    <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+        <a id="monitoringLink" href="#" target="_blank" class="btn btn-secondary">
+            Monitoring Dashboard (:8080)
+        </a>
+    </div>
+</div>
+
+<!-- System Info -->
+<div class="card">
+    <h2>Service Configuration</h2>
+    <div class="form-grid">
+        <div class="form-group">
+            <label>Service Name</label>
+            <div style="padding: 8px 0; font-family: monospace; font-size: 14px;">btc15minutebot</div>
+        </div>
+        <div class="form-group">
+            <label>Working Directory</label>
+            <div style="padding: 8px 0; font-family: monospace; font-size: 14px;">/opt/btc15minutebot</div>
+        </div>
+        <div class="form-group">
+            <label>Log File</label>
+            <div style="padding: 8px 0; font-family: monospace; font-size: 14px;">/var/log/btc15minutebot/bot.log</div>
+        </div>
+        <div class="form-group">
+            <label>Admin Dashboard</label>
+            <div id="adminUrl" style="padding: 8px 0; font-family: monospace; font-size: 14px;"></div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    async function loadBotStatus() {
+        const data = await apiGet('/api/bot/status');
+        if (!data) return;
+
+        const badge = document.getElementById('botStatusBadge');
+        const uptime = document.getElementById('botUptime');
+
+        if (data.status === 'active') {
+            badge.textContent = 'Running';
+            badge.className = 'status-badge status-running';
+            document.getElementById('btnStart').disabled = true;
+            document.getElementById('btnStop').disabled = false;
+        } else {
+            badge.textContent = data.status || 'Stopped';
+            badge.className = 'status-badge status-stopped';
+            document.getElementById('btnStart').disabled = false;
+            document.getElementById('btnStop').disabled = true;
+        }
+
+        if (data.uptime) {
+            uptime.textContent = 'Uptime: ' + data.uptime;
+        } else {
+            uptime.textContent = '';
+        }
+    }
+
+    async function botAction(action) {
+        const result = await apiPost('/api/bot/' + action, {});
+        if (result) {
+            showAlert('success', 'Bot ' + action + ' requested.');
+            // Refresh status after a short delay
+            setTimeout(loadBotStatus, 2000);
+        }
+    }
+
+    // Set dynamic URLs
+    function setLinks() {
+        const hostname = location.hostname || 'localhost';
+        document.getElementById('monitoringLink').href = 'http://' + hostname + ':8080';
+        document.getElementById('adminUrl').textContent = location.origin;
+    }
+
+    // Refresh status every 5 seconds
+    document.addEventListener('DOMContentLoaded', () => {
+        setLinks();
+        loadBotStatus();
+        setInterval(loadBotStatus, 5000);
+    });
+</script>
+{% endblock %}
