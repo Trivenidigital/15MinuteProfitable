@@ -74,6 +74,20 @@
                 </div>
             </div>
             <div class="form-group">
+                <label>Dip Buyer</label>
+                <div class="toggle">
+                    <input type="checkbox" name="BOT_ENABLE_DIP_BUYER" {{ 'checked' if settings.enable_dip_buyer }}>
+                    <span>Enable dip buyer / mean reversion</span>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Fade Panic</label>
+                <div class="toggle">
+                    <input type="checkbox" name="BOT_ENABLE_FADE_PANIC" {{ 'checked' if settings.enable_fade_panic }}>
+                    <span>Enable fade panic (late-game)</span>
+                </div>
+            </div>
+            <div class="form-group">
                 <label>Resolution Sniper</label>
                 <div class="toggle">
                     <input type="checkbox" name="BOT_ENABLE_RESOLUTION_SNIPER" {{ 'checked' if settings.enable_resolution_sniper }}>
@@ -151,6 +165,33 @@
             <div class="form-group">
                 <label>Stop Loss Cheap Threshold</label>
                 <input type="number" name="BOT_STOP_LOSS_CHEAP_THRESHOLD" value="{{ settings.stop_loss_cheap_threshold }}" step="0.01">
+            </div>
+            <div class="form-group">
+                <label>TA Momentum Filter</label>
+                <div class="toggle">
+                    <input type="checkbox" name="BOT_LAG_ENABLE_TA_FILTER" {{ 'checked' if settings.lag_enable_ta_filter }}>
+                    <span>EMA crossover + RSI filter</span>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>EMA Short Periods</label>
+                <input type="number" name="BOT_LAG_EMA_SHORT_PERIODS" value="{{ settings.lag_ema_short_periods }}" step="1">
+            </div>
+            <div class="form-group">
+                <label>EMA Long Periods</label>
+                <input type="number" name="BOT_LAG_EMA_LONG_PERIODS" value="{{ settings.lag_ema_long_periods }}" step="1">
+            </div>
+            <div class="form-group">
+                <label>RSI Periods</label>
+                <input type="number" name="BOT_LAG_RSI_PERIODS" value="{{ settings.lag_rsi_periods }}" step="1">
+            </div>
+            <div class="form-group">
+                <label>RSI Overbought</label>
+                <input type="number" name="BOT_LAG_RSI_OVERBOUGHT" value="{{ settings.lag_rsi_overbought }}" step="1">
+            </div>
+            <div class="form-group">
+                <label>RSI Oversold</label>
+                <input type="number" name="BOT_LAG_RSI_OVERSOLD" value="{{ settings.lag_rsi_oversold }}" step="1">
             </div>
         </div>
     </div>
@@ -240,6 +281,80 @@
             <div class="form-group">
                 <label>Exit Confidence Floor</label>
                 <input type="number" name="BOT_SNIPER_EXIT_CONFIDENCE_FLOOR" value="{{ settings.sniper_exit_confidence_floor }}" step="0.01">
+            </div>
+        </div>
+    </div>
+
+    <!-- Dip Buyer Parameters -->
+    <div class="card">
+        <h2>Dip Buyer Parameters</h2>
+        <div class="form-grid">
+            <div class="form-group">
+                <label>Spot Window (seconds)</label>
+                <input type="number" name="BOT_DIP_SPOT_WINDOW_SECONDS" value="{{ settings.dip_spot_window_seconds }}" step="1">
+            </div>
+            <div class="form-group">
+                <label>Spot Threshold</label>
+                <input type="number" name="BOT_DIP_SPOT_THRESHOLD" value="{{ settings.dip_spot_threshold }}" step="0.0001">
+            </div>
+            <div class="form-group">
+                <label>Mean Window (seconds)</label>
+                <input type="number" name="BOT_DIP_MEAN_WINDOW_SECONDS" value="{{ settings.dip_mean_window_seconds }}" step="5">
+            </div>
+            <div class="form-group">
+                <label>Outlier Ratio</label>
+                <input type="number" name="BOT_DIP_OUTLIER_RATIO" value="{{ settings.dip_outlier_ratio }}" step="0.5">
+            </div>
+            <div class="form-group">
+                <label>Order Size ($)</label>
+                <input type="number" name="BOT_DIP_ORDER_SIZE" value="{{ settings.dip_order_size }}" step="10">
+            </div>
+            <div class="form-group">
+                <label>Stop Loss %</label>
+                <input type="number" name="BOT_DIP_STOP_LOSS_PCT" value="{{ settings.dip_stop_loss_pct }}" step="0.01">
+            </div>
+            <div class="form-group">
+                <label>Take Profit %</label>
+                <input type="number" name="BOT_DIP_TAKE_PROFIT_PCT" value="{{ settings.dip_take_profit_pct }}" step="0.01">
+            </div>
+            <div class="form-group">
+                <label>Time Exit (seconds)</label>
+                <input type="number" name="BOT_DIP_TIME_EXIT_SECONDS" value="{{ settings.dip_time_exit_seconds }}" step="5">
+            </div>
+        </div>
+    </div>
+
+    <!-- Fade Panic Parameters -->
+    <div class="card">
+        <h2>Fade Panic Parameters</h2>
+        <div class="form-grid">
+            <div class="form-group">
+                <label>Window (seconds)</label>
+                <input type="number" name="BOT_FADE_PANIC_WINDOW_SECONDS" value="{{ settings.fade_panic_window_seconds }}" step="10">
+            </div>
+            <div class="form-group">
+                <label>Hard Stop (seconds)</label>
+                <input type="number" name="BOT_FADE_PANIC_HARD_STOP_SECONDS" value="{{ settings.fade_panic_hard_stop_seconds }}" step="1">
+            </div>
+            <div class="form-group">
+                <label>Odds Shift Threshold</label>
+                <input type="number" name="BOT_FADE_PANIC_ODDS_SHIFT_THRESHOLD" value="{{ settings.fade_panic_odds_shift_threshold }}" step="0.01">
+            </div>
+            <div class="form-group">
+                <label>Spot Max Change</label>
+                <input type="number" name="BOT_FADE_PANIC_SPOT_MAX_CHANGE" value="{{ settings.fade_panic_spot_max_change }}" step="0.0001">
+            </div>
+            <div class="form-group">
+                <label>Odds Window (seconds)</label>
+                <input type="number" name="BOT_FADE_PANIC_ODDS_WINDOW_SECONDS" value="{{ settings.fade_panic_odds_window_seconds }}" step="5">
+            </div>
+            <div class="form-group">
+                <label>Order Size ($)</label>
+                <input type="number" name="BOT_FADE_PANIC_ORDER_SIZE" value="{{ settings.fade_panic_order_size }}" step="10">
+            </div>
+            <div class="form-group">
+                <label>Max Entry Price</label>
+                <input type="number" name="BOT_FADE_PANIC_MAX_ENTRY_PRICE" value="{{ settings.fade_panic_max_entry_price }}" step="0.01">
             </div>
         </div>
     </div>

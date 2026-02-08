@@ -23,6 +23,8 @@ class StrategyType(str, Enum):
     PRICE_LAG = "price_lag"
     MAKER_ARBITRAGE = "maker_arbitrage"
     RESOLUTION_SNIPER = "resolution_sniper"
+    DIP_BUYER = "dip_buyer"
+    FADE_PANIC = "fade_panic"
 
 
 class OrderStatus(str, Enum):

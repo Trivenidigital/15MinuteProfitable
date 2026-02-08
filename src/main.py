@@ -31,6 +31,8 @@ from src.risk.sizing import PositionSizer
 from src.strategy.arbitrage import ArbitrageStrategy
 from src.strategy.asymmetric import AsymmetricStrategy
 from src.strategy.base import BaseStrategy
+from src.strategy.dip_buyer import DipBuyerStrategy
+from src.strategy.fade_panic import FadePanicStrategy
 from src.strategy.maker_arbitrage import ArbPair, MakerArbitrageStrategy
 from src.strategy.price_lag import ASSET_TO_BINANCE_SYMBOL, PriceLagStrategy
 from src.strategy.resolution_sniper import ResolutionSniperStrategy
@@ -1652,6 +1654,16 @@ def _build_strategies(
     if settings.enable_maker_arbitrage:
         strategies.append(MakerArbitrageStrategy(settings=settings, book_manager=book_manager))
 
+    if settings.enable_dip_buyer and spot_buffer is not None:
+        strategies.append(DipBuyerStrategy(
+            settings=settings, book_manager=book_manager, spot_buffer=spot_buffer,
+        ))
+
+    if settings.enable_fade_panic and spot_buffer is not None:
+        strategies.append(FadePanicStrategy(
+            settings=settings, book_manager=book_manager, spot_buffer=spot_buffer,
+        ))
+
     if settings.enable_resolution_sniper and spot_buffer is not None:
         strategies.append(ResolutionSniperStrategy(
             settings=settings, book_manager=book_manager, spot_buffer=spot_buffer,
@@ -1729,6 +1741,8 @@ async def _run_bot(settings: Settings, pid_lock: PidLock) -> None:
         enable_multi_market=settings.enable_multi_market,
         enable_parallel_strategies=settings.enable_parallel_strategies,
         enable_resolution_sniper=settings.enable_resolution_sniper,
+        enable_dip_buyer=settings.enable_dip_buyer,
+        enable_fade_panic=settings.enable_fade_panic,
     )
 
     # Alert dispatcher

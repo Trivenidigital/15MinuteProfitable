@@ -151,6 +151,18 @@ class PriceLagStrategy(BaseStrategy):
             )
             return None
 
+        # 4b. TA Momentum Check (EMA crossover + RSI filter)
+        if self._settings.lag_enable_ta_filter and not self._check_momentum(
+            binance_symbol, movement.direction
+        ):
+            self._log.debug(
+                "ta_filter_rejected",
+                market=market.slug,
+                direction=movement.direction,
+                symbol=binance_symbol,
+            )
+            return None
+
         # 5. Get Polymarket YES price (best ask = price to buy YES)
         yes_book = self._book_manager.get_book(market.yes_token_id)
         no_book = self._book_manager.get_book(market.no_token_id)
@@ -528,6 +540,104 @@ class PriceLagStrategy(BaseStrategy):
         ratio = realized_vol / baseline
         adjusted = base_threshold * max(ratio, 0.5)  # floor at 50% of base
         return adjusted
+
+    def _compute_ema(self, prices: list[float], periods: int) -> float:
+        """Compute Exponential Moving Average over the last *periods* prices.
+
+        Uses the standard EMA formula: multiplier = 2 / (periods + 1).
+        """
+        if not prices:
+            return 0.0
+        if len(prices) < periods:
+            # Not enough data — use SMA as fallback
+            return sum(prices) / len(prices)
+
+        multiplier = 2.0 / (periods + 1)
+        ema = sum(prices[:periods]) / periods  # seed with SMA
+        for price in prices[periods:]:
+            ema = (price - ema) * multiplier + ema
+        return ema
+
+    def _compute_rsi(self, prices: list[float], periods: int) -> float:
+        """Compute Relative Strength Index over the last *periods* prices.
+
+        Returns value between 0-100.  Returns 50.0 (neutral) if insufficient data.
+        """
+        if len(prices) < periods + 1:
+            return 50.0  # neutral — don't filter
+
+        gains: list[float] = []
+        losses: list[float] = []
+        for i in range(1, len(prices)):
+            delta = prices[i] - prices[i - 1]
+            if delta > 0:
+                gains.append(delta)
+                losses.append(0.0)
+            else:
+                gains.append(0.0)
+                losses.append(abs(delta))
+
+        # Use last *periods* changes
+        recent_gains = gains[-periods:]
+        recent_losses = losses[-periods:]
+
+        avg_gain = sum(recent_gains) / periods
+        avg_loss = sum(recent_losses) / periods
+
+        if avg_loss == 0:
+            return 100.0
+        rs = avg_gain / avg_loss
+        return 100.0 - (100.0 / (1.0 + rs))
+
+    def _check_momentum(self, symbol: str, direction: str) -> bool:
+        """Return True if EMA crossover and RSI confirm the trade direction.
+
+        For UP signals: reject if short EMA < long EMA (bearish) or RSI > overbought.
+        For DOWN signals: reject if short EMA > long EMA (bullish) or RSI < oversold.
+        """
+        # Get enough price history for the longer EMA + RSI
+        max_lookback = max(
+            self._settings.lag_ema_long_periods,
+            self._settings.lag_rsi_periods + 1,
+        )
+        # Rough estimate: 1 tick/second, need max_lookback * 2 seconds of data
+        history = self._spot_buffer.get_price_history(symbol, max_lookback * 2)
+        if len(history) < max_lookback:
+            # Insufficient data — allow trade (don't filter on missing data)
+            return True
+
+        prices = [p for _, p in history]
+
+        short_ema = self._compute_ema(prices, self._settings.lag_ema_short_periods)
+        long_ema = self._compute_ema(prices, self._settings.lag_ema_long_periods)
+        rsi = self._compute_rsi(prices, self._settings.lag_rsi_periods)
+
+        if direction == "UP":
+            if short_ema < long_ema:
+                self._log.debug(
+                    "ta_ema_bearish", symbol=symbol,
+                    short_ema=round(short_ema, 2), long_ema=round(long_ema, 2),
+                )
+                return False
+            if rsi > self._settings.lag_rsi_overbought:
+                self._log.debug(
+                    "ta_rsi_overbought", symbol=symbol, rsi=round(rsi, 2),
+                )
+                return False
+        else:  # DOWN
+            if short_ema > long_ema:
+                self._log.debug(
+                    "ta_ema_bullish", symbol=symbol,
+                    short_ema=round(short_ema, 2), long_ema=round(long_ema, 2),
+                )
+                return False
+            if rsi < self._settings.lag_rsi_oversold:
+                self._log.debug(
+                    "ta_rsi_oversold", symbol=symbol, rsi=round(rsi, 2),
+                )
+                return False
+
+        return True
 
     def _time_aware_sizing(self, time_to_close: float) -> float:
         """Return sizing multiplier based on time remaining.

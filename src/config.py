@@ -121,6 +121,14 @@ class Settings(BaseSettings):
     stop_loss_cheap_threshold: float = 0.10  # no stop-loss for contracts < $0.10 avg price
     stop_loss_confirmations: int = 3  # consecutive triggers before exit (6s at 2s interval)
 
+    # TA Momentum Filter (for price-lag)
+    lag_enable_ta_filter: bool = True        # Master toggle for TA filter
+    lag_ema_short_periods: int = 10          # Fast EMA periods
+    lag_ema_long_periods: int = 30           # Slow EMA periods
+    lag_rsi_periods: int = 14               # RSI lookback
+    lag_rsi_overbought: float = 80.0        # RSI above this blocks UP signals
+    lag_rsi_oversold: float = 20.0          # RSI below this blocks DOWN signals
+
     # Asymmetric Entry Strategy Parameters
     yes_cheap_threshold: float = 0.42  # buy YES when ask < this
     no_cheap_threshold: float = 0.42  # buy NO when ask < this
@@ -135,6 +143,27 @@ class Settings(BaseSettings):
     maker_pair_timeout_seconds: float = 180.0  # cancel if not filled in 3 min
     maker_max_pending_pairs: int = 5  # max concurrent arb attempts
     maker_min_profit_margin: float = 0.002  # 0.2% min profit per share (lower bar)
+
+    # Dip Buyer / Mean Reversion Strategy Parameters
+    enable_dip_buyer: bool = False
+    dip_spot_window_seconds: int = 5        # Short window for detecting sharp moves
+    dip_spot_threshold: float = 0.0015      # 0.15% move in dip window to trigger
+    dip_mean_window_seconds: int = 60       # Longer window for mean comparison
+    dip_outlier_ratio: float = 2.0          # Move must be 2x the rolling avg move
+    dip_order_size: float = 100.0           # Shares per dip trade
+    dip_stop_loss_pct: float = 0.05         # 5% stop-loss
+    dip_take_profit_pct: float = 0.08       # 8% take-profit
+    dip_time_exit_seconds: float = 60.0     # Exit 60s before close
+
+    # Fade Panic Strategy Parameters
+    enable_fade_panic: bool = False
+    fade_panic_window_seconds: float = 120.0   # Only active in last 120s
+    fade_panic_hard_stop_seconds: float = 15.0 # Stop buying at T-15s
+    fade_panic_odds_shift_threshold: float = 0.08  # 8% odds shift to trigger
+    fade_panic_spot_max_change: float = 0.0005 # Max spot change for "no movement" (0.05%)
+    fade_panic_odds_window_seconds: int = 60   # Window for measuring odds shift
+    fade_panic_order_size: float = 100.0       # Shares per fade trade
+    fade_panic_max_entry_price: float = 0.92   # Don't buy above this price
 
     # Resolution Sniper Strategy Parameters
     enable_resolution_sniper: bool = False
