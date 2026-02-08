@@ -383,10 +383,10 @@ class PriceLagStrategy(BaseStrategy):
                 # Last third: disable take-profit, let winners ride to resolution
                 effective_tp = None
             elif progress >= 1 / 3:
-                # Middle third: double the threshold
-                effective_tp = self._settings.take_profit_pct * 2
+                # Middle third: lower threshold to capture gains before late volatility
+                effective_tp = self._settings.take_profit_pct * 0.6
             else:
-                # First third: use as-is
+                # First third: use base threshold, give position time to develop
                 effective_tp = self._settings.take_profit_pct
         else:
             effective_tp = self._settings.take_profit_pct

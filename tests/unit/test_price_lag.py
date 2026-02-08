@@ -1101,13 +1101,13 @@ class TestDynamicTakeProfit:
 
         assert strategy.should_exit(position, market) is False
 
-    def test_middle_third_doubles_threshold(
+    def test_middle_third_lowers_threshold(
         self,
         strategy: PriceLagStrategy,
         book_manager: MockOrderBookManager,
     ) -> None:
-        """In middle third, take-profit threshold doubles to 20%.
-        A 15% profit should NOT trigger exit."""
+        """In middle third, take-profit threshold lowers to 6% (base * 0.6).
+        A 3% profit should NOT trigger exit."""
         # progress = 450/900 = 0.50 (middle third)
         market = _make_market(start_offset=-450.0, end_offset=450.0)
         position = Position(
@@ -1116,17 +1116,17 @@ class TestDynamicTakeProfit:
             yes_cost_basis=23.0,
             strategy=StrategyType.PRICE_LAG,
         )
-        # value = 50 * 0.53 = 26.5, pnl_pct = (26.5-23)/23 = 0.152 < 20%
-        book_manager.yes_book = _make_orderbook("YES_TOKEN", best_bid=0.53)
+        # value = 50 * 0.474 = 23.7, pnl_pct = (23.7-23)/23 = 0.0304 < 6%
+        book_manager.yes_book = _make_orderbook("YES_TOKEN", best_bid=0.474)
 
         assert strategy.should_exit(position, market) is False
 
-    def test_middle_third_triggers_at_doubled_threshold(
+    def test_middle_third_triggers_at_lowered_threshold(
         self,
         strategy: PriceLagStrategy,
         book_manager: MockOrderBookManager,
     ) -> None:
-        """In middle third, profit above 20% should trigger exit."""
+        """In middle third, profit above 6% (base * 0.6) should trigger exit."""
         market = _make_market(start_offset=-450.0, end_offset=450.0)
         position = Position(
             market=market,
@@ -1134,8 +1134,8 @@ class TestDynamicTakeProfit:
             yes_cost_basis=23.0,
             strategy=StrategyType.PRICE_LAG,
         )
-        # value = 50 * 0.58 = 29.0, pnl_pct = (29-23)/23 = 0.2609 > 20%
-        book_manager.yes_book = _make_orderbook("YES_TOKEN", best_bid=0.58)
+        # value = 50 * 0.50 = 25.0, pnl_pct = (25-23)/23 = 0.0870 > 6%
+        book_manager.yes_book = _make_orderbook("YES_TOKEN", best_bid=0.50)
 
         assert strategy.should_exit(position, market) is True
 
