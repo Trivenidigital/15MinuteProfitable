@@ -96,33 +96,47 @@ def _get_vault() -> SecretVault | None:
     return SecretVault(_vault_path(), vault_password)
 
 
+_WRITE_ONLY_SECRETS = {"private_key"}
+
+
 def _load_secrets_for_display() -> dict[str, str]:
     """Load secrets from vault (or .env fallback) for the wallet page.
 
-    Values are returned as-is for the admin to edit.  The template masks
-    them with ``type="password"`` inputs.
+    Write-only secrets (private_key) are replaced with a sentinel value
+    so the template can show "Stored" status without exposing the actual
+    value to the browser.
     """
     vault = _get_vault()
+    raw: dict[str, str] = {}
     if vault and vault.exists():
         try:
-            return vault.load()
+            raw = vault.load()
         except VaultError:
             pass
 
-    # Fallback: read from .env
-    env_data = read_env(_env_path())
-    mapping = {
-        "BOT_PRIVATE_KEY": "private_key",
-        "BOT_TELEGRAM_BOT_TOKEN": "telegram_bot_token",
-        "BOT_DISCORD_WEBHOOK_URL": "discord_webhook_url",
-        "BOT_DASHBOARD_PASSWORD": "dashboard_password",
-        "BOT_FUNDER": "funder",
-    }
+    if not raw:
+        # Fallback: read from .env
+        env_data = read_env(_env_path())
+        mapping = {
+            "BOT_PRIVATE_KEY": "private_key",
+            "BOT_TELEGRAM_BOT_TOKEN": "telegram_bot_token",
+            "BOT_DISCORD_WEBHOOK_URL": "discord_webhook_url",
+            "BOT_DASHBOARD_PASSWORD": "dashboard_password",
+            "BOT_FUNDER": "funder",
+        }
+        for env_key, vault_key in mapping.items():
+            val = env_data.get(env_key, "")
+            if val:
+                raw[vault_key] = val
+
+    # Redact write-only secrets: keep a truthy sentinel so the template
+    # can detect "is stored" but never expose the actual value.
     result: dict[str, str] = {}
-    for env_key, vault_key in mapping.items():
-        val = env_data.get(env_key, "")
-        if val:
-            result[vault_key] = val
+    for key, val in raw.items():
+        if key in _WRITE_ONLY_SECRETS and val:
+            result[key] = "********"
+        else:
+            result[key] = val
     return result
 
 
@@ -270,9 +284,15 @@ def create_admin_app() -> FastAPI:
         else:
             existing = {}
 
-        # Merge new secrets (empty values = delete)
+        # Merge new secrets (empty values = keep existing for write-only,
+        # delete for others)
         for key, value in body.items():
-            if value:
+            if key in _WRITE_ONLY_SECRETS:
+                # Only update if user provided a new value
+                if value and value != "********":
+                    existing[key] = value
+                # Otherwise keep the existing stored value
+            elif value:
                 existing[key] = value
             else:
                 existing.pop(key, None)

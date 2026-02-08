@@ -65,11 +65,11 @@
     <h2>Wallet Configuration</h2>
     <div class="form-grid">
         <div class="form-group">
-            <label>Private Key</label>
+            <label>Private Key{% if secrets.get('private_key') %} <span class="status-badge status-running" style="font-size: 11px;">Stored</span>{% endif %}</label>
             <div class="secret-field">
-                <input type="password" id="secretPrivateKey" value="{{ secrets.get('private_key', '') }}" placeholder="0x...">
-                <button type="button" onclick="toggleSecret(this)">Show</button>
+                <input type="password" id="secretPrivateKey" value="" placeholder="{% if secrets.get('private_key') %}Enter new key to replace existing{% else %}0x...{% endif %}">
             </div>
+            <small style="color: var(--text-muted); font-size: 12px;">Write-only. The stored key is never sent to the browser.</small>
         </div>
         <div class="form-group">
             <label>Polymarket Wallet Address</label>
