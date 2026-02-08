@@ -18,7 +18,7 @@ class PositionSizer:
         self,
         kelly_fraction: float = 0.25,
         min_size: float = 50.0,
-        max_size: float = 200.0,
+        max_size: float = 500.0,
     ) -> None:
         if not 0.0 < kelly_fraction <= 1.0:
             raise ValueError(f"kelly_fraction must be in (0, 1], got {kelly_fraction}")
