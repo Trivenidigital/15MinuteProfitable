@@ -149,6 +149,10 @@ class Settings(BaseSettings):
     sniper_vol_window_seconds: int = 600      # Seconds of spot data for vol calc (10 min)
     sniper_momentum_window_seconds: int = 30  # Seconds of recent prices for momentum check
 
+    # Fill quality guards
+    max_fill_slippage: float = 0.05           # Max VWAP-to-best-price ratio (5% default)
+    max_levels_consumed: int = 3              # Max orderbook levels to walk for a fill
+
     # Spot buffer
     spot_buffer_window: int = 900             # Max age of spot prices in buffer (15 min)
 

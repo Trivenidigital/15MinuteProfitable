@@ -1385,6 +1385,26 @@ def resolve_outcome(
     return 1.0 if price_went_up else 0.0
 
 
+def _update_kelly_state(
+    trade_db: TradeDatabase | None,
+    state_manager: StateManager,
+) -> None:
+    """Compute and persist Kelly inputs (win_rate, avg_win, avg_loss) from daily P&L."""
+    if trade_db is None:
+        return
+    try:
+        pnl = state_manager.daily_pnl()
+        total = pnl.win_count + pnl.loss_count
+        if total < 5:
+            return  # not enough data yet today
+        win_rate = pnl.win_count / total
+        avg_win = pnl.total_win_amount / pnl.win_count if pnl.win_count > 0 else 0.0
+        avg_loss = pnl.total_loss_amount / pnl.loss_count if pnl.loss_count > 0 else 0.0
+        trade_db.save_kelly_state(win_rate, avg_win, avg_loss, total)
+    except Exception as exc:
+        _log.warning("kelly_persist_failed", error=str(exc))
+
+
 async def _resolution_loop(
     state_manager: StateManager,
     spot_buffer: SpotBuffer | None = None,
@@ -1425,6 +1445,9 @@ async def _resolution_loop(
                             net_profit=report.get("net_profit", 0.0),
                             outcome=report.get("outcome", ""),
                         ))
+                # Persist Kelly inputs after each resolution batch
+                _update_kelly_state(trade_db, state_manager)
+
                 _log.info(
                     "resolution_loop_completed",
                     resolved_count=len(resolved),
@@ -1731,12 +1754,16 @@ async def _run_bot(settings: Settings, pid_lock: PidLock) -> None:
     rate_limiter = RateLimiter(max_per_minute=55)
     spot_buffer = SpotBuffer(window_seconds=settings.spot_buffer_window, max_size=10000)
 
-    # Trade database (needed for dashboard or decision logging)
+    # Trade database (needed for dashboard, decision logging, and state persistence)
     trade_db: TradeDatabase | None = None
     dashboard_server = None
     if settings.dashboard_enabled or settings.enable_decision_logging:
         trade_db = TradeDatabase(settings.db_path)
         state_manager.set_trade_db(trade_db)
+        risk_manager.set_trade_db(trade_db)
+
+    # Restore circuit breaker state from DB (survives restarts)
+    risk_manager.load_persisted_state()
 
     # Kelly position sizer
     sizer = PositionSizer(
@@ -1745,6 +1772,18 @@ async def _run_bot(settings: Settings, pid_lock: PidLock) -> None:
         max_size=settings.max_position_per_market,
     )
     risk_manager.set_sizer(sizer)
+
+    # Restore Kelly inputs from DB if available
+    if trade_db is not None:
+        kelly_state = trade_db.load_kelly_state()
+        if kelly_state and kelly_state["sample_count"] >= 10:
+            _log.info(
+                "kelly_state_restored",
+                win_rate=round(kelly_state["win_rate"], 4),
+                avg_win=round(kelly_state["avg_win"], 2),
+                avg_loss=round(kelly_state["avg_loss"], 2),
+                samples=kelly_state["sample_count"],
+            )
 
     clob_ws = ClobWebSocket(
         ws_url=settings.clob_ws_url,

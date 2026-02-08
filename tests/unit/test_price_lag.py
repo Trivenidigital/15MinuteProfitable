@@ -53,6 +53,12 @@ class MockSpotBuffer:
     ) -> SpotMovement | None:
         return self._movement
 
+    def get_price_history(
+        self, symbol: str, window_seconds: int | None = None
+    ) -> list[tuple[float, float]]:
+        """Return empty history — vol normalization falls back to base threshold."""
+        return []
+
 
 # ---------------------------------------------------------------------------
 # Mock OrderBookManager

@@ -262,6 +262,22 @@ CREATE TABLE IF NOT EXISTS market_outcomes (
 
 CREATE INDEX IF NOT EXISTS idx_outcomes_asset ON market_outcomes(asset);
 CREATE INDEX IF NOT EXISTS idx_outcomes_window ON market_outcomes(window_end DESC);
+
+CREATE TABLE IF NOT EXISTS kelly_state (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    updated_at REAL NOT NULL DEFAULT 0.0,
+    win_rate REAL NOT NULL DEFAULT 0.0,
+    avg_win REAL NOT NULL DEFAULT 0.0,
+    avg_loss REAL NOT NULL DEFAULT 0.0,
+    sample_count INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS circuit_breaker_state (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    active INTEGER NOT NULL DEFAULT 0,
+    reason TEXT NOT NULL DEFAULT '',
+    until_ts REAL NOT NULL DEFAULT 0.0
+);
 """
 
 
@@ -724,6 +740,80 @@ class TradeDatabase:
             "flat_count": flat_count,
             "win_rate": yes_count / count if count > 0 else 0.0,
             "avg_change_pct": avg_change,
+        }
+
+    # ------------------------------------------------------------------
+    # Kelly state persistence
+    # ------------------------------------------------------------------
+
+    def save_kelly_state(
+        self,
+        win_rate: float,
+        avg_win: float,
+        avg_loss: float,
+        sample_count: int,
+    ) -> None:
+        """Upsert the Kelly sizing state (single row)."""
+        self._conn.execute(
+            """INSERT INTO kelly_state (id, updated_at, win_rate, avg_win, avg_loss, sample_count)
+               VALUES (1, ?, ?, ?, ?, ?)
+               ON CONFLICT(id) DO UPDATE SET
+                 updated_at=excluded.updated_at,
+                 win_rate=excluded.win_rate,
+                 avg_win=excluded.avg_win,
+                 avg_loss=excluded.avg_loss,
+                 sample_count=excluded.sample_count""",
+            (time.time(), win_rate, avg_win, avg_loss, sample_count),
+        )
+        self._conn.commit()
+
+    def load_kelly_state(self) -> dict[str, float] | None:
+        """Load the persisted Kelly state, or None if not yet saved."""
+        row = self._conn.execute(
+            "SELECT * FROM kelly_state WHERE id = 1"
+        ).fetchone()
+        if row is None:
+            return None
+        return {
+            "win_rate": float(row["win_rate"]),
+            "avg_win": float(row["avg_win"]),
+            "avg_loss": float(row["avg_loss"]),
+            "sample_count": int(row["sample_count"]),
+        }
+
+    # ------------------------------------------------------------------
+    # Circuit breaker state persistence
+    # ------------------------------------------------------------------
+
+    def save_circuit_breaker_state(
+        self,
+        active: bool,
+        reason: str,
+        until_ts: float,
+    ) -> None:
+        """Upsert the circuit breaker state (single row)."""
+        self._conn.execute(
+            """INSERT INTO circuit_breaker_state (id, active, reason, until_ts)
+               VALUES (1, ?, ?, ?)
+               ON CONFLICT(id) DO UPDATE SET
+                 active=excluded.active,
+                 reason=excluded.reason,
+                 until_ts=excluded.until_ts""",
+            (1 if active else 0, reason, until_ts),
+        )
+        self._conn.commit()
+
+    def load_circuit_breaker_state(self) -> dict[str, float | str | bool] | None:
+        """Load the persisted circuit breaker state, or None if not yet saved."""
+        row = self._conn.execute(
+            "SELECT * FROM circuit_breaker_state WHERE id = 1"
+        ).fetchone()
+        if row is None:
+            return None
+        return {
+            "active": bool(row["active"]),
+            "reason": str(row["reason"]),
+            "until_ts": float(row["until_ts"]),
         }
 
     # ------------------------------------------------------------------

@@ -159,7 +159,7 @@ class OrderExecutor:
         if self._dry_run:
             order.order_id = f"dry_{uuid.uuid4().hex[:8]}"
 
-            # BUY: check orderbook liquidity and use VWAP
+            # BUY: check orderbook liquidity, slippage, depth, and use VWAP
             if order.side == Side.BUY and self._book_manager is not None:
                 fill_est = self._book_manager.get_fill_estimate(
                     order.token_id, order.side, order.size
@@ -172,6 +172,31 @@ class OrderExecutor:
                         token_id=order.token_id[:12],
                         side=order.side.value,
                         size=order.size,
+                    )
+                    return order
+                # Slippage guard: reject if VWAP exceeds best price by too much
+                max_slippage = self._settings.max_fill_slippage
+                if fill_est.best_price > 0 and fill_est.vwap > fill_est.best_price * (1 + max_slippage):
+                    order.status = OrderStatus.REJECTED
+                    self._log.info(
+                        "order_rejected_dry_slippage",
+                        order_id=order.order_id,
+                        token_id=order.token_id[:12],
+                        vwap=round(fill_est.vwap, 4),
+                        best_price=round(fill_est.best_price, 4),
+                        slippage_pct=round((fill_est.vwap / fill_est.best_price - 1) * 100, 2),
+                    )
+                    return order
+                # Book depth guard: reject if filling requires too many levels
+                max_levels = self._settings.max_levels_consumed
+                if fill_est.levels_consumed > max_levels:
+                    order.status = OrderStatus.REJECTED
+                    self._log.info(
+                        "order_rejected_dry_thin_book",
+                        order_id=order.order_id,
+                        token_id=order.token_id[:12],
+                        levels_consumed=fill_est.levels_consumed,
+                        max_levels=max_levels,
                     )
                     return order
                 order.fill_price = fill_est.vwap

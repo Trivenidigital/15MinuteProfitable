@@ -606,9 +606,14 @@ class TestOpeningPriceCapture:
         self, strategy: ResolutionSniperStrategy,
         spot_buffer: MockSpotBuffer,
     ) -> None:
-        """Opening price captured from spot buffer on first access."""
-        spot_buffer._prices["BTCUSDT"] = 100500.0
-        price = strategy._capture_opening_price("cond_cap", "BTCUSDT")
+        """Opening price captured from spot buffer history nearest market open."""
+        now = time.time()
+        market_start = now - 800  # market opened 800s ago
+        spot_buffer._price_history["BTCUSDT"] = [
+            (market_start + 5, 100500.0),
+            (now - 100, 100600.0),
+        ]
+        price = strategy._capture_opening_price("cond_cap", "BTCUSDT", market_start)
         assert price == 100500.0
         assert "cond_cap" in strategy._opening_prices
 
@@ -617,12 +622,19 @@ class TestOpeningPriceCapture:
         spot_buffer: MockSpotBuffer,
     ) -> None:
         """Opening price should not change after initial capture."""
-        spot_buffer._prices["BTCUSDT"] = 100500.0
-        strategy._capture_opening_price("cond_cap2", "BTCUSDT")
+        now = time.time()
+        market_start = now - 800
+        spot_buffer._price_history["BTCUSDT"] = [
+            (market_start + 5, 100500.0),
+            (now - 100, 100600.0),
+        ]
+        strategy._capture_opening_price("cond_cap2", "BTCUSDT", market_start)
 
-        # Change spot price
-        spot_buffer._prices["BTCUSDT"] = 101000.0
-        price = strategy._capture_opening_price("cond_cap2", "BTCUSDT")
+        # Change history — should not affect cached value
+        spot_buffer._price_history["BTCUSDT"] = [
+            (market_start + 5, 101000.0),
+        ]
+        price = strategy._capture_opening_price("cond_cap2", "BTCUSDT", market_start)
         assert price == 100500.0  # Still the original
 
     def test_separate_per_market(
@@ -630,11 +642,15 @@ class TestOpeningPriceCapture:
         spot_buffer: MockSpotBuffer,
     ) -> None:
         """Different condition_ids get separate opening prices."""
-        spot_buffer._prices["BTCUSDT"] = 100500.0
-        strategy._capture_opening_price("cond_a", "BTCUSDT")
-
-        spot_buffer._prices["BTCUSDT"] = 101000.0
-        strategy._capture_opening_price("cond_b", "BTCUSDT")
+        now = time.time()
+        market_start_a = now - 800
+        market_start_b = now - 600
+        spot_buffer._price_history["BTCUSDT"] = [
+            (market_start_a + 5, 100500.0),
+            (market_start_b + 5, 101000.0),
+        ]
+        strategy._capture_opening_price("cond_a", "BTCUSDT", market_start_a)
+        strategy._capture_opening_price("cond_b", "BTCUSDT", market_start_b)
 
         assert strategy._opening_prices["cond_a"][0] == 100500.0
         assert strategy._opening_prices["cond_b"][0] == 101000.0

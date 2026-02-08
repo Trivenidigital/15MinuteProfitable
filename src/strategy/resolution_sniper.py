@@ -156,8 +156,11 @@ class ResolutionSniperStrategy(BaseStrategy):
         if not self._spot_buffer.has_data(binance_symbol):
             return None
 
-        # 4. Capture or retrieve opening price
-        open_price = self._capture_opening_price(market.condition_id, binance_symbol)
+        # 4. Capture or retrieve opening price (using market open time)
+        market_start_ts = market.start_time.timestamp()
+        open_price = self._capture_opening_price(
+            market.condition_id, binance_symbol, market_start_ts
+        )
         if open_price is None:
             return None
 
@@ -398,19 +401,37 @@ class ResolutionSniperStrategy(BaseStrategy):
     # ------------------------------------------------------------------
 
     def _capture_opening_price(
-        self, condition_id: str, binance_symbol: str
+        self, condition_id: str, binance_symbol: str, market_start_ts: float
     ) -> float | None:
-        """Capture the opening price on first call; return cached value after."""
+        """Return the spot price closest to market open; cache for future calls.
+
+        Uses the spot buffer's full history and picks the earliest price
+        that falls within the market's lifetime, giving a much more
+        accurate baseline than the first price seen at T-120s.
+        """
         entry = self._opening_prices.get(condition_id)
         if entry is not None:
             return entry[0]
 
-        price = self._spot_buffer.get_price(binance_symbol)
-        if price is None:
+        # Pull full buffer history and find the price closest to market open
+        history = self._spot_buffer.get_price_history(binance_symbol)
+        if not history:
             return None
 
-        self._opening_prices[condition_id] = (price, time.time())
-        return price
+        # Find the entry closest to market_start_ts
+        best_price: float | None = None
+        best_diff = float("inf")
+        for ts, price in history:
+            diff = abs(ts - market_start_ts)
+            if diff < best_diff:
+                best_diff = diff
+                best_price = price
+
+        if best_price is None:
+            return None
+
+        self._opening_prices[condition_id] = (best_price, time.time())
+        return best_price
 
     def _estimate_realized_vol(self, binance_symbol: str) -> float | None:
         """Compute realized 1-minute volatility from spot buffer history.

@@ -80,6 +80,13 @@ class RiskManager:
         # Optional Kelly sizer
         self._sizer: object | None = None
 
+        # Optional persistence
+        self._trade_db: object | None = None
+
+    def set_trade_db(self, trade_db: object) -> None:
+        """Attach a TradeDatabase for persisting circuit breaker state."""
+        self._trade_db = trade_db
+
     # ------------------------------------------------------------------
     # Pre-trade checks
     # ------------------------------------------------------------------
@@ -328,6 +335,7 @@ class RiskManager:
             reason=reason,
             duration_seconds=duration_seconds,
         )
+        self._persist_circuit_breaker()
 
     def deactivate_circuit_breaker(self) -> None:
         """Manually deactivate the circuit breaker."""
@@ -338,6 +346,7 @@ class RiskManager:
         self._circuit_breaker_active = False
         self._circuit_breaker_reason = ""
         self._circuit_breaker_until = 0.0
+        self._persist_circuit_breaker()
 
     # ------------------------------------------------------------------
     # Disconnect tracking
@@ -367,6 +376,47 @@ class RiskManager:
         """Attach a PositionSizer for Kelly-adjusted sizing."""
         self._sizer = sizer
         self._log.info("sizer_attached", sizer=type(sizer).__name__)
+
+    def load_persisted_state(self) -> None:
+        """Restore circuit breaker state from the database on startup."""
+        if self._trade_db is None:
+            return
+        try:
+            state = self._trade_db.load_circuit_breaker_state()  # type: ignore[attr-defined]
+            if state is None:
+                return
+            if state["active"] and float(state["until_ts"]) > time.time():
+                self._circuit_breaker_active = True
+                self._circuit_breaker_reason = str(state["reason"])
+                self._circuit_breaker_until = float(state["until_ts"])
+                remaining = self._circuit_breaker_until - time.time()
+                self._log.warning(
+                    "circuit_breaker_restored",
+                    reason=self._circuit_breaker_reason,
+                    remaining_seconds=round(remaining, 0),
+                )
+            else:
+                # Expired — clear persisted state
+                self._trade_db.save_circuit_breaker_state(False, "", 0.0)  # type: ignore[attr-defined]
+        except Exception as exc:
+            self._log.warning("circuit_breaker_restore_failed", error=str(exc))
+
+    def _persist_circuit_breaker(self) -> None:
+        """Save current circuit breaker state to the database."""
+        if self._trade_db is None:
+            return
+        try:
+            self._trade_db.save_circuit_breaker_state(  # type: ignore[attr-defined]
+                self._circuit_breaker_active,
+                self._circuit_breaker_reason,
+                self._circuit_breaker_until,
+            )
+        except Exception as exc:
+            self._log.warning("circuit_breaker_persist_failed", error=str(exc))
+
+    # ------------------------------------------------------------------
+    # Kelly sizing integration
+    # ------------------------------------------------------------------
 
     def kelly_adjusted_size(
         self,

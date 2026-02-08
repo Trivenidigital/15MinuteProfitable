@@ -40,6 +40,18 @@ class PriceLagStrategy(BaseStrategy):
     haven't caught up, enters directionally.
     """
 
+    # Baseline 1-minute realized volatility per asset (calibrated from
+    # observed data).  Used to normalize spot_move_threshold so that a
+    # 0.1% move in low-vol BTC is treated differently from 0.1% in
+    # high-vol XRP.  Values are approximate 1-min stddev of log-returns.
+    _BASELINE_VOL: dict[str, float] = {
+        "BTCUSDT": 0.0008,   # ~0.08%/min
+        "ETHUSDT": 0.0012,   # ~0.12%/min
+        "SOLUSDT": 0.0020,   # ~0.20%/min
+        "XRPUSDT": 0.0025,   # ~0.25%/min
+    }
+    _DEFAULT_BASELINE: float = 0.0015  # fallback
+
     def __init__(
         self,
         settings: Settings,
@@ -104,11 +116,12 @@ class PriceLagStrategy(BaseStrategy):
             self._log.debug("no_spot_data", market=market.slug, symbol=binance_symbol)
             return None
 
-        # 3. Detect spot movement
+        # 3. Detect spot movement (vol-adjusted threshold per asset)
+        effective_threshold = self._vol_adjusted_threshold(binance_symbol)
         movement = self._spot_buffer.detect_movement(
             symbol=binance_symbol,
             window_seconds=self._settings.spot_window_seconds,
-            threshold=self._settings.spot_move_threshold,
+            threshold=effective_threshold,
         )
 
         if movement is None:
@@ -468,6 +481,53 @@ class PriceLagStrategy(BaseStrategy):
         self._consecutive_signals.pop(condition_id, None)
         self._last_signal_direction.pop(condition_id, None)
         self._stop_loss_counts.pop(condition_id, None)
+
+    def _vol_adjusted_threshold(self, binance_symbol: str) -> float:
+        """Return a volatility-normalized spot_move_threshold for this asset.
+
+        Scales the base threshold by (asset_realized_vol / baseline_vol) so
+        that high-vol assets require proportionally larger moves to trigger.
+        Falls back to the raw threshold if insufficient data.
+        """
+        import math
+
+        base_threshold = self._settings.spot_move_threshold
+        baseline = self._BASELINE_VOL.get(binance_symbol, self._DEFAULT_BASELINE)
+
+        # Compute realized 1-min vol from last 5 minutes of spot data
+        history = self._spot_buffer.get_price_history(binance_symbol, 300)
+        if len(history) < 10:
+            return base_threshold  # not enough data — use raw threshold
+
+        log_returns: list[float] = []
+        for i in range(1, len(history)):
+            prev = history[i - 1][1]
+            curr = history[i][1]
+            if prev > 0:
+                log_returns.append(math.log(curr / prev))
+
+        if not log_returns:
+            return base_threshold
+
+        n = len(log_returns)
+        mean = sum(log_returns) / n
+        variance = sum((r - mean) ** 2 for r in log_returns) / n
+        stddev = math.sqrt(variance)
+
+        # Scale to per-minute
+        total_time = history[-1][0] - history[0][0]
+        if total_time <= 0:
+            return base_threshold
+        ticks_per_min = (len(history) - 1) / (total_time / 60.0)
+        realized_vol = stddev * math.sqrt(max(ticks_per_min, 1.0))
+
+        if realized_vol <= 0:
+            return base_threshold
+
+        # Scale threshold: higher vol → proportionally higher threshold
+        ratio = realized_vol / baseline
+        adjusted = base_threshold * max(ratio, 0.5)  # floor at 50% of base
+        return adjusted
 
     def _time_aware_sizing(self, time_to_close: float) -> float:
         """Return sizing multiplier based on time remaining.
