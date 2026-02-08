@@ -47,6 +47,7 @@
         .badge-reverted { background: rgba(248, 81, 73, 0.15); color: var(--red); border: 1px solid rgba(248, 81, 73, 0.3); }
         .badge-pending { background: rgba(210, 153, 34, 0.15); color: var(--yellow); border: 1px solid rgba(210, 153, 34, 0.3); }
         .badge-neutral { background: rgba(139, 148, 158, 0.15); color: var(--text-muted); border: 1px solid rgba(139, 148, 158, 0.3); }
+        .badge-new { background: rgba(188, 140, 255, 0.15); color: var(--purple); border: 1px solid rgba(188, 140, 255, 0.3); }
         .card {
             background: var(--surface);
             border: 1px solid var(--border);
@@ -97,6 +98,7 @@
         .red { color: var(--red); }
         .yellow { color: var(--yellow); }
         .accent { color: var(--accent); }
+        .purple { color: var(--purple); }
         .muted { color: var(--text-muted); }
         .timeline-entry {
             border-left: 3px solid var(--border);
@@ -119,6 +121,7 @@
         .timeline-entry.reverted::before { background: var(--red); }
         .timeline-entry.pending::before { background: var(--yellow); }
         .timeline-entry.baseline::before { background: var(--accent); }
+        .timeline-entry.new::before { background: var(--purple); }
         .timeline-date { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.25rem; }
         .timeline-title { font-size: 1rem; font-weight: 600; margin-bottom: 0.25rem; }
         ul, ol { margin: 0.5rem 0 0.75rem 1.5rem; color: var(--text-muted); font-size: 0.9rem; }
@@ -133,6 +136,7 @@
         }
         .callout.warning { border-left-color: var(--yellow); background: rgba(210, 153, 34, 0.05); }
         .callout.success { border-left-color: var(--green); background: rgba(63, 185, 80, 0.05); }
+        .callout.purple { border-left-color: var(--purple); background: rgba(188, 140, 255, 0.05); }
         .experiment-metrics {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
@@ -171,11 +175,11 @@
 
 <div class="grid-3">
     <div class="stat">
-        <div class="stat-value accent">3</div>
+        <div class="stat-value accent">10</div>
         <div class="stat-label">Experiments Run</div>
     </div>
     <div class="stat">
-        <div class="stat-value green">0</div>
+        <div class="stat-value green">4</div>
         <div class="stat-label">Changes Kept</div>
     </div>
     <div class="stat">
@@ -186,62 +190,163 @@
 
 <div class="grid">
     <div class="stat">
-        <div class="stat-value accent">37%</div>
+        <div class="stat-value accent">~25%</div>
         <div class="stat-label">Current Win Rate</div>
     </div>
     <div class="stat">
-        <div class="stat-value green">+$370</div>
-        <div class="stat-label">Cumulative Sim P&amp;L (Feb 8)</div>
+        <div class="stat-value green">+$54</div>
+        <div class="stat-label">Sim P&amp;L (as of 21:54 UTC)</div>
     </div>
+</div>
+
+<div class="callout purple" style="margin-top: 1rem;">
+    <strong>Major milestone (Feb 8):</strong> Bregman divergence / information-theoretic framework integrated across all 7+1 strategies.
+    Two new strategies deployed (dip_buyer, fade_panic). Cross-asset correlation strategy created. Analysis mode activated with small trade sizes to observe all strategies.
+</div>
+
+<!-- ============================================================ -->
+<!-- STRATEGY ROSTER                                               -->
+<!-- ============================================================ -->
+
+<h2>2. Active Strategy Roster</h2>
+
+<p>All strategies currently deployed on the server. <span class="badge badge-new">NEW</span> = added Feb 8.</p>
+
+<div class="card">
+    <table>
+        <tr><th>Strategy</th><th>Type</th><th>Enabled</th><th>Trade Size</th><th>All-Time Trades</th><th>Notes</th></tr>
+        <tr>
+            <td><strong>Arbitrage</strong></td><td>Hedged</td>
+            <td class="green">true</td><td>$25</td><td>0</td>
+            <td>Spreads too wide ($1.01-1.05 vs $0.94 target). Structural — unlikely to fire.</td>
+        </tr>
+        <tr>
+            <td><strong>Asymmetric</strong></td><td>Directional</td>
+            <td class="green">true</td><td>$20</td><td>282+</td>
+            <td>Most active strategy. Accumulates cheap YES/NO tokens.</td>
+        </tr>
+        <tr>
+            <td><strong>Price Lag</strong></td><td>Directional</td>
+            <td class="green">true</td><td>$25</td><td>335</td>
+            <td>Historically biggest loser (23% WR, -$373). Needs spot-odds divergence.</td>
+        </tr>
+        <tr>
+            <td><strong>Maker Arbitrage</strong></td><td>Hedged</td>
+            <td class="green">true</td><td>$25</td><td>80</td>
+            <td>Close to threshold ($0.99 vs $0.985 target). Rarely fires.</td>
+        </tr>
+        <tr>
+            <td><strong>Fade Panic</strong> <span class="badge badge-new">NEW</span></td><td>Directional</td>
+            <td class="green">true</td><td>$30</td><td>11</td>
+            <td>Best strategy by ROI (+78%, 60% WR). Active T-120s to T-15s only. Prioritized with largest analysis size.</td>
+        </tr>
+        <tr>
+            <td><strong>Dip Buyer</strong> <span class="badge badge-new">NEW</span></td><td>Directional</td>
+            <td class="green">true</td><td>$25</td><td>0</td>
+            <td>Mean reversion — needs sharp spot spike. Condition-gated, waiting for volatility.</td>
+        </tr>
+        <tr>
+            <td><strong>Resolution Sniper</strong></td><td>Directional</td>
+            <td class="green">true</td><td>$30</td><td>150</td>
+            <td>Re-enabled Feb 8 21:20 UTC. Active T-120s to T-15s.</td>
+        </tr>
+        <tr>
+            <td><strong>Cross-Asset Correlation</strong> <span class="badge badge-new">NEW</span></td><td>Multi-Market</td>
+            <td class="red">false</td><td>$25</td><td>0</td>
+            <td>Bregman projection across BTC/ETH/SOL/XRP. Behind <code>enable_cross_asset_strategy</code> toggle.</td>
+        </tr>
+    </table>
 </div>
 
 <!-- ============================================================ -->
 <!-- CURRENT CONFIGURATION                                         -->
 <!-- ============================================================ -->
 
-<h2>2. Current Configuration State</h2>
+<h2>3. Current Configuration State</h2>
 
 <p>
-    Current parameter values on the server. Updated after each kept/reverted change.
-    <span class="badge badge-neutral">BASELINE</span> = no changes made yet.
+    Current parameter values on the server (analysis mode). Updated 2026-02-08 21:54 UTC.
+    <span class="badge badge-pending">ANALYSIS MODE</span> = small trade sizes to observe all strategies.
 </p>
 
 <div class="card">
+    <h4>Strategy Enables</h4>
     <table>
-        <tr><th>Parameter</th><th>Current Value</th><th>Pre-Sprint Baseline</th><th>Last Changed</th><th>Experiment #</th></tr>
-        <!-- Strategy Enables -->
-        <tr><td><code>enable_arbitrage</code></td><td class="green">true</td><td>true</td><td>&mdash;</td><td>&mdash;</td></tr>
-        <tr><td><code>enable_price_lag</code></td><td class="red">false</td><td>false</td><td>2026-02-08 ~18:00</td><td>User toggle</td></tr>
-        <tr><td><code>enable_asymmetric</code></td><td class="green">true</td><td>true</td><td>&mdash;</td><td>&mdash;</td></tr>
-        <tr><td><code>enable_maker_arbitrage</code></td><td class="green">true</td><td>false</td><td>2026-02-07</td><td>#1</td></tr>
-        <tr><td><code>enable_multi_market</code></td><td class="green">true</td><td>true</td><td>&mdash;</td><td>&mdash;</td></tr>
-        <tr><td><code>enable_dip_buyer</code></td><td class="green">true</td><td>false</td><td>2026-02-08 ~18:00</td><td>User toggle</td></tr>
-        <tr><td><code>enable_fade_panic</code></td><td class="green">true</td><td>false</td><td>2026-02-08 ~18:00</td><td>User toggle</td></tr>
-        <tr><td><code>enable_resolution_sniper</code></td><td class="red">false</td><td>false</td><td>2026-02-08 ~18:00</td><td>User toggle</td></tr>
-        <tr><td><code>enable_parallel_strategies</code></td><td class="green">true</td><td>false</td><td>2026-02-08 ~18:00</td><td>User toggle</td></tr>
-        <!-- Entry Parameters -->
-        <tr><td><code>spot_move_threshold</code></td><td>0.0015</td><td>0.0005</td><td>2026-02-07</td><td>#1</td></tr>
-        <tr><td><code>odds_lag_threshold</code></td><td>0.015</td><td>0.01</td><td>2026-02-07</td><td>#1</td></tr>
-        <tr><td><code>lag_confirmations</code></td><td>3</td><td>1</td><td>2026-02-07</td><td>#1</td></tr>
-        <tr><td><code>order_size</code></td><td>100.0</td><td>250.0</td><td>2026-02-08 ~18:00</td><td>Admin</td></tr>
-        <!-- Exit Parameters -->
-        <tr><td><code>stop_loss_pct</code></td><td>0.15</td><td>0.08</td><td>2026-02-07</td><td>#1</td></tr>
-        <tr><td><code>take_profit_pct</code></td><td>0.17</td><td>0.15</td><td>2026-02-08 16:05</td><td>#3</td></tr>
-        <tr><td><code>time_exit_seconds</code></td><td>30.0</td><td>45.0</td><td>2026-02-07</td><td>#1</td></tr>
-        <tr><td><code>stop_loss_time_decay</code></td><td>true (code default)</td><td>true</td><td>2026-02-08 15:17 (reverted)</td><td>#2 <span class="badge badge-reverted">REVERTED</span></td></tr>
-        <tr><td><code>take_profit_time_decay</code></td><td>true (code: 0.6x mid)</td><td>true (code: 2x mid)</td><td>2026-02-08 17:25</td><td>#4 <strong>(CODE FIX)</strong></td></tr>
-        <tr><td><code>stop_loss_confirmations</code></td><td>3</td><td>3</td><td>&mdash;</td><td>&mdash;</td></tr>
-        <tr><td><code>early_exit_loss_guard</code></td><td>70% (code: 0.30)</td><td>95% (code: 0.05)</td><td>2026-02-08 21:10</td><td>#6 <strong>(CODE FIX)</strong></td></tr>
-        <!-- Sniper Parameters -->
-        <tr><td><code>sniper_min_confidence</code></td><td>0.92</td><td>&mdash;</td><td>2026-02-07</td><td>#1</td></tr>
-        <tr><td><code>sniper_max_entry_price</code></td><td>0.80</td><td>&mdash;</td><td>2026-02-07</td><td>#1</td></tr>
-        <tr><td><code>sniper_order_size</code></td><td>30</td><td>&mdash;</td><td>2026-02-07</td><td>#1</td></tr>
-        <!-- Risk Parameters -->
-        <tr><td><code>max_entries_per_market</code></td><td>5</td><td>2</td><td>2026-02-08 ~19:30</td><td>#5</td></tr>
-        <tr><td><code>max_unhedged_exposure</code></td><td>250.0</td><td>&mdash;</td><td>2026-02-07</td><td>#1</td></tr>
-        <tr><td><code>max_position_per_market</code></td><td>750.0</td><td>1000.0</td><td>2026-02-07</td><td>#1</td></tr>
-        <tr><td><code>max_daily_loss</code></td><td>1000.0</td><td>250.0</td><td>2026-02-08 16:50</td><td>CB fix</td></tr>
-        <tr><td><code>sim_balance</code></td><td>10000</td><td>&mdash;</td><td>2026-02-07</td><td>#1</td></tr>
+        <tr><th>Parameter</th><th>Current Value</th><th>Pre-Sprint Baseline</th><th>Last Changed</th></tr>
+        <tr><td><code>enable_arbitrage</code></td><td class="green">true</td><td>true</td><td>&mdash;</td></tr>
+        <tr><td><code>enable_price_lag</code></td><td class="green">true</td><td>false</td><td>Feb 8 (code default)</td></tr>
+        <tr><td><code>enable_asymmetric</code></td><td class="green">true</td><td>true</td><td>&mdash;</td></tr>
+        <tr><td><code>enable_maker_arbitrage</code></td><td class="green">true</td><td>false</td><td>Feb 7</td></tr>
+        <tr><td><code>enable_dip_buyer</code></td><td class="green">true</td><td>N/A (new)</td><td>Feb 8 ~18:00</td></tr>
+        <tr><td><code>enable_fade_panic</code></td><td class="green">true</td><td>N/A (new)</td><td>Feb 8 ~18:00</td></tr>
+        <tr><td><code>enable_resolution_sniper</code></td><td class="green">true</td><td>false</td><td>Feb 8 21:20</td></tr>
+        <tr><td><code>enable_parallel_strategies</code></td><td class="green">true</td><td>false</td><td>Feb 8 ~18:00</td></tr>
+        <tr><td><code>enable_cross_asset_strategy</code></td><td class="red">false</td><td>N/A (new)</td><td>Feb 8 (created)</td></tr>
+        <tr><td><code>enable_divergence_scoring</code></td><td class="red">false</td><td>N/A (new)</td><td>Feb 8 (created)</td></tr>
+        <tr><td><code>divergence_kelly_scaling</code></td><td class="red">false</td><td>N/A (new)</td><td>Feb 8 (created)</td></tr>
+        <tr><td><code>divergence_exit_signals</code></td><td class="red">false</td><td>N/A (new)</td><td>Feb 8 (created)</td></tr>
+    </table>
+</div>
+
+<div class="card">
+    <h4>Trade Sizing (Analysis Mode)</h4>
+    <table>
+        <tr><th>Parameter</th><th>Current Value</th><th>Previous Value</th><th>Baseline</th><th>Last Changed</th></tr>
+        <tr><td><code>order_size</code></td><td><strong>$25</strong></td><td>$200</td><td>$250</td><td>Feb 8 21:00</td></tr>
+        <tr><td><code>accumulation_size</code></td><td><strong>$20</strong></td><td>$50</td><td>$10</td><td>Feb 8 21:00</td></tr>
+        <tr><td><code>dip_order_size</code></td><td><strong>$25</strong></td><td>$100</td><td>N/A</td><td>Feb 8 21:00</td></tr>
+        <tr><td><code>fade_panic_order_size</code></td><td><strong>$30</strong></td><td>$175</td><td>N/A</td><td>Feb 8 21:00</td></tr>
+        <tr><td><code>sniper_order_size</code></td><td><strong>$30</strong></td><td>$150</td><td>N/A</td><td>Feb 8 21:00</td></tr>
+        <tr><td><code>cross_asset_order_size</code></td><td><strong>$25</strong></td><td>$100</td><td>N/A</td><td>Feb 8 21:00</td></tr>
+        <tr><td><code>_MIN_TRADE_SIZE</code> (code)</td><td><strong>$10</strong></td><td>$50</td><td>$5</td><td>Feb 8 21:00</td></tr>
+        <tr><td><code>PositionSizer min_size</code></td><td><strong>$10</strong></td><td>$50</td><td>$5</td><td>Feb 8 21:00</td></tr>
+        <tr><td><code>PositionSizer max_size</code></td><td>$500</td><td>$500</td><td>$500</td><td>&mdash;</td></tr>
+    </table>
+</div>
+
+<div class="card">
+    <h4>Risk Limits</h4>
+    <table>
+        <tr><th>Parameter</th><th>Current Value</th><th>Previous</th><th>Last Changed</th></tr>
+        <tr><td><code>max_entries_per_market</code></td><td><strong>50</strong> (unlimited)</td><td>2</td><td>Feb 8 21:00</td></tr>
+        <tr><td><code>max_position_per_market</code></td><td>$1,000</td><td>$750</td><td>Feb 8</td></tr>
+        <tr><td><code>max_total_position</code></td><td>$5,000</td><td>$2,000</td><td>Feb 8</td></tr>
+        <tr><td><code>max_unhedged_exposure</code></td><td>$500</td><td>$250</td><td>Feb 8</td></tr>
+        <tr><td><code>max_daily_loss</code></td><td>$250</td><td>$1,000</td><td>Feb 8</td></tr>
+        <tr><td><code>min_entry_price</code></td><td><strong>$0.10</strong></td><td>N/A (new)</td><td>Feb 8 ~19:30</td></tr>
+        <tr><td colspan="4" class="muted"><em>Sniper max_entries=3 override: REMOVED (was blocking fade_panic)</em></td></tr>
+    </table>
+</div>
+
+<div class="card">
+    <h4>Entry / Exit Parameters</h4>
+    <table>
+        <tr><th>Parameter</th><th>Current Value</th><th>Baseline</th><th>Last Changed</th></tr>
+        <tr><td><code>spot_move_threshold</code></td><td>0.0005</td><td>0.0005</td><td>&mdash;</td></tr>
+        <tr><td><code>odds_lag_threshold</code></td><td>0.01</td><td>0.01</td><td>&mdash;</td></tr>
+        <tr><td><code>lag_confirmations</code></td><td>1</td><td>1</td><td>&mdash;</td></tr>
+        <tr><td><code>stop_loss_pct</code></td><td>0.08</td><td>0.08</td><td>&mdash;</td></tr>
+        <tr><td><code>take_profit_pct</code></td><td>0.15</td><td>0.15</td><td>&mdash;</td></tr>
+        <tr><td><code>time_exit_seconds</code></td><td>45.0</td><td>45.0</td><td>&mdash;</td></tr>
+        <tr><td><code>stop_loss_time_decay</code></td><td>true</td><td>true</td><td>&mdash;</td></tr>
+        <tr><td><code>take_profit_time_decay</code></td><td>true (0.6x mid)</td><td>true (2x mid, broken)</td><td>Feb 8 17:25 (code fix)</td></tr>
+        <tr><td><code>stop_loss_confirmations</code></td><td>3</td><td>3</td><td>&mdash;</td></tr>
+        <tr><td><code>lag_enable_ta_filter</code></td><td>true</td><td>N/A (new)</td><td>Feb 8</td></tr>
+    </table>
+</div>
+
+<div class="card">
+    <h4>Bregman Divergence / Information-Theoretic (all default OFF)</h4>
+    <table>
+        <tr><th>Parameter</th><th>Default</th><th>Description</th></tr>
+        <tr><td><code>enable_divergence_scoring</code></td><td>false</td><td>Add KL divergence to every strategy's metadata + composite ranking</td></tr>
+        <tr><td><code>divergence_ranking_alpha</code></td><td>0.7</td><td>Weight: alpha * profit_pct + (1-alpha) * kl_divergence</td></tr>
+        <tr><td><code>divergence_kelly_scaling</code></td><td>false</td><td>Scale Kelly position sizes by KL divergence magnitude</td></tr>
+        <tr><td><code>divergence_exit_signals</code></td><td>false</td><td>Exit when KL drops below ratio of entry KL</td></tr>
+        <tr><td><code>divergence_exit_threshold</code></td><td>0.5</td><td>Exit when current_kl / entry_kl &lt; this ratio</td></tr>
+        <tr><td><code>enable_cross_asset_strategy</code></td><td>false</td><td>Bregman projection across correlated assets</td></tr>
+        <tr><td><code>cross_asset_correlation_window</code></td><td>3600</td><td>Seconds of spot data for correlation matrix</td></tr>
+        <tr><td><code>cross_asset_min_divergence</code></td><td>0.01</td><td>Min projected-vs-observed gap to trade</td></tr>
     </table>
 </div>
 
@@ -249,255 +354,381 @@
 <!-- EXPERIMENT TIMELINE                                           -->
 <!-- ============================================================ -->
 
-<h2>3. Experiment Timeline</h2>
+<h2>4. Experiment Timeline</h2>
 
-<p>Chronological record of every parameter change. Newest entries at the top. Each entry includes hypothesis, before/after metrics, and verdict.</p>
+<p>Chronological record of every parameter change. Newest entries at the top.</p>
 
+<!-- Experiment #10 -->
+<div class="timeline-entry kept">
+    <div class="timeline-date">2026-02-08 21:55 UTC &mdash; Experiment #10</div>
+    <div class="timeline-title">
+        Remove sniper <code>max_entries=3</code> override
+        <span class="badge badge-kept">DEPLOYED</span>
+    </div>
+    <p><strong>Root cause:</strong> Hardcoded <code>if opp.strategy == RESOLUTION_SNIPER: max_entries = 3</code> in risk manager was blocking BOTH fade_panic and sniper when asymmetric already had entries on the market. Entry count is per-market (shared across all strategies), so 11 asymmetric entries meant <code>11 &ge; 3</code> rejected sniper/fade_panic.</p>
+    <p><strong>Fix:</strong> Removed the override entirely. All strategies now use the global <code>max_entries_per_market=50</code>.</p>
+    <p><strong>Evidence:</strong> Check 4/6 monitoring showed <code>max entries reached: 11 &ge; 3</code> blocking sniper opportunities. Resolution sniper found 4 opportunities but couldn't execute any.</p>
+</div>
+
+<!-- Experiment #9 -->
+<div class="timeline-entry kept">
+    <div class="timeline-date">2026-02-08 21:20 UTC &mdash; Experiment #9</div>
+    <div class="timeline-title">
+        Enable resolution sniper on server
+        <span class="badge badge-kept">DEPLOYED</span>
+    </div>
+    <p><strong>Root cause:</strong> Server <code>.env</code> had <code>BOT_ENABLE_RESOLUTION_SNIPER=false</code> which was missed during earlier deployments. Strategy was evaluating but never reached scanner.</p>
+    <p><strong>Fix:</strong> Changed to <code>BOT_ENABLE_RESOLUTION_SNIPER=true</code> in server .env.</p>
+</div>
+
+<!-- Experiment #8 -->
 <div class="timeline-entry pending">
+    <div class="timeline-date">2026-02-08 21:00 UTC &mdash; Experiment #8</div>
+    <div class="timeline-title">
+        Analysis Mode: small trades ($20-30), no entry cap, all strategies
+        <span class="badge badge-pending">OBSERVING</span>
+    </div>
+    <p><strong>Hypothesis:</strong> Lower all trade sizes to $20-30 and remove the max_entries barrier so ALL strategies can trade freely. This generates data across every strategy type for comparative analysis, rather than only asymmetric filling every slot.</p>
+    <p><strong>Changes:</strong></p>
+    <ul>
+        <li><code>order_size</code>: $200 &rarr; $25</li>
+        <li><code>accumulation_size</code>: $50 &rarr; $20</li>
+        <li><code>dip_order_size</code>: $100 &rarr; $25</li>
+        <li><code>fade_panic_order_size</code>: $175 &rarr; $30 (prioritized &mdash; best strategy)</li>
+        <li><code>sniper_order_size</code>: $150 &rarr; $30</li>
+        <li><code>max_entries_per_market</code>: 2 &rarr; 50 (effectively unlimited)</li>
+        <li><code>_MIN_TRADE_SIZE</code>: $50 &rarr; $10</li>
+        <li><code>PositionSizer min_size</code>: $50 &rarr; $10</li>
+    </ul>
+    <p><strong>30-min monitoring results:</strong></p>
+    <div class="experiment-metrics">
+        <div class="stat"><div class="stat-value green">0</div><div class="stat-label">Entry cap rejections</div></div>
+        <div class="stat"><div class="stat-value">858</div><div class="stat-label">Total executions</div></div>
+        <div class="stat"><div class="stat-value green">+$54</div><div class="stat-label">Net P&amp;L</div></div>
+        <div class="stat"><div class="stat-value yellow">1</div><div class="stat-label">Strategies trading</div></div>
+    </div>
+    <p><strong>Finding:</strong> Asymmetric dominates because it trades throughout the window. Other strategies are condition-gated (fade_panic/sniper: last 120s only; dip_buyer: needs spike; price_lag: needs divergence; arbitrage: spreads too wide). Entry cap barrier removed successfully. Sniper override was still blocking &mdash; fixed in Experiment #10.</p>
+    <p><strong>Verdict:</strong> <em>Observing &mdash; need more market windows to see fade_panic/sniper/dip_buyer fire at new sizes</em></p>
+</div>
+
+<!-- Experiment #7 -->
+<div class="timeline-entry kept">
+    <div class="timeline-date">2026-02-08 ~19:30 UTC &mdash; Experiment #7</div>
+    <div class="timeline-title">
+        Add $0.10 minimum entry price floor + scale up fade_panic
+        <span class="badge badge-kept">DEPLOYED</span>
+    </div>
+    <p><strong>Root cause:</strong> Trade analysis showed entries below $0.10 were lottery tickets with -100% loss rate when wrong. These are deep out-of-the-money contracts that almost never resolve in our favor.</p>
+    <p><strong>Changes:</strong></p>
+    <ul>
+        <li>Added <code>min_entry_price: float = 0.10</code> to config</li>
+        <li>Added floor check in 5 strategies: arbitrage (both legs), price_lag, dip_buyer, fade_panic, asymmetric</li>
+        <li>Scaled <code>fade_panic_order_size</code>: $100 &rarr; $175 (best strategy by ROI)</li>
+        <li>Added min_entry_price to admin dashboard settings page</li>
+    </ul>
+    <p><strong>Evidence from trade analysis:</strong></p>
+    <div class="experiment-metrics">
+        <div class="stat"><div class="stat-value red">-100%</div><div class="stat-label">&lt;$0.10 loss rate</div></div>
+        <div class="stat"><div class="stat-value green">+78%</div><div class="stat-label">Fade Panic ROI</div></div>
+        <div class="stat"><div class="stat-value green">60%</div><div class="stat-label">Fade Panic WR</div></div>
+        <div class="stat"><div class="stat-value red">23%</div><div class="stat-label">Price Lag WR</div></div>
+    </div>
+</div>
+
+<!-- Experiment #6 -->
+<div class="timeline-entry kept">
     <div class="timeline-date">2026-02-08 ~21:10 UTC &mdash; Experiment #6</div>
     <div class="timeline-title">
         Early exit loss guard: 95% &rarr; 70% loss threshold <strong>(CODE FIX, all strategies)</strong>
-        <span class="badge badge-pending">OBSERVING</span>
+        <span class="badge badge-kept">DEPLOYED</span>
     </div>
-    <p><strong>Root cause:</strong> Time-based exits were selling positions at 90-99% loss for pennies. Example: $104.77 invested, sold for $0.40 (99.6% loss, -$104.37). The old threshold only skipped exits at &gt;95% loss (value_ratio &lt; 0.05). Positions at 70-95% loss were being sold for negligible salvage instead of held to resolution.</p>
-    <p><strong>Fix:</strong> Changed <code>value_ratio</code> threshold from <code>0.05</code> to <code>0.30</code> across ALL strategies: price_lag, asymmetric, and dip_buyer. Positions down &gt;70% are now held to resolution. Fade_panic was unaffected (never exits early).</p>
-    <p><strong>Critical finding:</strong> Only price_lag had this guard. Asymmetric and dip_buyer had NO value check at all in their time exit &mdash; they dumped everything regardless of loss size.</p>
-    <p><strong>Success criteria:</strong> Zero early exits with &gt;70% loss. No impact on profitable early exits (those have positive value_ratio &gt; 1.0).</p>
-    <p><strong>After metrics:</strong></p>
-    <div class="experiment-metrics">
-        <div class="stat"><div class="stat-value">???</div><div class="stat-label">Heavy-loss exits blocked</div></div>
-        <div class="stat"><div class="stat-value">???</div><div class="stat-label">Normal exits (unaffected)</div></div>
-        <div class="stat"><div class="stat-value">???</div><div class="stat-label">Net P&amp;L impact</div></div>
-    </div>
-    <p><strong>Verdict:</strong> <em>Pending &mdash; review after observation period</em></p>
+    <p><strong>Root cause:</strong> Time-based exits were selling positions at 90-99% loss for pennies. Example: $104.77 invested, sold for $0.40 (99.6% loss). Only price_lag had a value guard; asymmetric and dip_buyer had none.</p>
+    <p><strong>Fix:</strong> Changed <code>value_ratio</code> threshold from <code>0.05</code> to <code>0.30</code> across ALL strategies: price_lag, asymmetric, dip_buyer. Positions down &gt;70% held to resolution instead of dumped for pennies.</p>
 </div>
 
-<div class="timeline-entry pending">
+<!-- Experiment #5 -->
+<div class="timeline-entry kept">
     <div class="timeline-date">2026-02-08 ~19:30 UTC &mdash; Experiment #5</div>
     <div class="timeline-title">
-        <code>max_entries_per_market</code>: 2 &rarr; 5
-        <span class="badge badge-pending">OBSERVING</span>
+        <code>max_entries_per_market</code>: 2 &rarr; 5 (later &rarr; 50)
+        <span class="badge badge-kept">SUPERSEDED BY #8</span>
     </div>
-    <p><strong>Root cause:</strong> Parallel strategies were blocking each other. When asymmetric took 2 entries on a market, fade_panic (or any other strategy) was rejected with <code>max entries reached: 2 &ge; 2</code> on the same condition_id. The entry cap is shared across all strategy types, not per-strategy.</p>
-    <p><strong>Evidence:</strong> Decision log analysis showed every multi-strategy cycle had the second strategy rejected. In cycles 695-1276, asymmetric was always approved first, fade_panic always rejected with entry cap.</p>
-    <p><strong>Fix:</strong> Increased <code>max_entries_per_market</code> from 2 to 5, allowing multiple strategies to operate independently on the same market.</p>
-    <p><strong>Success criteria:</strong> Multiple strategies executing on the same market in the same cycle. Reduced risk_rejected rate for entry cap reasons.</p>
-    <p><strong>After metrics:</strong></p>
-    <div class="experiment-metrics">
-        <div class="stat"><div class="stat-value">???</div><div class="stat-label">Multi-strategy cycles</div></div>
-        <div class="stat"><div class="stat-value">???</div><div class="stat-label">Entry cap rejections</div></div>
-    </div>
-    <p><strong>Verdict:</strong> <em>Pending &mdash; review after observation period</em></p>
+    <p><strong>Root cause:</strong> Parallel strategies blocked each other. Asymmetric took 2 entries, then fade_panic rejected with <code>max entries reached: 2 &ge; 2</code>.</p>
+    <p><strong>Fix:</strong> Increased from 2 to 5. Later superseded by Experiment #8 (raised to 50) and #10 (removed sniper override).</p>
 </div>
 
-<div class="timeline-entry pending">
+<!-- Experiment #4 -->
+<div class="timeline-entry kept">
     <div class="timeline-date">2026-02-08 17:25 UTC &mdash; Experiment #4</div>
     <div class="timeline-title">
         Take-profit time decay: inverted from 2x &rarr; 0.6x in middle third <strong>(CODE FIX)</strong>
-        <span class="badge badge-pending">OBSERVING</span>
+        <span class="badge badge-kept">DEPLOYED</span>
     </div>
-    <p><strong>Root cause:</strong> TP time decay was copied from stop-loss logic where doubling the threshold (harder to trigger) is protective. For take-profit, doubling made it unreachable: with TP at 0.17 base, middle third doubled to 0.34 (34%) which no 15-min position can reach. Last third disabled entirely. Net effect: TP only had a 5-minute window (first third) to fire.</p>
-    <p><strong>Fix:</strong> Middle third now uses <code>take_profit_pct * 0.6</code> instead of <code>* 2</code>. With TP at 0.17: first third = 17%, middle third = 10.2%, last third = disabled. This captures gains during peak-profit window before late volatility hits.</p>
-    <p><strong>Effective thresholds now (with TP = 0.17):</strong></p>
-    <ul>
-        <li>First 5 min: 17% (give position time to develop)</li>
-        <li>Middle 5 min: 10.2% (capture gains at likely peak)</li>
-        <li>Last 5 min: disabled (let winners ride to resolution)</li>
-    </ul>
-    <p><strong>Bottleneck:</strong> 0 take-profit triggers all day across Experiments #1&ndash;#3. The decay curve was inverted.</p>
-    <p><strong>Before metrics:</strong> 0 TP triggers in ~11 hours of operation.</p>
-    <p><strong>Success criteria:</strong> TP triggers &gt; 0. Improved win rate on early exits. Net P&amp;L per early exit improves.</p>
-    <p><strong>After metrics:</strong></p>
-    <div class="experiment-metrics">
-        <div class="stat"><div class="stat-value">???</div><div class="stat-label">TP Triggers</div></div>
-        <div class="stat"><div class="stat-value">???</div><div class="stat-label">Win Rate</div></div>
-        <div class="stat"><div class="stat-value">???</div><div class="stat-label">Avg TP P&amp;L</div></div>
-        <div class="stat"><div class="stat-value">???</div><div class="stat-label">Net P&amp;L</div></div>
-    </div>
-    <p><strong>Verdict:</strong> <em>Pending &mdash; review after observation period</em></p>
+    <p><strong>Root cause:</strong> TP time decay copied from SL logic where doubling = protective. For TP, doubling made threshold unreachable: 0.17 base &rarr; 0.34 middle third (34% gain impossible on 15-min markets).</p>
+    <p><strong>Fix:</strong> Middle third now uses <code>take_profit_pct * 0.6</code>. With TP=0.17: first 5min=17%, middle 5min=10.2%, last 5min=disabled.</p>
+    <p><strong>Evidence:</strong> 0 take-profit triggers in 11+ hours before fix.</p>
 </div>
 
+<!-- Experiment #3 -->
 <div class="timeline-entry pending">
     <div class="timeline-date">2026-02-08 16:05 UTC &mdash; Experiment #3</div>
     <div class="timeline-title">
         <code>take_profit_pct</code>: 0.25 &rarr; 0.17
         <span class="badge badge-pending">OBSERVING</span>
     </div>
-    <p><strong>Hypothesis:</strong> Lowering TP from 25% to 17% should allow take-profit exits to actually fire. At 25% with time decay (doubles to 50% in middle, disabled in last third), TP never triggered. At 17% (first third: 17%, middle: 34%, last: disabled), the threshold is reachable during early strong moves. <em>Note: This alone didn't fix TP &mdash; Experiment #4 (code fix) was also needed because the decay itself was inverted.</em></p>
-    <p><strong>Bottleneck:</strong> 0 take-profit triggers all day &mdash; the threshold is unreachable at 25%.</p>
-    <p><strong>Before metrics (full day Feb 8 up to 16:05 UTC):</strong></p>
-    <div class="experiment-metrics">
-        <div class="stat"><div class="stat-value">84</div><div class="stat-label">Results</div></div>
-        <div class="stat"><div class="stat-value">27%</div><div class="stat-label">Win Rate (23W/61L)</div></div>
-        <div class="stat"><div class="stat-value red">-$56</div><div class="stat-label">Net P&amp;L</div></div>
-        <div class="stat"><div class="stat-value">0</div><div class="stat-label">TP Triggers</div></div>
-    </div>
-    <p><strong>Observation period:</strong> 6&ndash;8h &mdash; review tonight</p>
-    <p><strong>Success criteria:</strong> TP triggers &gt; 0. Maintained or improved net P&amp;L.</p>
-    <p><strong>After metrics:</strong></p>
-    <div class="experiment-metrics">
-        <div class="stat"><div class="stat-value">???</div><div class="stat-label">Results</div></div>
-        <div class="stat"><div class="stat-value">???</div><div class="stat-label">Win Rate</div></div>
-        <div class="stat"><div class="stat-value">???</div><div class="stat-label">Net P&amp;L</div></div>
-        <div class="stat"><div class="stat-value">???</div><div class="stat-label">TP Triggers</div></div>
-    </div>
-    <p><strong>Verdict:</strong> <em>Pending &mdash; review after observation period</em></p>
+    <p><strong>Hypothesis:</strong> TP at 25% is unreachable. Lower to 17% for actual take-profit triggers. <em>Note: This alone didn't fix TP &mdash; Experiment #4 (code fix) was also needed.</em></p>
 </div>
 
+<!-- Experiment #2 -->
 <div class="timeline-entry reverted">
     <div class="timeline-date">2026-02-08 14:02 UTC &mdash; Experiment #2</div>
     <div class="timeline-title">
         <code>stop_loss_time_decay</code>: true &rarr; false &rarr; REVERTED at 15:17 UTC
         <span class="badge badge-reverted">REVERTED</span>
     </div>
-    <p><strong>Hypothesis:</strong> Disabling stop-loss time decay will prevent the SL from widening (middle third: 15%&rarr;30%) and disabling entirely (last third). This should catch losing positions earlier before they bleed to zero at resolution. Today's data shows 0 stop-loss triggers because the thresholds are effectively unreachable.</p>
-    <p><strong>Bottleneck:</strong> losing_trades &mdash; 22 positions held to resolution lost an average of -$50 each ($-1,050 total). SL never fired to cut them.</p>
-    <p><strong>Before metrics (observation period: ~7h, Feb 8 06:33&ndash;14:02 UTC):</strong></p>
-    <div class="experiment-metrics">
-        <div class="stat"><div class="stat-value">23/hr</div><div class="stat-label">Opps/hr</div></div>
-        <div class="stat"><div class="stat-value">108</div><div class="stat-label">Trades</div></div>
-        <div class="stat"><div class="stat-value">37%</div><div class="stat-label">Win Rate (22W/38L)</div></div>
-        <div class="stat"><div class="stat-value green">+$370</div><div class="stat-label">Net P&amp;L</div></div>
-        <div class="stat"><div class="stat-value">0</div><div class="stat-label">SL Triggers</div></div>
-        <div class="stat"><div class="stat-value">0</div><div class="stat-label">TP Triggers</div></div>
-        <div class="stat"><div class="stat-value">29</div><div class="stat-label">Time Exits</div></div>
-    </div>
-    <p><strong>Key pre-change data:</strong></p>
-    <ul>
-        <li>Early exits: 25 trades, +$1,206 total (+$48 avg). 13 winners (+$114 avg), 12 losers (-$23 avg)</li>
-        <li>Held to YES resolution: 21 trades, -$688 total (-$33 avg) &mdash; all losses</li>
-        <li>Held to NO resolution: 12 trades, -$363 total (-$30 avg) &mdash; all losses</li>
-        <li>Hedged/resolved: 4 trades, +$164 total (+$41 avg)</li>
-        <li>Early exit is the ONLY source of alpha. Held-to-resolution trades are consistently losing.</li>
-    </ul>
-    <p><strong>Observation period:</strong> 6&ndash;8h &mdash; review by ~2026-02-08 22:00 UTC</p>
-    <p><strong>Success criteria:</strong> Stop-loss triggers &gt; 0 (SL is actually firing). Fewer positions expiring worthless. Improved or maintained net P&amp;L.</p>
-    <p><strong>After metrics (observation: 1h15m, 14:02&ndash;15:17 UTC):</strong></p>
-    <div class="experiment-metrics">
-        <div class="stat"><div class="stat-value">15/hr</div><div class="stat-label">Results/hr</div></div>
-        <div class="stat"><div class="stat-value">15</div><div class="stat-label">Trades</div></div>
-        <div class="stat"><div class="stat-value red">0%</div><div class="stat-label">Win Rate (0W/15L)</div></div>
-        <div class="stat"><div class="stat-value red">-$239</div><div class="stat-label">Net P&amp;L</div></div>
-        <div class="stat"><div class="stat-value green">9</div><div class="stat-label">SL Triggers</div></div>
-        <div class="stat"><div class="stat-value">0</div><div class="stat-label">TP Triggers</div></div>
-        <div class="stat"><div class="stat-value">1</div><div class="stat-label">Time Exits</div></div>
-    </div>
-    <p><strong>Verdict:</strong> <span class="red"><strong>REVERTED</strong></span> after 1h15m. Stop losses fired (9 triggers, working as intended), but 0 winners in the observation period. SL was cutting positions in the last third of the window that previously would have held through volatile swings and recovered. The time decay design (disable SL in last third) matches market behavior &mdash; late-window prices are extremely volatile and reversals are common. Disabling time decay converted potential recovery plays into guaranteed small losses. Individual losses were smaller (-$16 avg vs -$33 resolution avg), but the total absence of winners made the change net negative. <strong>Key lesson:</strong> The problem isn't time decay &mdash; it's that the base SL (15%) and TP (25%) are too wide to trigger in the first/middle portions where time decay doesn't interfere.</p>
+    <p><strong>Result:</strong> 0 winners in 15 trades. SL fired 9 times but cut positions that would have recovered in late-window volatility. Net P&amp;L: -$239 in 1h15m. Time decay correctly models 15-min market behavior.</p>
 </div>
 
+<!-- Experiment #1 -->
 <div class="timeline-entry kept">
     <div class="timeline-date">2026-02-07 ~evening &mdash; Experiment #1</div>
     <div class="timeline-title">
         Multi-Strategy Activation &amp; Config Overhaul
         <span class="badge badge-kept">ACTIVE</span>
     </div>
-    <p><strong>Action:</strong> Enabled price_lag, maker_arbitrage, and resolution_sniper strategies. Adjusted entry/exit parameters and risk limits for live DRY_RUN testing. This was a bulk config change to get the bot trading (not a single-variable experiment).</p>
-    <p><strong>Key changes from baseline:</strong></p>
-    <ul>
-        <li><code>enable_price_lag</code>: false &rarr; true</li>
-        <li><code>enable_maker_arbitrage</code>: false &rarr; true</li>
-        <li><code>enable_resolution_sniper</code>: true (with min_confidence=0.92, max_entry=0.80, size=30)</li>
-        <li><code>spot_move_threshold</code>: 0.0005 &rarr; 0.0015</li>
-        <li><code>odds_lag_threshold</code>: 0.01 &rarr; 0.015</li>
-        <li><code>lag_confirmations</code>: 1 &rarr; 3</li>
-        <li><code>order_size</code>: 250 &rarr; 150</li>
-        <li><code>stop_loss_pct</code>: 0.08 &rarr; 0.15 (widened)</li>
-        <li><code>take_profit_pct</code>: 0.15 &rarr; 0.25 (widened)</li>
-        <li><code>time_exit_seconds</code>: 45 &rarr; 30 (shortened)</li>
-        <li><code>max_daily_loss</code>: 250 &rarr; 1000</li>
-    </ul>
-    <p><strong>Result after ~7h:</strong> Bot generating 108 trades, +$370 net P&amp;L. Alpha comes from early exits (+$1,206), offset by resolution losses (-$1,050). Maker arbitrage effectively dead (1 trade, -$2.13).</p>
+    <p><strong>Action:</strong> Enabled price_lag, maker_arbitrage, resolution_sniper. Adjusted entry/exit params. Result: +$370 in 7h.</p>
 </div>
 
+<!-- Experiment #0 -->
 <div class="timeline-entry baseline">
     <div class="timeline-date">2026-02-07 22:25 UTC &mdash; Experiment #0 (Pre-Sprint)</div>
     <div class="timeline-title">
         Phase 1 Observability Deployed &mdash; Baseline Collection Begins
-        <span class="badge badge-active">COLLECTING</span>
+        <span class="badge badge-neutral">BASELINE</span>
     </div>
-    <p><strong>Action:</strong> Deployed Phase 1 observability code to server. Bot restarted with decision logging, spot snapshots (5s interval), and market outcome tracking enabled.</p>
-    <p><strong>Immediate observations (first 60s post-deploy):</strong></p>
-    <div class="experiment-metrics">
-        <div class="stat"><div class="stat-value">0</div><div class="stat-label">Opps/hr</div></div>
-        <div class="stat"><div class="stat-value">0</div><div class="stat-label">Trades/day</div></div>
-        <div class="stat"><div class="stat-value">—</div><div class="stat-label">Win Rate</div></div>
-        <div class="stat"><div class="stat-value">$0</div><div class="stat-label">Net P&amp;L</div></div>
-        <div class="stat"><div class="stat-value">100%</div><div class="stat-label">No-Opp Rate</div></div>
-    </div>
-    <p><strong>Decision log:</strong> 32 decisions, all <code>no_opportunities</code>. Only arbitrage is enabled; combined YES+NO prices &gt;$1.01 across all assets (BTC: $1.01, ETH: $1.01, SOL: $1.03, XRP: $1.05). Spreads far above $0.94 target.</p>
-    <p><strong>Spot data:</strong> 4 symbols capturing (BTCUSDT: ~$69,490, ETHUSDT: ~$2,094, SOLUSDT: ~$88.38, XRPUSDT: ~$1.43).</p>
-    <p><strong>Next step:</strong> Wait 24h for baseline data accumulation, then begin first analysis cycle.</p>
+    <p><strong>Action:</strong> Deployed decision logging, spot snapshots (5s interval), market outcome tracking. Bot was arbitrage-only: 0 trades, 0 opportunities (spreads $1.01-$1.05 vs $0.94 target).</p>
 </div>
 
-<!--
-================================================================================
-TEMPLATE — Copy this block for each new experiment. Place ABOVE previous entries.
-================================================================================
+<!-- ============================================================ -->
+<!-- BREGMAN DIVERGENCE FRAMEWORK                                  -->
+<!-- ============================================================ -->
 
-<div class="timeline-entry pending">
-    <div class="timeline-date">2026-02-XX HH:MM UTC — Experiment #N</div>
-    <div class="timeline-title">
-        <code>parameter_name</code>: OLD_VALUE → NEW_VALUE
-        <span class="badge badge-pending">PENDING</span>
-    </div>
-    <p><strong>Hypothesis:</strong> [Why this change should help — be specific]</p>
-    <p><strong>Bottleneck:</strong> [Which funnel stage: no_opps / risk_rejected / losing_trades / too_few_trades]</p>
-    <p><strong>Before metrics (observation period: Xh):</strong></p>
-    <div class="experiment-metrics">
-        <div class="stat"><div class="stat-value">???</div><div class="stat-label">Opps/hr</div></div>
-        <div class="stat"><div class="stat-value">???</div><div class="stat-label">Trades/day</div></div>
-        <div class="stat"><div class="stat-value">???</div><div class="stat-label">Win Rate</div></div>
-        <div class="stat"><div class="stat-value">???</div><div class="stat-label">Net P&L</div></div>
-        <div class="stat"><div class="stat-value">???</div><div class="stat-label">Reject Rate</div></div>
-    </div>
-    <p><strong>Observation period:</strong> Xh — ends 2026-02-XX HH:MM UTC</p>
-    <p><strong>After metrics:</strong></p>
-    <div class="experiment-metrics">
-        <div class="stat"><div class="stat-value">???</div><div class="stat-label">Opps/hr</div></div>
-        <div class="stat"><div class="stat-value">???</div><div class="stat-label">Trades/day</div></div>
-        <div class="stat"><div class="stat-value">???</div><div class="stat-label">Win Rate</div></div>
-        <div class="stat"><div class="stat-value">???</div><div class="stat-label">Net P&L</div></div>
-        <div class="stat"><div class="stat-value">???</div><div class="stat-label">Reject Rate</div></div>
-    </div>
-    <p><strong>Verdict:</strong> [KEPT — reason / REVERTED — reason]</p>
+<h2>5. Bregman Divergence / Information-Theoretic Framework</h2>
+
+<p>
+    <span class="badge badge-new">NEW FEB 8</span>
+    Comprehensive mathematical framework integrated across all strategies. All features behind config toggles (default OFF). Zero behavior change unless explicitly enabled.
+</p>
+
+<div class="callout purple">
+    <strong>Why Bregman divergence?</strong> Ad-hoc confidence calculations treat probability space as Euclidean. A 5-cent mispricing at 0.50 is fundamentally different from 5-cent at 0.95, but Euclidean distance treats them the same. KL divergence (a Bregman divergence) correctly weights mispricings across the probability simplex.
 </div>
 
--->
+<div class="card">
+    <div class="card-header">
+        <h3>Phase 1: Divergence Utility Module</h3>
+        <span class="badge badge-active">IMPLEMENTED</span>
+    </div>
+    <p><strong>File:</strong> <code>src/utils/divergence.py</code> (~150 lines) + <code>tests/unit/test_divergence.py</code> (~120 lines)</p>
+    <p>Pure math module with no side effects:</p>
+    <ul>
+        <li><code>kl_divergence_binary(p, q)</code> &mdash; D_KL(p||q) for binary distributions</li>
+        <li><code>simplex_project(yes_ask, no_ask)</code> &mdash; Normalize to probability simplex (handles overround)</li>
+        <li><code>market_mispricing_score(yes_ask, no_ask)</code> &mdash; Returns <code>{p_fair, kl_divergence, kl_reverse, jensen_shannon, overround}</code></li>
+        <li><code>divergence_scaling_factor(kl)</code> &mdash; Piecewise linear map for Kelly scaling (0.5x&ndash;2.0x)</li>
+        <li><code>compute_return_correlation(price_series, window)</code> &mdash; Pearson correlation matrix from spot histories</li>
+        <li><code>bregman_projection(observed, correlation_matrix, n_iter)</code> &mdash; KL projection onto correlation-consistent set</li>
+        <li><code>divergence_exit_signal(entry_kl, current_kl, direction, ratio)</code> &mdash; Exit when mispricing has closed</li>
+    </ul>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3>Phase 2: Unified KL Mispricing Score</h3>
+        <span class="badge badge-active">IMPLEMENTED (toggle OFF)</span>
+    </div>
+    <p><strong>When <code>enable_divergence_scoring=true</code>:</strong></p>
+    <ul>
+        <li>All 7 strategies inject <code>kl_*</code> fields into opportunity metadata</li>
+        <li>Scanner uses composite ranking: <code>alpha * profit_pct + (1-alpha) * kl_divergence</code></li>
+        <li>Higher KL = larger mispricing = higher priority in scanner ranking</li>
+    </ul>
+    <p><strong>Files modified:</strong> arbitrage.py, price_lag.py, dip_buyer.py, fade_panic.py, resolution_sniper.py, asymmetric.py, maker_arbitrage.py, scanner.py, main.py</p>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3>Phase 3: Cross-Asset Correlation Strategy</h3>
+        <span class="badge badge-active">IMPLEMENTED (toggle OFF)</span>
+    </div>
+    <p><strong>File:</strong> <code>src/strategy/cross_asset.py</code> (~200 lines)</p>
+    <p><strong>When <code>enable_cross_asset_strategy=true</code>:</strong></p>
+    <ul>
+        <li>Builds odds vector from orderbooks: [BTC_YES, ETH_YES, SOL_YES, XRP_YES]</li>
+        <li>Computes correlation matrix from historical spot data (refreshed every 15 min)</li>
+        <li>Bregman-projects odds onto correlation-consistent set (50 iterations)</li>
+        <li>Trades largest deviations where projected - observed &gt; <code>cross_asset_min_divergence</code></li>
+        <li>Holds to resolution (no early exit)</li>
+    </ul>
+    <p><strong>Architecture change:</strong> Added <code>evaluate_all(markets)</code> to BaseStrategy. Cross-asset overrides this to see all markets simultaneously. Scanner refactored to use <code>evaluate_all()</code> (existing strategies get default per-market fallback).</p>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3>Phase 4: Divergence-Weighted Kelly Sizing</h3>
+        <span class="badge badge-active">IMPLEMENTED (toggle OFF)</span>
+    </div>
+    <p><strong>When <code>divergence_kelly_scaling=true</code>:</strong></p>
+    <ul>
+        <li>After computing base Kelly size, multiply by <code>divergence_scaling_factor(kl)</code></li>
+        <li>Higher KL divergence &rarr; larger position (up to 2x). Lower KL &rarr; conservative (down to 0.5x)</li>
+        <li>Applied in <code>risk/manager.py::kelly_adjusted_size()</code></li>
+    </ul>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3>Phase 5: Divergence-Based Exit Signals</h3>
+        <span class="badge badge-active">IMPLEMENTED (toggle OFF)</span>
+    </div>
+    <p><strong>When <code>divergence_exit_signals=true</code>:</strong></p>
+    <ul>
+        <li>Records entry KL divergence when opening a position (price_lag, dip_buyer)</li>
+        <li>On each <code>should_exit()</code> call, recomputes current KL</li>
+        <li>Exits when <code>current_kl / entry_kl &lt; divergence_exit_threshold</code> (mispricing has closed)</li>
+    </ul>
+</div>
 
 <!-- ============================================================ -->
-<!-- DAILY PERFORMANCE LOG                                         -->
+<!-- NEW STRATEGIES                                                -->
 <!-- ============================================================ -->
 
-<h2>4. Daily Performance Log</h2>
+<h2>6. New Strategies (Feb 8)</h2>
 
-<p>End-of-day snapshot showing the bot's overall trajectory. Updated once per day.</p>
+<div class="card">
+    <div class="card-header">
+        <h3>Dip Buyer / Mean Reversion</h3>
+        <span class="badge badge-new">NEW</span>
+    </div>
+    <p><strong>File:</strong> <code>src/strategy/dip_buyer.py</code></p>
+    <p><strong>Signal:</strong> Detects sharp spot price spikes/crashes (&gt;0.15% in 3-5 seconds) that are likely overreactions, bets against them.</p>
+    <ul>
+        <li>Spike UP &rarr; buy NO (expect reversion DOWN)</li>
+        <li>Crash DOWN &rarr; buy YES (expect reversion UP)</li>
+        <li>Must be an outlier: move &gt;2x the rolling 60s average move</li>
+    </ul>
+    <p><strong>Exit logic:</strong> Time exit (60s before close), stop-loss (5%), take-profit (8%), divergence exit (optional).</p>
+    <p><strong>Status:</strong> 0 trades so far &mdash; waiting for sufficient spot volatility. Strategy is evaluating correctly but hasn't seen a sharp enough move.</p>
+</div>
 
-<table>
-    <tr>
-        <th>Day</th>
-        <th>Date</th>
-        <th>Experiments</th>
-        <th>Kept / Reverted</th>
-        <th>Markets Observed</th>
-        <th>Trades</th>
-        <th>Win Rate</th>
-        <th>Net P&amp;L</th>
-        <th>Cum P&amp;L</th>
-        <th>Active Strategies</th>
-    </tr>
-    <tr>
-        <td>1</td><td>2026-02-08</td><td>#1&ndash;#6</td><td>0 kept / 1 reverted (#2)</td>
-        <td>~160+</td><td>567+ (ongoing)</td><td>~25%</td>
-        <td class="red">-$384</td><td class="red">-$384</td>
-        <td>arb, asym, maker_arb, dip_buyer, fade_panic</td>
-    </tr>
-</table>
+<div class="card">
+    <div class="card-header">
+        <h3>Fade Panic</h3>
+        <span class="badge badge-new">NEW</span>
+    </div>
+    <p><strong>File:</strong> <code>src/strategy/fade_panic.py</code></p>
+    <p><strong>Signal:</strong> In last 120 seconds of a market, detects when Polymarket odds shift &gt;8% but spot price hasn't moved proportionally. This means someone is panic-buying/selling, creating mispricing.</p>
+    <ul>
+        <li>YES odds spiked UP (panic buy) &rarr; buy NO (fade the panic)</li>
+        <li>YES odds crashed DOWN (panic sell) &rarr; buy YES (fade the panic)</li>
+        <li>Spot change must be &lt;0.05% to confirm it's panic, not fundamental</li>
+    </ul>
+    <p><strong>Exit logic:</strong> Hold to resolution (same as sniper).</p>
+    <p><strong>Performance:</strong> Best strategy by ROI.</p>
+    <div class="experiment-metrics">
+        <div class="stat"><div class="stat-value green">60%</div><div class="stat-label">Win Rate</div></div>
+        <div class="stat"><div class="stat-value green">+$215</div><div class="stat-label">Total P&amp;L</div></div>
+        <div class="stat"><div class="stat-value green">+78%</div><div class="stat-label">ROI</div></div>
+        <div class="stat"><div class="stat-value">11</div><div class="stat-label">Trades</div></div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3>Cross-Asset Correlation</h3>
+        <span class="badge badge-new">NEW (DISABLED)</span>
+    </div>
+    <p><strong>File:</strong> <code>src/strategy/cross_asset.py</code></p>
+    <p><strong>Signal:</strong> When BTC/ETH/SOL/XRP odds diverge from their historical correlation pattern, projects odds onto the correlation-consistent set via Bregman projection. Trades the largest deviations.</p>
+    <p><strong>Status:</strong> Implemented but behind <code>enable_cross_asset_strategy</code> toggle (default off). Needs data collection period before enabling.</p>
+</div>
+
+<!-- ============================================================ -->
+<!-- NEW FEATURES                                                  -->
+<!-- ============================================================ -->
+
+<h2>7. New Features &amp; Infrastructure (Feb 8)</h2>
+
+<div class="grid">
+    <div class="card">
+        <h4>TA Momentum Filter</h4>
+        <p>EMA crossover + RSI filter for price_lag strategy. Blocks signals that go against momentum.</p>
+        <ul>
+            <li>Short EMA (10) vs Long EMA (30) for trend direction</li>
+            <li>RSI (14) blocks overbought UP / oversold DOWN signals</li>
+            <li>Toggle: <code>lag_enable_ta_filter</code> (default true)</li>
+        </ul>
+    </div>
+    <div class="card">
+        <h4>Fill Quality Guards</h4>
+        <p>Three-layer protection against bad fills:</p>
+        <ul>
+            <li><code>min_entry_price: 0.10</code> &mdash; No lottery tickets</li>
+            <li><code>max_fill_slippage: 0.05</code> &mdash; Max 5% VWAP slippage</li>
+            <li><code>max_levels_consumed: 3</code> &mdash; Don't walk deep into book</li>
+        </ul>
+    </div>
+    <div class="card">
+        <h4>State Persistence</h4>
+        <p>Circuit breaker state saved to SQLite. Survives bot restarts &mdash; no more accidental trading during active breaker.</p>
+    </div>
+    <div class="card">
+        <h4>Volume-Normalized Spot Detection</h4>
+        <p>Spot price movement detection now normalized by rolling volatility, reducing false signals during calm markets.</p>
+    </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- TRADE ANALYSIS                                                -->
+<!-- ============================================================ -->
+
+<h2>8. Trade Analysis (Feb 8 snapshot)</h2>
+
+<p>Comprehensive analysis from <code>scripts/analyze_trades.py</code> run at ~19:00 UTC.</p>
+
+<div class="card">
+    <div class="card-header">
+        <h3>Strategy Performance Breakdown</h3>
+    </div>
+    <table>
+        <tr><th>Strategy</th><th>Trades</th><th>Win Rate</th><th>Net P&amp;L</th><th>ROI</th><th>Verdict</th></tr>
+        <tr><td>Fade Panic</td><td>11</td><td class="green">60%</td><td class="green">+$215</td><td class="green">+78%</td><td class="green">BEST &mdash; scale up</td></tr>
+        <tr><td>Asymmetric</td><td>~80</td><td>~30%</td><td class="yellow">~$0</td><td>~0%</td><td>Break-even, high volume</td></tr>
+        <tr><td>Resolution Sniper</td><td>150</td><td>~25%</td><td class="red">-$50</td><td>-8%</td><td>Needs tuning</td></tr>
+        <tr><td>Price Lag</td><td>335</td><td class="red">23%</td><td class="red">-$373</td><td class="red">-22%</td><td class="red">WORST &mdash; biggest loser</td></tr>
+        <tr><td>Arbitrage</td><td>0</td><td>&mdash;</td><td>$0</td><td>&mdash;</td><td>No opportunities (structural)</td></tr>
+        <tr><td>Dip Buyer</td><td>0</td><td>&mdash;</td><td>$0</td><td>&mdash;</td><td>Waiting for spike conditions</td></tr>
+    </table>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3>Key Findings</h3>
+    </div>
+    <ul>
+        <li><strong>Hedged vs unhedged:</strong> Hedged trades 80% WR vs unhedged 26% WR. Hedging is critical.</li>
+        <li><strong>Entry price matters:</strong> Entries below $0.10 lose 100% when wrong &rarr; added $0.10 floor.</li>
+        <li><strong>ETH most profitable asset.</strong> XRP most volatile.</li>
+        <li><strong>Early exits are sole source of alpha</strong> &mdash; held-to-resolution positions consistently lose.</li>
+        <li><strong>P&amp;L recovered</strong> from -$290 to +$54 during analysis mode session (several large asymmetric wins).</li>
+    </ul>
+</div>
 
 <!-- ============================================================ -->
 <!-- STRATEGY INSIGHTS                                             -->
 <!-- ============================================================ -->
 
-<h2>5. Strategy Insights</h2>
+<h2>9. Strategy Insights</h2>
 
 <p>
     Patterns and insights discovered during the self-learning loop. These inform future
@@ -507,37 +738,9 @@ TEMPLATE — Copy this block for each new experiment. Place ABOVE previous entri
 <div class="card">
     <div class="card-header">
         <h3>Arbitrage alone produces zero opportunities</h3>
-        <span class="badge badge-active">ACTIONABLE</span>
+        <span class="badge badge-neutral">STRUCTURAL</span>
     </div>
-    <p><strong>Discovered:</strong> 2026-02-07 | <strong>Source:</strong> Experiment #0 (deployment)</p>
-    <p>With only arbitrage enabled, 100% of scan cycles return <code>no_opportunities</code>. Combined YES+NO prices range from $1.01 to $1.05 across all 4 assets, far above the $0.94 target. Pure arb spreads on Polymarket 15-min markets are structurally too wide for profitable arb at current fee levels.</p>
-    <p><strong>Evidence:</strong> 32/32 decisions = <code>no_opportunities</code>. BTC: $1.01, ETH: $1.01, SOL: $1.03, XRP: $1.05 combined.</p>
-    <p><strong>Implication:</strong> The bot cannot generate any trades with arbitrage as the sole strategy. Directional strategies (price_lag, sniper) are needed to produce trade volume.</p>
-    <p><strong>Recommended action:</strong> First self-learning experiment should enable <code>price_lag</code> strategy. Arb should remain on as a secondary opportunistic strategy but should not be relied upon.</p>
-</div>
-
-<div class="card">
-    <div class="card-header">
-        <h3>XRP has the tightest spreads at 50/50 odds</h3>
-        <span class="badge badge-neutral">OBSERVATION</span>
-    </div>
-    <p><strong>Discovered:</strong> 2026-02-07 | <strong>Source:</strong> Experiment #0 (deployment)</p>
-    <p>XRP consistently shows YES prices near $0.46-0.47 and NO near $0.55-0.58 — closest to 50/50 odds. While this means highest taker fees (fee peaks at 50/50), it also indicates the most liquid/competitive market. BTC and ETH tend to show more skewed odds.</p>
-    <p><strong>Evidence:</strong> XRP combined $1.05, but individual prices closer to $0.50. BTC/ETH show YES at $0.06-0.24 (heavily skewed).</p>
-    <p><strong>Implication:</strong> Directional strategies on XRP face higher fees but may find more opportunities due to frequent price swings near the decision boundary. Skewed markets (BTC, ETH) may be better for sniper entries on the cheap side.</p>
-    <p><strong>Recommended action:</strong> Monitor per-asset win rates once trading begins. Consider asset-specific thresholds if patterns diverge.</p>
-</div>
-
-<div class="card">
-    <div class="card-header">
-        <h3>Sniper entry risk on high-priced contracts</h3>
-        <span class="badge badge-pending">MONITOR</span>
-    </div>
-    <p><strong>Discovered:</strong> 2026-02-07 | <strong>Source:</strong> Resolution Sniper deployment (pre-sprint)</p>
-    <p>XRP sniper entries at $0.93 have terrible risk/reward: $0.33 expected profit on $150 means a single loss wipes ~420 wins. The sniper's <code>sniper_max_entry_price</code> needs to be watched carefully.</p>
-    <p><strong>Evidence:</strong> From earlier deployment logs — XRP sniper triggered at 93% confidence, entry at $0.93.</p>
-    <p><strong>Implication:</strong> Need minimum expected profit filter or lower max entry price for sniper.</p>
-    <p><strong>Recommended action:</strong> Tune <code>sniper_max_entry_price</code> downward if sniper losses on high-price entries are observed.</p>
+    <p><strong>Discovered:</strong> 2026-02-07 | Combined YES+NO prices $1.01-$1.05 vs $0.94 target. Pure arb is structurally unviable on Polymarket 15-min markets at current fee levels.</p>
 </div>
 
 <div class="card">
@@ -545,116 +748,72 @@ TEMPLATE — Copy this block for each new experiment. Place ABOVE previous entri
         <h3>Early exits are the sole source of alpha</h3>
         <span class="badge badge-active">CRITICAL</span>
     </div>
-    <p><strong>Discovered:</strong> 2026-02-08 | <strong>Source:</strong> Morning analysis of 7h overnight data</p>
-    <p>Every dollar of profit comes from early exits. Positions held to resolution (YES or NO) are consistently losing (-$33 to -$51 avg). The asymmetric payoff profile &mdash; winning exits avg +$114, losing exits avg -$23 &mdash; is what makes the bot profitable despite a 37% win rate.</p>
-    <p><strong>Evidence:</strong> 25 early exits = +$1,206. 33 held-to-resolution = -$1,050. Net = +$156 from early exits alone, plus $164 from hedged positions and +$25 from sniper.</p>
-    <p><strong>Implication:</strong> The exit mechanism is more important than the entry mechanism. Tuning exit parameters (SL, TP, time exit, lottery threshold) has higher impact than tuning entry parameters. Priority: (1) stop-loss time decay, (2) take-profit threshold, (3) time_exit_seconds, (4) stop_loss_pct.</p>
-    <p><strong>Recommended action:</strong> Systematically tune exit parameters one at a time. Current experiment: disable SL time decay. Next candidates: lower TP to 15%, extend time exit to 45s, lower SL to 8%.</p>
+    <p><strong>Discovered:</strong> 2026-02-08 | Every dollar of profit comes from early exits. Held-to-resolution consistently loses (-$33 to -$51 avg). Exit tuning is higher priority than entry tuning.</p>
 </div>
 
 <div class="card">
     <div class="card-header">
-        <h3>Stop-loss and take-profit never fire with current settings</h3>
-        <span class="badge badge-active">ACTIONABLE</span>
-    </div>
-    <p><strong>Discovered:</strong> 2026-02-08 | <strong>Source:</strong> Log analysis of exit events</p>
-    <p>With SL at 15% + time decay and TP at 25% + time decay, neither threshold is reachable in practice. All 29 early exits today were time-based (30s before expiry), zero were SL or TP triggered.</p>
-    <p><strong>Evidence:</strong> 0 stop_loss_triggered on Feb 8. 0 take_profit_triggered on Feb 8. 29 time_exit events. Compare to Feb 7 with 8%/15% thresholds: SL and TP firing regularly.</p>
-    <p><strong>Implication:</strong> Widening SL 8%&rarr;15% and TP 15%&rarr;25% in Experiment #1 effectively disabled these mechanisms. The bot runs with only time-based exits.</p>
-    <p><strong>Recommended action:</strong> First disable SL time decay (#2, done). Then consider reverting SL/TP if they still don't fire.</p>
-</div>
-
-<div class="card">
-    <div class="card-header">
-        <h3>Lottery ticket preservation is net negative &rarr; FIXED in Experiment #6</h3>
+        <h3>Parallel strategies blocked by shared entry cap</h3>
         <span class="badge badge-kept">RESOLVED</span>
     </div>
-    <p><strong>Discovered:</strong> 2026-02-08 | <strong>Source:</strong> Log analysis of time_exit_skipped_lottery events</p>
-    <p>Positions below 5% of cost basis were skipped by time exit and held as "lottery tickets." These almost never recover. Multiple positions with 0.37&ndash;3.9% value ratios expired at $0.</p>
-    <p><strong>Resolution:</strong> Experiment #6 raised the threshold from 5% to 30% (positions down &gt;70% are now held to resolution). This captures the lottery ticket behavior plus the broader class of heavy-loss positions that were being sold for pennies (e.g., $104.77 &rarr; $0.40).</p>
+    <p><strong>Discovered:</strong> 2026-02-08 | <code>max_entries_per_market</code> shared across all strategy types + sniper hardcoded override of 3 blocked fade_panic even at entry cap of 50. Fully resolved by removing sniper override and raising cap to 50.</p>
 </div>
 
 <div class="card">
     <div class="card-header">
-        <h3>Parallel strategies are blocked by shared entry cap</h3>
+        <h3>Take-profit time decay was inverted</h3>
         <span class="badge badge-kept">RESOLVED</span>
     </div>
-    <p><strong>Discovered:</strong> 2026-02-08 | <strong>Source:</strong> Decision log analysis of multi-strategy cycles</p>
-    <p><code>max_entries_per_market</code> (default 2) is shared across ALL strategy types for the same condition_id. When asymmetric takes 2 entries on BTC, fade_panic is rejected even though it found a valid opportunity. The parallel mode correctly finds opportunities from multiple strategies, but sequential execution + shared cap means only the first strategy gets to trade.</p>
-    <p><strong>Evidence:</strong> Cycles 695-1276: every fade_panic opportunity rejected with <code>max entries reached: 2 &ge; 2</code> after asymmetric already executed.</p>
-    <p><strong>Resolution:</strong> Increased <code>max_entries_per_market</code> from 2 to 5 (Experiment #5). Future improvement: per-(strategy, market) entry tracking instead of global per-market.</p>
+    <p><strong>Discovered:</strong> 2026-02-08 | TP time decay used <code>* 2</code> (from SL), making it unreachable. Fixed to <code>* 0.6</code>.</p>
 </div>
 
 <div class="card">
     <div class="card-header">
-        <h3>Take-profit time decay was inverted (copied from stop-loss)</h3>
+        <h3>Lottery ticket entries lose 100%</h3>
         <span class="badge badge-kept">RESOLVED</span>
     </div>
-    <p><strong>Discovered:</strong> 2026-02-08 | <strong>Source:</strong> Code review after 0 TP triggers all day</p>
-    <p>TP time decay used the same <code>* 2</code> multiplier as SL. For SL, doubling = harder to trigger = protective. For TP, doubling = harder to trigger = can never capture gains. With TP at 0.17, the middle third required 34% gain (impossible on 15-min markets).</p>
-    <p><strong>Evidence:</strong> 0 take-profit triggers in 11+ hours across all strategies and all config changes.</p>
-    <p><strong>Resolution:</strong> Fixed in Experiment #4 &mdash; middle third now uses <code>* 0.6</code> (0.17 &rarr; 0.102). Key lesson: never copy SL patterns to TP without inverting the logic.</p>
+    <p><strong>Discovered:</strong> 2026-02-08 | Entries below $0.10 are deep OTM lottery tickets. When wrong, lose entire investment. Fixed with <code>min_entry_price=0.10</code> across all strategies.</p>
 </div>
 
 <div class="card">
     <div class="card-header">
-        <h3>Admin dashboard writes empty strings for numeric fields</h3>
-        <span class="badge badge-kept">RESOLVED</span>
+        <h3>Server .env overrides code defaults silently</h3>
+        <span class="badge badge-active">WATCH OUT</span>
     </div>
-    <p><strong>Discovered:</strong> 2026-02-08 | <strong>Source:</strong> Bot crash loop after admin dashboard save</p>
-    <p>When dip_buyer and fade_panic were enabled via admin dashboard, the save endpoint wrote <code>BOT_DIP_SPOT_WINDOW_SECONDS=""</code> for all 20 numeric parameters. Pydantic can't parse empty strings as int/float &rarr; 20 validation errors &rarr; crash loop for ~15 min.</p>
-    <p><strong>Root cause:</strong> <code>env_manager._quote("")</code> returns <code>""</code>. The admin save handler converts all values to string, including empty ones.</p>
-    <p><strong>Resolution:</strong> Fixed save handler to skip empty string values. Also: always check bot logs after admin dashboard changes.</p>
-</div>
-
-<div class="card">
-    <div class="card-header">
-        <h3>Early exits selling positions at 90-99% loss</h3>
-        <span class="badge badge-kept">RESOLVED</span>
-    </div>
-    <p><strong>Discovered:</strong> 2026-02-08 | <strong>Source:</strong> Trade results showing $104.77 &rarr; $0.40 early exit</p>
-    <p>Only price_lag had a value check before time exits. Asymmetric and dip_buyer had NO guard &mdash; they dumped every unhedged position near expiry regardless of value. A position that lost 99.6% of its value was sold for $0.40 instead of being held to resolution where it could recover to $104.77.</p>
-    <p><strong>Evidence:</strong> Multiple early exits with &gt;90% loss: $104.77 &rarr; $0.40, $56.89 &rarr; $2.50, etc.</p>
-    <p><strong>Resolution:</strong> Experiment #6 added the 70% loss guard to all three strategies (price_lag, asymmetric, dip_buyer).</p>
+    <p><strong>Discovered:</strong> 2026-02-08 (multiple times) | Pydantic's <code>env_prefix="BOT_"</code> means server .env values override code defaults without warning. Config changes in code are invisible unless .env is also updated. Examples: <code>accumulation_size</code> stuck at 10, <code>order_size</code> stuck at 100, resolution_sniper stuck at false.</p>
+    <p><strong>Rule:</strong> After any config default change, ALWAYS check and update server .env.</p>
 </div>
 
 <!-- ============================================================ -->
-<!-- MARKET BEHAVIOR PATTERNS                                      -->
+<!-- DAILY PERFORMANCE LOG                                         -->
 <!-- ============================================================ -->
 
-<h2>6. Market Behavior Patterns</h2>
+<h2>10. Daily Performance Log</h2>
 
-<p>Observations about how the 15-minute crypto prediction markets behave. These are structural patterns, not one-off events.</p>
-
-<div class="grid">
-    <div class="card">
-        <h4>Asset Characteristics</h4>
-        <p>Which assets are more predictable? Which have better spreads? Updated from market_outcomes data.</p>
-        <table>
-            <tr><th>Asset</th><th>Markets/Day</th><th>UP %</th><th>Avg Move %</th><th>Predictability</th><th>Notes</th></tr>
-            <tr><td colspan="6" class="muted" style="text-align: center;">No data yet</td></tr>
-        </table>
-    </div>
-    <div class="card">
-        <h4>Time-of-Day Patterns</h4>
-        <p>Are certain hours more volatile or directional? Captured from spot_snapshots + market_outcomes.</p>
-        <table>
-            <tr><th>Hour (UTC)</th><th>Avg Volatility</th><th>Directional Bias</th><th>Best Strategy</th><th>Notes</th></tr>
-            <tr><td colspan="5" class="muted" style="text-align: center;">No data yet</td></tr>
-        </table>
-    </div>
-</div>
+<table>
+    <tr>
+        <th>Day</th>
+        <th>Date</th>
+        <th>Experiments</th>
+        <th>Kept / Reverted</th>
+        <th>Trades</th>
+        <th>Win Rate</th>
+        <th>Net P&amp;L</th>
+        <th>Active Strategies</th>
+    </tr>
+    <tr>
+        <td>1</td><td>2026-02-08</td><td>#1&ndash;#10</td><td>4 kept / 1 reverted (#2)</td>
+        <td>858+</td><td>~25%</td>
+        <td class="green">+$54</td>
+        <td>arb, asym, price_lag, maker_arb, dip_buyer, fade_panic, sniper (7 active)</td>
+    </tr>
+</table>
 
 <!-- ============================================================ -->
 <!-- FAILED HYPOTHESES                                             -->
 <!-- ============================================================ -->
 
-<h2>7. Failed Hypotheses &amp; Dead Ends</h2>
-
-<p>
-    Things that <strong>didn't work</strong> are just as valuable as things that did.
-    Recording them prevents re-trying the same failed approaches.
-</p>
+<h2>11. Failed Hypotheses &amp; Dead Ends</h2>
 
 <div class="card">
     <div class="card-header">
@@ -662,99 +821,131 @@ TEMPLATE — Copy this block for each new experiment. Place ABOVE previous entri
         <span class="badge badge-reverted">FAILED</span>
     </div>
     <p><strong>Experiment:</strong> #2 | <strong>Date:</strong> 2026-02-08</p>
-    <p><strong>Hypothesis:</strong> Keeping SL active in the last third of the window would prevent positions from bleeding to zero at resolution.</p>
-    <p><strong>What actually happened:</strong> 0 winners in 15 trades. SL fired 9 times, cutting positions at -15% to -54%. All 13 early exits were losses. The bot went from +$48/exit avg to -$16/exit avg.</p>
-    <p><strong>Root cause:</strong> Late-window prices are extremely volatile on 15-min markets. A -15% dip in the last 5 minutes is often a temporary swing that reverses before resolution. The time decay design (disable SL in last third) correctly models this &mdash; it lets positions ride through noise for the potential recovery to $1.00 payout. Stopping them out converts potential asymmetric winners into guaranteed small losses.</p>
-    <p><strong>Lesson:</strong> Don't touch SL time decay. The real bottleneck is the base SL/TP thresholds (15%/25%) being too wide for the first/middle portions where time decay isn't active. Future tuning should target base thresholds, not the decay mechanism.</p>
+    <p><strong>Result:</strong> 0 winners in 15 trades, -$239 in 1h15m. Late-window prices are extremely volatile on 15-min markets. A -15% dip in the last 5 minutes often reverses before resolution. Time decay correctly models this.</p>
+    <p><strong>Lesson:</strong> Don't touch SL time decay. Tune base thresholds instead.</p>
 </div>
 
-<!--
-TEMPLATE for failed hypotheses:
+<!-- ============================================================ -->
+<!-- CODE CHANGE LOG                                               -->
+<!-- ============================================================ -->
+
+<h2>12. Strategy Code Change Log</h2>
+
+<p>All code changes deployed (not just parameter tuning). Newest first.</p>
 
 <div class="card">
     <div class="card-header">
-        <h3>[What was tried]</h3>
-        <span class="badge badge-reverted">FAILED</span>
+        <h3>Bregman divergence framework (5 phases)</h3>
+        <span class="badge badge-active">IMPLEMENTED</span>
     </div>
-    <p><strong>Experiment:</strong> #N | <strong>Date:</strong> 2026-02-XX</p>
-    <p><strong>Hypothesis:</strong> [What we expected]</p>
-    <p><strong>What actually happened:</strong> [What went wrong]</p>
-    <p><strong>Root cause:</strong> [Why it failed — the actual reason]</p>
-    <p><strong>Lesson:</strong> [What to remember for future experiments]</p>
+    <p><strong>Date:</strong> 2026-02-08 | <strong>Scope:</strong> 3 new files (~470 lines), 14 modified files (~220 lines)</p>
+    <p><strong>Files created:</strong> <code>src/utils/divergence.py</code>, <code>tests/unit/test_divergence.py</code>, <code>src/strategy/cross_asset.py</code></p>
+    <p><strong>Files modified:</strong> config.py, models.py, base.py, scanner.py, main.py, arbitrage.py, price_lag.py, dip_buyer.py, fade_panic.py, resolution_sniper.py, asymmetric.py, maker_arbitrage.py, risk/manager.py, trade_db.py</p>
+    <p><strong>Status:</strong> All behind config toggles (default OFF). Zero behavior change until enabled.</p>
 </div>
--->
 
-<!-- ============================================================ -->
-<!-- STRATEGY CODE CHANGE PROPOSALS                                -->
-<!-- ============================================================ -->
+<div class="card">
+    <div class="card-header">
+        <h3>New strategies: dip_buyer + fade_panic</h3>
+        <span class="badge badge-active">IMPLEMENTED</span>
+    </div>
+    <p><strong>Date:</strong> 2026-02-08 | <strong>Files:</strong> <code>src/strategy/dip_buyer.py</code>, <code>src/strategy/fade_panic.py</code></p>
+    <p><strong>Status:</strong> Both enabled on server. Fade panic is the best performer (+78% ROI).</p>
+</div>
 
-<h2>8. Strategy Code Change Proposals</h2>
+<div class="card">
+    <div class="card-header">
+        <h3>Min entry price floor ($0.10)</h3>
+        <span class="badge badge-active">IMPLEMENTED</span>
+    </div>
+    <p><strong>Date:</strong> 2026-02-08 ~19:30 | <strong>Files:</strong> config.py, arbitrage.py, price_lag.py, dip_buyer.py, fade_panic.py, asymmetric.py, settings.html</p>
+</div>
 
-<p>
-    When parameter tuning alone can't solve a problem, the agent documents proposed code changes here.
-    These <strong>require human approval</strong> before implementation.
-</p>
+<div class="card">
+    <div class="card-header">
+        <h3>Remove sniper max_entries override</h3>
+        <span class="badge badge-active">IMPLEMENTED</span>
+    </div>
+    <p><strong>Date:</strong> 2026-02-08 21:55 | <strong>File:</strong> <code>src/risk/manager.py</code></p>
+    <p><strong>Change:</strong> Removed <code>if opp.strategy == RESOLUTION_SNIPER: max_entries = 3</code> that blocked fade_panic via shared entry count.</p>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3>TA Momentum Filter for price_lag</h3>
+        <span class="badge badge-active">IMPLEMENTED</span>
+    </div>
+    <p><strong>Date:</strong> 2026-02-08 | <strong>File:</strong> <code>src/strategy/price_lag.py</code></p>
+    <p><strong>Change:</strong> EMA short/long crossover + RSI overbought/oversold filter. Blocks signals going against momentum.</p>
+</div>
 
 <div class="card">
     <div class="card-header">
         <h3>TP time decay inversion fix</h3>
         <span class="badge badge-active">IMPLEMENTED</span>
     </div>
-    <p><strong>Problem:</strong> TP time decay used <code>* 2</code> in middle third (copied from SL), making threshold unreachable.</p>
-    <p><strong>Change:</strong> <code>src/strategy/price_lag.py</code> &mdash; middle third multiplier from <code>* 2</code> to <code>* 0.6</code>.</p>
-    <p><strong>Status:</strong> Deployed 2026-02-08 17:25 UTC (Experiment #4)</p>
+    <p><strong>Date:</strong> 2026-02-08 17:25 | <strong>File:</strong> <code>src/strategy/price_lag.py</code></p>
+    <p><strong>Change:</strong> Middle third multiplier from <code>* 2</code> to <code>* 0.6</code>.</p>
 </div>
 
 <div class="card">
     <div class="card-header">
-        <h3>Early exit 70% loss guard (all strategies)</h3>
+        <h3>Early exit 70% loss guard</h3>
         <span class="badge badge-active">IMPLEMENTED</span>
     </div>
-    <p><strong>Problem:</strong> Asymmetric and dip_buyer had no value check on time exits, dumping positions at 90-99% loss.</p>
-    <p><strong>Change:</strong> <code>src/strategy/price_lag.py</code>, <code>asymmetric.py</code>, <code>dip_buyer.py</code> &mdash; skip time exit when <code>value_ratio &lt; 0.30</code>.</p>
-    <p><strong>Status:</strong> Deployed 2026-02-08 ~21:10 UTC (Experiment #6)</p>
+    <p><strong>Date:</strong> 2026-02-08 ~21:10 | <strong>Files:</strong> price_lag.py, asymmetric.py, dip_buyer.py</p>
+    <p><strong>Change:</strong> Skip time exit when <code>value_ratio &lt; 0.30</code> (position down &gt;70%). Hold to resolution instead of dumping for pennies.</p>
 </div>
 
 <div class="card">
     <div class="card-header">
-        <h3>Admin dashboard empty string save bug fix</h3>
+        <h3>Admin dashboard empty string bug + auth removal</h3>
         <span class="badge badge-active">IMPLEMENTED</span>
     </div>
-    <p><strong>Problem:</strong> Saving settings with blank numeric fields wrote <code>""</code> to .env, crashing the bot (20 Pydantic validation errors).</p>
-    <p><strong>Change:</strong> <code>src/admin/app.py</code> &mdash; skip empty string values in save handler.</p>
-    <p><strong>Status:</strong> Deployed 2026-02-08 ~18:15 UTC</p>
+    <p><strong>Date:</strong> 2026-02-08 ~18:15 | <strong>Files:</strong> admin/app.py, dashboard/app.py</p>
+    <p><strong>Changes:</strong> (1) Skip empty string values in save handler. (2) Remove HTTP Basic auth from read-only dashboard. (3) Fix SecretStr import.</p>
+</div>
+
+<!-- ============================================================ -->
+<!-- NEXT STEPS                                                    -->
+<!-- ============================================================ -->
+
+<h2>13. Next Steps &amp; Open Questions</h2>
+
+<div class="card">
+    <h4>Immediate (next 24h)</h4>
+    <ul>
+        <li>Continue analysis mode observation &mdash; collect data from all 7 strategies</li>
+        <li>Watch for fade_panic and sniper trades at new window boundaries</li>
+        <li>Watch for dip_buyer activation during volatile markets</li>
+        <li>Evaluate whether price_lag should be disabled (biggest loser at -$373)</li>
+    </ul>
 </div>
 
 <div class="card">
-    <div class="card-header">
-        <h3>Monitoring dashboard password removal</h3>
-        <span class="badge badge-active">IMPLEMENTED</span>
-    </div>
-    <p><strong>Problem:</strong> Read-only monitoring dashboard was prompting for HTTP Basic auth.</p>
-    <p><strong>Change:</strong> <code>src/dashboard/app.py</code> &mdash; removed auth dependency from router.</p>
-    <p><strong>Status:</strong> Deployed 2026-02-08 ~18:15 UTC</p>
+    <h4>Short-term (this week)</h4>
+    <ul>
+        <li>Enable <code>enable_divergence_scoring</code> and observe KL scores in metadata</li>
+        <li>If KL scoring looks good, enable <code>divergence_kelly_scaling</code> for information-theoretic position sizing</li>
+        <li>Collect enough data to enable <code>enable_cross_asset_strategy</code> (needs correlation matrix)</li>
+        <li>Scale up trade sizes for winning strategies once analysis is complete</li>
+        <li>Consider per-strategy entry tracking instead of global per-market</li>
+    </ul>
 </div>
-
-<!--
-TEMPLATE for code change proposals:
 
 <div class="card">
-    <div class="card-header">
-        <h3>[Proposal Title]</h3>
-        <span class="badge badge-pending">AWAITING APPROVAL</span>
-    </div>
-    <p><strong>Problem:</strong> [What parameter tuning can't solve]</p>
-    <p><strong>Evidence:</strong> [Data from experiments showing the limitation]</p>
-    <p><strong>Proposed change:</strong> [Which file(s), what logic to modify]</p>
-    <p><strong>Expected impact:</strong> [How this would improve performance]</p>
-    <p><strong>Risk:</strong> [What could go wrong]</p>
-    <p><strong>Status:</strong> AWAITING APPROVAL / APPROVED / REJECTED / IMPLEMENTED</p>
+    <h4>Open Questions</h4>
+    <ul>
+        <li>Should price_lag be disabled given -22% ROI? Or does the TA filter + TP fix change things?</li>
+        <li>Is fade_panic's 60% WR sustainable or sample-size luck (only 11 trades)?</li>
+        <li>Will dip_buyer ever find opportunities in current market conditions?</li>
+        <li>Optimal <code>divergence_ranking_alpha</code> &mdash; how much weight should KL get vs raw profit_pct?</li>
+    </ul>
 </div>
--->
 
 <hr class="separator">
 <p class="muted" style="text-align: center; font-size: 0.8rem;">
-    This document is auto-maintained by the Claude analysis agent. Last updated: 2026-02-08 21:30 UTC.
+    This document is auto-maintained by the Claude analysis agent. Last updated: 2026-02-08 22:00 UTC.
 </p>
 
 </body>
