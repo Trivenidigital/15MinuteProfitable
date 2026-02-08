@@ -120,6 +120,15 @@ NEVER: Submit market orders without checking orderbook depth first
   - `docs/self-learning-lessons-strategies.html` — Living experiment log, insights, market patterns (updated every cycle)
   - `tasks/lessons.md` — Development lessons and patterns (updated after corrections/discoveries)
 - **Safety:** One parameter per cycle, max 50% change, min 20 observations, revert on degradation
+
+IMPORTANT: After EVERY config change, code fix, parameter tuning, or bot-related discussion, update `docs/self-learning-lessons-strategies.html` with:
+  1. New experiment entries (with hypothesis, before/after metrics, verdict)
+  2. Updated config table (current values on server)
+  3. New strategy insights (if any discovered)
+  4. Code change proposals (if code was modified)
+  5. Daily performance log (end-of-session snapshot)
+  6. Last-updated timestamp at bottom of file
+This is a MANDATORY step — do not consider a task complete until this doc is updated.
 - **Deploy workflow:** `git push` → SSH `git pull` → `systemctl restart btc15minutebot`. No pip install needed for pure Python changes.
 
 ## Conventions

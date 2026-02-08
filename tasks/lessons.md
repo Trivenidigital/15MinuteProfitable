@@ -119,6 +119,12 @@
 - **SpotBuffer deque overflow for liquid pairs.** `deque(maxlen=10000)` with raw Binance `@trade` ticks (hundreds/sec for BTC/ETH) means the buffer holds only ~20-100s of history, not 900s. Searching for "closest to start_time" finds a price from the recent tiny window, not the actual window start. Fix: use DB-persisted spot snapshots (5s intervals, immune to overflow) for historical lookups. The buffer is fine for "current price" only.
 - **Combined effect produces phantom P&L.** Wrong start_time + overflow buffer = wrong outcome determination. Positions get credited/debited based on incorrect YES/NO resolution. Always use `trade_db.get_spot_at_time()` for historical prices and `spot_buffer.get_price()` only for the current (latest) price.
 
+## Documentation Discipline
+
+- **ALWAYS update `docs/self-learning-lessons-strategies.html` after every change.** This is the living experiment log. Every config tweak, code fix, parameter change, or insight MUST be recorded before considering a task complete. Include: experiment entry, config table update, new insights, code change proposals, daily log, and timestamp.
+- **Update `tasks/lessons.md` after every correction or discovery.** This captures development patterns and mistakes to prevent repeats.
+- **Two docs serve different purposes.** The HTML experiment log tracks bot tuning (what changed, what happened, what we learned). The lessons.md tracks development patterns (coding mistakes, deployment gotchas, API quirks).
+
 ## Common Mistakes
 
 - **Heredoc in SSH:** Copy-pasting heredocs (`cat << 'EOF'`) over SSH often fails. Use multiple `printf` or `echo` commands instead.
