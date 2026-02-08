@@ -17,7 +17,7 @@ class PositionSizer:
     def __init__(
         self,
         kelly_fraction: float = 0.25,
-        min_size: float = 50.0,
+        min_size: float = 10.0,
         max_size: float = 500.0,
     ) -> None:
         if not 0.0 < kelly_fraction <= 1.0:

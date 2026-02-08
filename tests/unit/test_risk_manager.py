@@ -536,8 +536,9 @@ class TestMaxEntriesPerMarket:
     """Tests for the entry cap that prevents triple-stacking."""
 
     def test_rejected_when_entry_count_at_max(self, settings: Settings) -> None:
-        """Should reject when entries >= max_entries_per_market (default 2)."""
-        state = MockState(entry_count=2)
+        """Should reject when entries >= max_entries_per_market."""
+        settings.max_entries_per_market = 3
+        state = MockState(entry_count=3)
         rm = RiskManager(settings, state)
         opp = _make_opportunity()
         approved, reason = rm.check_opportunity(opp)
@@ -546,6 +547,7 @@ class TestMaxEntriesPerMarket:
 
     def test_rejected_when_entry_count_above_max(self, settings: Settings) -> None:
         """Should reject when entries > max_entries_per_market."""
+        settings.max_entries_per_market = 3
         state = MockState(entry_count=5)
         rm = RiskManager(settings, state)
         opp = _make_opportunity()
@@ -555,6 +557,7 @@ class TestMaxEntriesPerMarket:
 
     def test_approved_when_entry_count_below_max(self, settings: Settings) -> None:
         """Should approve when entries < max_entries_per_market."""
+        settings.max_entries_per_market = 3
         state = MockState(entry_count=1)
         rm = RiskManager(settings, state)
         opp = _make_opportunity()

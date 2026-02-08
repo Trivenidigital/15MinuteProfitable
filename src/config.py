@@ -91,8 +91,8 @@ class Settings(BaseSettings):
     gamma_api_url: str = "https://gamma-api.polymarket.com"
     binance_ws_url: str = "wss://stream.binance.com:9443/ws"
 
-    # Trading Parameters (AGGRESSIVE MODE)
-    order_size: float = 200.0  # max $200 per trade
+    # Trading Parameters (ANALYSIS MODE — small sizes to observe all strategies)
+    order_size: float = 25.0  # small size for multi-strategy analysis
     order_type: str = "FOK"
     target_pair_cost: float = 0.94
     min_profit_margin: float = 0.003  # lowered from 0.005
@@ -132,7 +132,7 @@ class Settings(BaseSettings):
     # Asymmetric Entry Strategy Parameters
     yes_cheap_threshold: float = 0.42  # buy YES when ask < this
     no_cheap_threshold: float = 0.42  # buy NO when ask < this
-    accumulation_size: float = 50.0  # min $50 per trade
+    accumulation_size: float = 20.0  # small size for analysis
     max_accumulation_per_side: float = 200.0  # max shares before completing pair
     target_avg_combined: float = 0.90  # target avg combined cost for profit
     stale_order_seconds: float = 120.0  # cancel GTC orders older than this
@@ -150,7 +150,7 @@ class Settings(BaseSettings):
     dip_spot_threshold: float = 0.0015      # 0.15% move in dip window to trigger
     dip_mean_window_seconds: int = 60       # Longer window for mean comparison
     dip_outlier_ratio: float = 2.0          # Move must be 2x the rolling avg move
-    dip_order_size: float = 100.0           # Shares per dip trade
+    dip_order_size: float = 25.0            # Small size for analysis
     dip_stop_loss_pct: float = 0.05         # 5% stop-loss
     dip_take_profit_pct: float = 0.08       # 8% take-profit
     dip_time_exit_seconds: float = 60.0     # Exit 60s before close
@@ -162,12 +162,12 @@ class Settings(BaseSettings):
     fade_panic_odds_shift_threshold: float = 0.08  # 8% odds shift to trigger
     fade_panic_spot_max_change: float = 0.0005 # Max spot change for "no movement" (0.05%)
     fade_panic_odds_window_seconds: int = 60   # Window for measuring odds shift
-    fade_panic_order_size: float = 175.0       # Shares per fade trade (scaled up — best strategy)
+    fade_panic_order_size: float = 30.0        # Slightly larger — best strategy, prioritized
     fade_panic_max_entry_price: float = 0.92   # Don't buy above this price
 
     # Resolution Sniper Strategy Parameters
     enable_resolution_sniper: bool = True
-    sniper_order_size: float = 150.0          # Total across 3 tranches ($50 each)
+    sniper_order_size: float = 30.0           # Small size for analysis
     sniper_min_confidence: float = 0.90       # Min win probability to enter
     sniper_window_seconds: float = 120.0      # Activate at T-120s
     sniper_hard_stop_seconds: float = 15.0    # Stop buying at T-15s
@@ -193,7 +193,7 @@ class Settings(BaseSettings):
 
     # Risk Limits (AGGRESSIVE MODE)
     disable_circuit_breaker: bool = False  # skip circuit breaker (useful in DRY_RUN)
-    max_entries_per_market: int = 2  # cap directional entries per 15-min market
+    max_entries_per_market: int = 50  # effectively unlimited for analysis mode
     max_position_per_market: float = 1000.0  # 2x increase
     max_total_position: float = 5000.0  # 2.5x increase
     max_daily_loss: float = 250.0  # 5x increase (matches position size)
@@ -239,7 +239,7 @@ class Settings(BaseSettings):
     enable_cross_asset_strategy: bool = False
     cross_asset_correlation_window: int = 3600
     cross_asset_min_divergence: float = 0.01
-    cross_asset_order_size: float = 100.0
+    cross_asset_order_size: float = 25.0
 
     # Decision logging (Phase 1 observability)
     enable_decision_logging: bool = True

@@ -42,7 +42,7 @@ _HEDGED_STRATEGIES: frozenset[StrategyType] = frozenset({StrategyType.ARBITRAGE}
 
 # Minimum trade size in shares.  Sizes below this are rejected to prevent
 # dust trades caused by floating-point capacity drift.
-_MIN_TRADE_SIZE: float = 50.0
+_MIN_TRADE_SIZE: float = 10.0
 
 _MIN_TIME_REMAINING: float = 30.0  # seconds
 
