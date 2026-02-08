@@ -52,12 +52,8 @@ def verify_admin(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="ADMIN_USERNAME and ADMIN_PASSWORD must be set",
         )
-    user_ok = secrets.compare_digest(
-        credentials.username.encode(), expected_user.encode()
-    )
-    pass_ok = secrets.compare_digest(
-        credentials.password.encode(), expected_pass.encode()
-    )
+    user_ok = secrets.compare_digest(credentials.username.encode(), expected_user.encode())
+    pass_ok = secrets.compare_digest(credentials.password.encode(), expected_pass.encode())
     if not (user_ok and pass_ok):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -80,6 +76,7 @@ def _env_path() -> Path:
 
 def _vault_path() -> Path:
     return Path(os.environ.get("VAULT_PATH", "data/secrets.vault"))
+
 
 # Secret fields that should NOT appear in .env settings API
 _SECRET_ENV_KEYS = {
@@ -132,6 +129,19 @@ def _load_secrets_for_display() -> dict[str, str]:
 def _load_settings() -> Settings:
     """Load Settings from current .env + vault (same as bot would)."""
     return Settings()  # type: ignore[call-arg]
+
+
+def _make_clob_client(private_key: str, signature_type: int, funder: str | None) -> object:
+    """Create a ClobClient instance (isolated for testability)."""
+    from py_clob_client.client import ClobClient
+
+    return ClobClient(
+        host="https://clob.polymarket.com",
+        key=private_key,
+        chain_id=137,
+        signature_type=signature_type,
+        funder=funder,
+    )
 
 
 def _run_systemctl(action: str) -> tuple[bool, str]:
@@ -278,6 +288,69 @@ def create_admin_app() -> FastAPI:
         return JSONResponse({"status": "ok", "keys": len(existing)})
 
     # ------------------------------------------------------------------
+    # Wallet derive API
+    # ------------------------------------------------------------------
+
+    @app.post("/api/wallet/derive")
+    async def wallet_derive(
+        request: Request,
+        _user: str = Depends(verify_admin),
+    ) -> JSONResponse:
+        """Derive ETH address and signature type from private key."""
+        body = await request.json()
+        private_key: str = body.get("private_key", "").strip()
+        polymarket_address: str = body.get("polymarket_address", "").strip()
+
+        if not private_key:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="private_key is required",
+            )
+
+        # Derive ETH address
+        try:
+            from eth_account import Account
+
+            acct = Account.from_key(private_key)
+            eth_address = acct.address
+        except Exception as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid private key: {exc}",
+            ) from exc
+
+        # Auto-determine signature type
+        if polymarket_address:
+            signature_type = 1  # POLY_GNOSIS_SAFE
+            funder = polymarket_address
+        else:
+            signature_type = 0  # EOA
+            funder = ""
+
+        # Best-effort API verification
+        api_verified = False
+        api_key_preview = ""
+        api_error = ""
+        try:
+            clob = _make_clob_client(private_key, signature_type, funder or None)
+            api_creds = clob.derive_api_key()  # type: ignore[attr-defined]
+            api_verified = True
+            api_key_preview = str(api_creds.get("apiKey", ""))[:12] + "..."
+        except Exception as exc:
+            api_error = str(exc)
+
+        return JSONResponse(
+            {
+                "eth_address": eth_address,
+                "signature_type": signature_type,
+                "funder": funder,
+                "api_verified": api_verified,
+                "api_key_preview": api_key_preview,
+                "api_error": api_error,
+            }
+        )
+
+    # ------------------------------------------------------------------
     # Bot control API
     # ------------------------------------------------------------------
 
@@ -332,16 +405,20 @@ def create_admin_app() -> FastAPI:
                 )
                 uptime = show_result.stdout.strip().replace("ActiveEnterTimestamp=", "")
 
-            return JSONResponse({
-                "status": active_status,
-                "uptime": uptime,
-            })
+            return JSONResponse(
+                {
+                    "status": active_status,
+                    "uptime": uptime,
+                }
+            )
         except FileNotFoundError:
-            return JSONResponse({
-                "status": "unknown",
-                "uptime": "",
-                "error": "systemctl not found",
-            })
+            return JSONResponse(
+                {
+                    "status": "unknown",
+                    "uptime": "",
+                    "error": "systemctl not found",
+                }
+            )
 
     # ------------------------------------------------------------------
     # Vault management API
@@ -353,12 +430,14 @@ def create_admin_app() -> FastAPI:
     ) -> JSONResponse:
         vault = _get_vault()
         if vault is None:
-            return JSONResponse({
-                "exists": False,
-                "unlocked": False,
-                "key_count": 0,
-                "error": "VAULT_PASSWORD not configured",
-            })
+            return JSONResponse(
+                {
+                    "exists": False,
+                    "unlocked": False,
+                    "key_count": 0,
+                    "error": "VAULT_PASSWORD not configured",
+                }
+            )
 
         exists = vault.exists()
         key_count = 0
@@ -372,11 +451,13 @@ def create_admin_app() -> FastAPI:
             except VaultError:
                 unlocked = False
 
-        return JSONResponse({
-            "exists": exists,
-            "unlocked": unlocked,
-            "key_count": key_count,
-        })
+        return JSONResponse(
+            {
+                "exists": exists,
+                "unlocked": unlocked,
+                "key_count": key_count,
+            }
+        )
 
     @app.post("/api/vault/init")
     async def vault_init(
@@ -434,9 +515,11 @@ def create_admin_app() -> FastAPI:
                 detail=f"Failed to re-encrypt vault: {exc}",
             ) from exc
 
-        return JSONResponse({
-            "status": "ok",
-            "message": "Vault re-encrypted. Update VAULT_PASSWORD env var.",
-        })
+        return JSONResponse(
+            {
+                "status": "ok",
+                "message": "Vault re-encrypted. Update VAULT_PASSWORD env var.",
+            }
+        )
 
     return app

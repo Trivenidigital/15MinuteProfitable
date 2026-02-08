@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import os
+from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -45,7 +46,6 @@ def bad_auth_headers():
 
 
 class TestAuth:
-
     def test_no_auth_returns_401(self, client):
         resp = client.get("/")
         assert resp.status_code == 401
@@ -60,7 +60,6 @@ class TestAuth:
 
 
 class TestPages:
-
     def test_settings_page(self, client, auth_headers):
         resp = client.get("/", headers=auth_headers)
         assert resp.status_code == 200
@@ -78,7 +77,6 @@ class TestPages:
 
 
 class TestSettingsAPI:
-
     def test_save_settings(self, client, auth_headers, tmp_path):
         resp = client.post(
             "/api/settings",
@@ -102,7 +100,6 @@ class TestSettingsAPI:
 
 
 class TestSecretsAPI:
-
     def test_save_secrets_creates_vault(self, client, auth_headers, tmp_path):
         resp = client.post(
             "/api/secrets",
@@ -136,7 +133,6 @@ class TestSecretsAPI:
 
 
 class TestVaultAPI:
-
     def test_vault_status_no_vault(self, client, auth_headers):
         resp = client.get("/api/vault/status", headers=auth_headers)
         assert resp.status_code == 200
@@ -189,6 +185,101 @@ class TestVaultAPI:
         new_vault = SecretVault(vault_path, "newpw")
         data = new_vault.load()
         assert data["test_key"] == "test_value"
+
+
+class TestWalletDerive:
+    """Tests for POST /api/wallet/derive endpoint."""
+
+    # Hardhat default account #0
+    _TEST_KEY = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+    _TEST_ADDRESS = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+
+    def test_derive_address_from_private_key(self, client, auth_headers):
+        resp = client.post(
+            "/api/wallet/derive",
+            json={"private_key": self._TEST_KEY},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["eth_address"].lower() == self._TEST_ADDRESS.lower()
+
+    def test_derive_signature_type_eoa(self, client, auth_headers):
+        resp = client.post(
+            "/api/wallet/derive",
+            json={"private_key": self._TEST_KEY},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200
+        assert resp.json()["signature_type"] == 0
+
+    def test_derive_signature_type_poly_gnosis_safe(self, client, auth_headers):
+        funder = "0x1234567890abcdef1234567890abcdef12345678"
+        resp = client.post(
+            "/api/wallet/derive",
+            json={"private_key": self._TEST_KEY, "polymarket_address": funder},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["signature_type"] == 1
+        assert data["funder"] == funder
+
+    def test_derive_invalid_private_key(self, client, auth_headers):
+        resp = client.post(
+            "/api/wallet/derive",
+            json={"private_key": "not-a-valid-key"},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 400
+        assert "Invalid private key" in resp.json()["detail"]
+
+    def test_derive_missing_private_key(self, client, auth_headers):
+        resp = client.post(
+            "/api/wallet/derive",
+            json={},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 400
+        assert "private_key is required" in resp.json()["detail"]
+
+    def test_derive_requires_auth(self, client):
+        resp = client.post(
+            "/api/wallet/derive",
+            json={"private_key": self._TEST_KEY},
+        )
+        assert resp.status_code == 401
+
+    def test_derive_api_verification_mocked(self, client, auth_headers):
+        mock_creds = {"apiKey": "abc12345deadbeef", "secret": "s", "passphrase": "p"}
+        mock_clob = MagicMock()
+        mock_clob.derive_api_key.return_value = mock_creds
+        with patch("src.admin.app._make_clob_client", return_value=mock_clob):
+            resp = client.post(
+                "/api/wallet/derive",
+                json={"private_key": self._TEST_KEY},
+                headers=auth_headers,
+            )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["api_verified"] is True
+        assert data["api_key_preview"].startswith("abc12345dead")
+
+    def test_derive_api_verification_fails_gracefully(self, client, auth_headers):
+        mock_clob = MagicMock()
+        mock_clob.derive_api_key.side_effect = RuntimeError("connection refused")
+        with patch("src.admin.app._make_clob_client", return_value=mock_clob):
+            resp = client.post(
+                "/api/wallet/derive",
+                json={"private_key": self._TEST_KEY},
+                headers=auth_headers,
+            )
+        assert resp.status_code == 200
+        data = resp.json()
+        # Address should still be derived even if API verification fails
+        assert data["eth_address"].lower() == self._TEST_ADDRESS.lower()
+        assert data["api_verified"] is False
+        assert "connection refused" in data["api_error"]
 
 
 class TestBotControlAPI:

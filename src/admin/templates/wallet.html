@@ -72,18 +72,38 @@
             </div>
         </div>
         <div class="form-group">
-            <label>Signature Type</label>
-            <select id="settingSignatureType">
-                <option value="0" {{ 'selected' if settings.signature_type.value == 0 }}>EOA (0)</option>
-                <option value="1" {{ 'selected' if settings.signature_type.value == 1 }}>Poly Gnosis Safe (1)</option>
-                <option value="2" {{ 'selected' if settings.signature_type.value == 2 }}>Gnosis Safe (2)</option>
-            </select>
-        </div>
-        <div class="form-group">
-            <label>Funder Address</label>
+            <label>Polymarket Wallet Address</label>
             <div class="secret-field">
-                <input type="password" id="secretFunder" value="{{ secrets.get('funder', '') }}" placeholder="0x...">
+                <input type="password" id="secretFunder" value="{{ secrets.get('funder', '') }}" placeholder="0x... (leave empty for EOA)">
                 <button type="button" onclick="toggleSecret(this)">Show</button>
+            </div>
+        </div>
+        <input type="hidden" id="settingSignatureType" value="{{ settings.signature_type.value }}">
+    </div>
+    <div class="btn-row">
+        <button type="button" class="btn btn-secondary" onclick="deriveWallet()" id="deriveBtn">Derive &amp; Verify</button>
+    </div>
+
+    <!-- Derive results (hidden by default) -->
+    <div id="deriveResults" style="display: none; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
+        <div class="form-grid">
+            <div class="form-group">
+                <label>Derived ETH Address</label>
+                <input type="text" id="derivedEthAddress" readonly style="background: var(--bg-secondary); font-family: monospace;">
+            </div>
+            <div class="form-group">
+                <label>Signature Type</label>
+                <input type="text" id="derivedSigType" readonly style="background: var(--bg-secondary);">
+            </div>
+            <div class="form-group">
+                <label>API Verification</label>
+                <div style="padding: 8px 0;">
+                    <span id="apiVerifyBadge" class="status-badge status-stopped">Not checked</span>
+                </div>
+            </div>
+            <div class="form-group" id="apiKeyPreviewGroup" style="display: none;">
+                <label>API Key Preview</label>
+                <input type="text" id="apiKeyPreview" readonly style="background: var(--bg-secondary); font-family: monospace;">
             </div>
         </div>
     </div>
@@ -231,6 +251,62 @@
         if (result) {
             showAlert('success', 'Vault password changed. Update VAULT_PASSWORD env var and restart.');
             hideChangePassword();
+        }
+    }
+
+    async function deriveWallet() {
+        const privateKey = document.getElementById('secretPrivateKey').value;
+        const polymarketAddress = document.getElementById('secretFunder').value;
+
+        if (!privateKey) {
+            showAlert('error', 'Private key is required.');
+            return;
+        }
+
+        const btn = document.getElementById('deriveBtn');
+        btn.disabled = true;
+        btn.textContent = 'Deriving...';
+
+        try {
+            const data = await apiPost('/api/wallet/derive', {
+                private_key: privateKey,
+                polymarket_address: polymarketAddress,
+            });
+            if (!data) {
+                btn.disabled = false;
+                btn.textContent = 'Derive & Verify';
+                return;
+            }
+
+            // Show results
+            document.getElementById('deriveResults').style.display = 'block';
+            document.getElementById('derivedEthAddress').value = data.eth_address;
+
+            const sigTypeLabels = {0: 'EOA (0)', 1: 'Poly Gnosis Safe (1)', 2: 'Gnosis Safe (2)'};
+            document.getElementById('derivedSigType').value = sigTypeLabels[data.signature_type] || data.signature_type;
+
+            // Update hidden signature_type input
+            document.getElementById('settingSignatureType').value = data.signature_type;
+
+            const badge = document.getElementById('apiVerifyBadge');
+            if (data.api_verified) {
+                badge.textContent = 'Verified';
+                badge.className = 'status-badge status-running';
+                document.getElementById('apiKeyPreviewGroup').style.display = 'block';
+                document.getElementById('apiKeyPreview').value = data.api_key_preview;
+            } else {
+                badge.textContent = 'Failed';
+                badge.className = 'status-badge status-stopped';
+                document.getElementById('apiKeyPreviewGroup').style.display = 'none';
+                if (data.api_error) {
+                    showAlert('warning', 'API verification failed: ' + data.api_error);
+                }
+            }
+
+            showAlert('success', 'Wallet derived successfully. Signature type auto-detected.');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Derive & Verify';
         }
     }
 
