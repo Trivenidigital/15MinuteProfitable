@@ -13,14 +13,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-import secrets
+from pydantic import SecretStr
 
 import uvicorn
-from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request, WebSocket, status
+from fastapi import APIRouter, FastAPI, HTTPException, Query, Request, WebSocket, status
 from fastapi.responses import JSONResponse
-from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.templating import Jinja2Templates
-from pydantic import SecretStr
 from starlette.websockets import WebSocketDisconnect
 
 from src.config import Settings
@@ -59,40 +57,6 @@ _SECRET_FIELD_NAMES = frozenset({
 # ---------------------------------------------------------------------------
 
 
-_security = HTTPBasic(auto_error=False)
-
-# Module-level reference to the app instance for the auth dependency.
-# Set by create_app() before any requests are served.
-_app_ref: FastAPI | None = None
-
-
-async def _verify_credentials(
-    credentials: HTTPBasicCredentials | None = Depends(_security),
-) -> None:
-    """Verify HTTP Basic credentials if auth is configured."""
-    assert _app_ref is not None
-    settings: Settings = _app_ref.state.settings
-    expected_password = settings.dashboard_password.get_secret_value()
-    if not expected_password:
-        return  # auth disabled
-    if credentials is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication required",
-            headers={"WWW-Authenticate": "Basic"},
-        )
-    username_ok = secrets.compare_digest(
-        credentials.username.encode(), settings.dashboard_username.encode()
-    )
-    password_ok = secrets.compare_digest(
-        credentials.password.encode(), expected_password.encode()
-    )
-    if not (username_ok and password_ok):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid credentials",
-            headers={"WWW-Authenticate": "Basic"},
-        )
 
 
 def create_app() -> FastAPI:
@@ -106,9 +70,9 @@ def create_app() -> FastAPI:
     )
     _app_ref = app
 
-    # Router with auth for all HTTP endpoints (WebSocket is registered
-    # directly on the app to avoid HTTPBasic dependency resolution issues).
-    router = APIRouter(dependencies=[Depends(_verify_credentials)])
+    # Router for all HTTP endpoints — monitoring dashboard is read-only,
+    # no authentication required.
+    router = APIRouter()
 
     # ------------------------------------------------------------------
     # HTML dashboard

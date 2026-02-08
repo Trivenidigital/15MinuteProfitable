@@ -104,6 +104,7 @@ def _make_opportunity(
 def settings() -> Settings:
     return Settings(
         private_key="0x" + "ab" * 32,
+        order_size=250.0,
         max_position_per_market=500.0,
         max_total_position=2000.0,
         max_daily_loss=50.0,
