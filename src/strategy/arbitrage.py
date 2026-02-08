@@ -145,6 +145,7 @@ class ArbitrageStrategy(BaseStrategy):
             expected_profit_pct=profit_per_share,
             total_fees=total_fees,
             confidence=confidence,
+            requested_size=size,
             metadata={
                 "yes_vwap": yes_vwap,
                 "no_vwap": no_vwap,

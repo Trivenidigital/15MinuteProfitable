@@ -298,6 +298,7 @@ class ResolutionSniperStrategy(BaseStrategy):
             expected_profit_pct=profit_pct,
             total_fees=taker_fee + winner_fee,
             confidence=win_prob,
+            requested_size=tranche_size,
             metadata={
                 "direction": direction,
                 "target_token_id": target_token_id,

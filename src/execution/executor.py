@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 
 from src.config import Settings
 from src.core.models import OrderStatus, Side, TradeOrder
+from src.data.orderbook import OrderBookManager
 from src.monitoring.logger import get_logger
 
 if TYPE_CHECKING:
@@ -22,11 +23,16 @@ if TYPE_CHECKING:
 class OrderExecutor:
     """Handles order signing, submission, and fill verification."""
 
-    def __init__(self, settings: Settings) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        book_manager: OrderBookManager | None = None,
+    ) -> None:
         self._settings = settings
         self._dry_run = settings.dry_run
         self._log = get_logger("executor")
         self._client: ClobClient | None = None  # Lazily initialized
+        self._book_manager = book_manager
 
     # ------------------------------------------------------------------
     # Client initialization
@@ -152,15 +158,42 @@ class OrderExecutor:
 
         if self._dry_run:
             order.order_id = f"dry_{uuid.uuid4().hex[:8]}"
+
+            # BUY: check orderbook liquidity and use VWAP
+            if order.side == Side.BUY and self._book_manager is not None:
+                fill_est = self._book_manager.get_fill_estimate(
+                    order.token_id, order.side, order.size
+                )
+                if fill_est is None or not fill_est.sufficient_liquidity:
+                    order.status = OrderStatus.REJECTED
+                    self._log.info(
+                        "order_rejected_dry_no_liquidity",
+                        order_id=order.order_id,
+                        token_id=order.token_id[:12],
+                        side=order.side.value,
+                        size=order.size,
+                    )
+                    return order
+                order.fill_price = fill_est.vwap
+            # SELL: use orderbook best_bid for realistic exit price
+            elif order.side == Side.SELL and self._book_manager is not None:
+                book = self._book_manager.get_book(order.token_id)
+                if book and book.best_bid:
+                    order.fill_price = book.best_bid
+                else:
+                    order.fill_price = order.price
+            else:
+                order.fill_price = order.price
+
             order.status = OrderStatus.FILLED
             order.fill_size = order.size
-            order.fill_price = order.price
             self._log.info(
                 "order_submitted_dry",
                 order_id=order.order_id,
                 token_id=order.token_id[:12],
                 side=order.side.value,
                 price=order.price,
+                fill_price=order.fill_price,
                 size=order.size,
             )
             return order

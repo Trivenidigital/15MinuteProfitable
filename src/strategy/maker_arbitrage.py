@@ -225,6 +225,7 @@ class MakerArbitrageStrategy(BaseStrategy):
             expected_profit_pct=profit_per_share,
             total_fees=winner_fee,
             confidence=confidence,
+            requested_size=size,
             metadata={
                 "order_type": "GTC",
                 "paired": True,

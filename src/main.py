@@ -140,9 +140,10 @@ async def _strategy_loop(
                     )
                     continue
 
-                # Adjust size
+                # Adjust size (use strategy-specific size if available)
+                base_size = opp.requested_size if opp.requested_size > 0 else settings.order_size
                 adjusted_size = risk_manager.adjust_size(
-                    opp, settings.order_size
+                    opp, base_size
                 )
                 if adjusted_size <= 0:
                     _log.debug("size_adjusted_to_zero", market=market.slug)
@@ -232,8 +233,9 @@ async def _execute_parallel_strategies(
             )
             continue
 
-        # Adjust size
-        adjusted_size = risk_manager.adjust_size(opp, settings.order_size)
+        # Adjust size (use strategy-specific size if available)
+        base_size = opp.requested_size if opp.requested_size > 0 else settings.order_size
+        adjusted_size = risk_manager.adjust_size(opp, base_size)
         if adjusted_size <= 0:
             _log.debug(
                 "size_adjusted_to_zero",
@@ -1706,7 +1708,7 @@ async def _run_bot(settings: Settings, pid_lock: PidLock) -> None:
     book_manager = OrderBookManager()
     state_manager = StateManager(settings)
     risk_manager = RiskManager(settings, state_manager)
-    executor = OrderExecutor(settings)
+    executor = OrderExecutor(settings, book_manager=book_manager)
     rate_limiter = RateLimiter(max_per_minute=55)
     spot_buffer = SpotBuffer(window_seconds=settings.spot_buffer_window, max_size=10000)
 

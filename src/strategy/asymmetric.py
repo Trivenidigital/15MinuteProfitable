@@ -280,6 +280,7 @@ class AsymmetricStrategy(BaseStrategy):
             expected_profit_pct=profit_pct,
             total_fees=winner_fee * size,
             confidence=confidence,
+            requested_size=size,
             metadata={
                 "buy_side": buy_side,
                 "buy_price": buy_price,

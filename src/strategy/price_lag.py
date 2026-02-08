@@ -243,6 +243,7 @@ class PriceLagStrategy(BaseStrategy):
             expected_profit_pct=profit_pct,
             total_fees=taker_fee,
             confidence=confidence,
+            requested_size=adjusted_size,
             metadata={
                 "direction": movement.direction,
                 "spot_change_pct": movement.change_pct,

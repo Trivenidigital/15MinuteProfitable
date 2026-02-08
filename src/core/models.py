@@ -116,6 +116,7 @@ class Opportunity:
     expected_profit_pct: float = 0.0
     total_fees: float = 0.0
     confidence: float = 0.0
+    requested_size: float = 0.0
     metadata: dict[str, str | float | int | bool] = field(default_factory=dict)
 
 
