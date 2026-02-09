@@ -184,11 +184,11 @@ class AsymmetricStrategy(BaseStrategy):
                 buy_side = "NO"
                 buy_price = no_ask
                 target_token_id = market.no_token_id
-        elif yes_cheap:
+        elif yes_cheap and not self._settings.asymmetric_require_hedge:
             buy_side = "YES"
             buy_price = yes_ask
             target_token_id = market.yes_token_id
-        elif no_cheap:
+        elif no_cheap and not self._settings.asymmetric_require_hedge:
             buy_side = "NO"
             buy_price = no_ask
             target_token_id = market.no_token_id
@@ -361,32 +361,10 @@ class AsymmetricStrategy(BaseStrategy):
         if acc.completed:
             return False
 
-        # If market expires soon and we have unhedged accumulation, exit
-        # — but skip if position has lost >70% (hold to resolution instead)
+        # If market expires soon and we have unhedged accumulation, always exit
         remaining = time_remaining_seconds(market.end_time.timestamp())
         if remaining < self._settings.time_exit_seconds:
             if acc.yes_shares > 0 or acc.no_shares > 0:
-                cost_basis = position.total_investment
-                if cost_basis > 0:
-                    current_value = 0.0
-                    if position.yes_shares > 0:
-                        yes_book = self._book_manager.get_book(market.yes_token_id)
-                        if yes_book and yes_book.best_bid is not None:
-                            current_value += position.yes_shares * yes_book.best_bid
-                    if position.no_shares > 0:
-                        no_book = self._book_manager.get_book(market.no_token_id)
-                        if no_book and no_book.best_bid is not None:
-                            current_value += position.no_shares * no_book.best_bid
-                    value_ratio = current_value / cost_basis
-                    if value_ratio < 0.30:
-                        self._log.info(
-                            "unhedged_exit_skipped_heavy_loss",
-                            market=market.slug,
-                            value_ratio=round(value_ratio, 4),
-                            current_value=round(current_value, 2),
-                            cost_basis=round(cost_basis, 2),
-                        )
-                        return False
                 self._log.info(
                     "unhedged_exit",
                     market=market.slug,

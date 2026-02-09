@@ -92,7 +92,7 @@ class Settings(BaseSettings):
     binance_ws_url: str = "wss://stream.binance.com:9443/ws"
 
     # Trading Parameters (ANALYSIS MODE — small sizes to observe all strategies)
-    order_size: float = 25.0  # small size for multi-strategy analysis
+    order_size: float = 10.0  # reduced — price_lag is a losing strategy
     order_type: str = "FOK"
     target_pair_cost: float = 0.94
     min_profit_margin: float = 0.003  # lowered from 0.005
@@ -132,10 +132,11 @@ class Settings(BaseSettings):
     # Asymmetric Entry Strategy Parameters
     yes_cheap_threshold: float = 0.42  # buy YES when ask < this
     no_cheap_threshold: float = 0.42  # buy NO when ask < this
-    accumulation_size: float = 20.0  # small size for analysis
-    max_accumulation_per_side: float = 200.0  # max shares before completing pair
+    accumulation_size: float = 10.0  # reduced — losing strategy
+    max_accumulation_per_side: float = 50.0  # reduced — cap unhedged risk
     target_avg_combined: float = 0.90  # target avg combined cost for profit
     stale_order_seconds: float = 120.0  # cancel GTC orders older than this
+    asymmetric_require_hedge: bool = True  # only enter when both sides are cheap
 
     # Maker Arbitrage Strategy Parameters
     maker_target_pair_cost: float = 0.985  # aggressive threshold (higher fill rate)
@@ -162,12 +163,12 @@ class Settings(BaseSettings):
     fade_panic_odds_shift_threshold: float = 0.08  # 8% odds shift to trigger
     fade_panic_spot_max_change: float = 0.0005 # Max spot change for "no movement" (0.05%)
     fade_panic_odds_window_seconds: int = 60   # Window for measuring odds shift
-    fade_panic_order_size: float = 30.0        # Slightly larger — best strategy, prioritized
+    fade_panic_order_size: float = 50.0        # Highest allocation — only profitable strategy
     fade_panic_max_entry_price: float = 0.92   # Don't buy above this price
 
     # Resolution Sniper Strategy Parameters
     enable_resolution_sniper: bool = True
-    sniper_order_size: float = 30.0           # Small size for analysis
+    sniper_order_size: float = 10.0           # Reduced — marginal strategy
     sniper_min_confidence: float = 0.90       # Min win probability to enter
     sniper_window_seconds: float = 120.0      # Activate at T-120s
     sniper_hard_stop_seconds: float = 15.0    # Stop buying at T-15s
