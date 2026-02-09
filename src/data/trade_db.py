@@ -431,6 +431,26 @@ class TradeDatabase:
         ).fetchall()
         return [self._row_to_trade_result(r) for r in rows]
 
+    def get_trade_results_since(
+        self,
+        since_ts: float,
+        strategy: str | None = None,
+    ) -> list[TradeResult]:
+        """Fetch trade results since a given timestamp, optionally by strategy."""
+        if strategy:
+            rows = self._conn.execute(
+                "SELECT * FROM trade_results WHERE timestamp >= ? AND strategy = ? "
+                "ORDER BY timestamp DESC",
+                (since_ts, strategy),
+            ).fetchall()
+        else:
+            rows = self._conn.execute(
+                "SELECT * FROM trade_results WHERE timestamp >= ? "
+                "ORDER BY timestamp DESC",
+                (since_ts,),
+            ).fetchall()
+        return [self._row_to_trade_result(r) for r in rows]
+
     def get_trade_result_count(self) -> int:
         """Count total trade results."""
         row = self._conn.execute(

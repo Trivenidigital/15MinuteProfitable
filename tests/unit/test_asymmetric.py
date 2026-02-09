@@ -138,6 +138,7 @@ def settings() -> Settings:
         target_avg_combined=0.90,
         stale_order_seconds=120.0,
         time_exit_seconds=60.0,
+        asymmetric_require_hedge=False,
     )
 
 
@@ -847,13 +848,16 @@ class TestShouldExit:
         assert strategy.should_exit(position, market) is True
 
     @patch("src.strategy.asymmetric.time_remaining_seconds", return_value=30.0)
-    def test_returns_false_unhedged_near_expiry_heavy_loss(
+    def test_returns_true_unhedged_near_expiry_heavy_loss(
         self,
         _mock_time: object,
         strategy: AsymmetricStrategy,
         book_manager: MockOrderBookManager,
     ) -> None:
-        """27b. Returns False for unhedged position near expiry with >70% loss."""
+        """27b. Returns True for unhedged position near expiry even with heavy loss.
+
+        Changed: always exit unhedged positions before resolution to avoid total wipeout.
+        """
         market = _make_market(start_offset=-870.0, end_offset=30.0)
         acc = strategy.get_accumulation(market.condition_id)
         acc.yes_shares = 50.0
@@ -866,10 +870,9 @@ class TestShouldExit:
             yes_cost_basis=19.0,
             strategy=StrategyType.ASYMMETRIC,
         )
-        # value = 50 * 0.05 = 2.5, value_ratio = 2.5/19 = 0.13 -> below 30%
         book_manager.yes_book = _make_orderbook("YES_TOKEN", best_bid=0.05)
 
-        assert strategy.should_exit(position, market) is False
+        assert strategy.should_exit(position, market) is True
 
     @patch("src.strategy.asymmetric.time_remaining_seconds", return_value=300.0)
     def test_returns_false_enough_time_remaining(

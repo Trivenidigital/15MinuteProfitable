@@ -242,6 +242,9 @@ class Settings(BaseSettings):
     cross_asset_min_divergence: float = 0.01
     cross_asset_order_size: float = 25.0
 
+    # Dynamic allocation
+    enable_dynamic_allocation: bool = False
+
     # Decision logging (Phase 1 observability)
     enable_decision_logging: bool = True
     spot_snapshot_interval: float = 5.0  # seconds between spot price snapshots

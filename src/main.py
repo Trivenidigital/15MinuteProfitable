@@ -26,6 +26,7 @@ from src.execution.unwind import EmergencyUnwind
 from src.monitoring.alerts import AlertDispatcher
 from src.monitoring.logger import get_logger, setup_logging
 from src.monitoring.metrics import MetricsCollector
+from src.risk.allocation import AllocationManager
 from src.risk.manager import RiskManager
 from src.risk.sizing import PositionSizer
 from src.strategy.arbitrage import ArbitrageStrategy
@@ -79,6 +80,7 @@ async def _strategy_loop(
     settings: Settings,
     strategies: list[BaseStrategy] | None = None,
     decision_logger: DecisionLogger | None = None,
+    allocation_manager: AllocationManager | None = None,
 ) -> None:
     """Continuously scan all active markets for opportunities.
 
@@ -113,6 +115,7 @@ async def _strategy_loop(
                 strategies=strategies or [],
                 decision_logger=decision_logger,
                 cycle_id=cycle_id,
+                allocation_manager=allocation_manager,
             )
         else:
             # Normal mode: scan all, log, then pick best
@@ -146,6 +149,8 @@ async def _strategy_loop(
 
                 # Adjust size (use strategy-specific size if available)
                 base_size = opp.requested_size if opp.requested_size > 0 else settings.order_size
+                if allocation_manager is not None:
+                    base_size = allocation_manager.get_allocated_size(opp.strategy, base_size)
                 adjusted_size = risk_manager.adjust_size(
                     opp, base_size
                 )
@@ -197,6 +202,7 @@ async def _execute_parallel_strategies(
     strategies: list[BaseStrategy],
     decision_logger: DecisionLogger | None = None,
     cycle_id: int = 0,
+    allocation_manager: AllocationManager | None = None,
 ) -> None:
     """Execute the best opportunity from each strategy type (A/B test mode).
 
@@ -239,6 +245,8 @@ async def _execute_parallel_strategies(
 
         # Adjust size (use strategy-specific size if available)
         base_size = opp.requested_size if opp.requested_size > 0 else settings.order_size
+        if allocation_manager is not None:
+            base_size = allocation_manager.get_allocated_size(opp.strategy, base_size)
         adjusted_size = risk_manager.adjust_size(opp, base_size)
         if adjusted_size <= 0:
             _log.debug(
@@ -1908,6 +1916,12 @@ async def _run_bot(settings: Settings, pid_lock: PidLock) -> None:
         decision_logger = DecisionLogger(trade_db)
         _log.info("decision_logging_enabled")
 
+    # Dynamic allocation (performance-based sizing)
+    allocation_manager: AllocationManager | None = None
+    if trade_db is not None and settings.enable_dynamic_allocation:
+        allocation_manager = AllocationManager(settings, trade_db)
+        _log.info("dynamic_allocation_enabled")
+
     strategy_task = asyncio.create_task(
         _strategy_loop(
             market_manager=market_manager,
@@ -1919,6 +1933,7 @@ async def _run_bot(settings: Settings, pid_lock: PidLock) -> None:
             settings=settings,
             strategies=strategies,
             decision_logger=decision_logger,
+            allocation_manager=allocation_manager,
         ),
     )
 
