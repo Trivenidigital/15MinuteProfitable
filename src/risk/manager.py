@@ -40,6 +40,14 @@ class StateProvider(Protocol):
 
 _HEDGED_STRATEGIES: frozenset[StrategyType] = frozenset({StrategyType.ARBITRAGE})
 
+# Late-game strategies that deliberately trade near market close.
+# They have their own hard-stop logic, so skip dead-zone and
+# time-remaining risk checks for them.
+_LATE_GAME_STRATEGIES: frozenset[StrategyType] = frozenset({
+    StrategyType.RESOLUTION_SNIPER,
+    StrategyType.FADE_PANIC,
+})
+
 # Minimum trade size in shares.  Sizes below this are rejected to prevent
 # dust trades caused by floating-point capacity drift.
 _MIN_TRADE_SIZE: float = 10.0
@@ -173,13 +181,14 @@ class RiskManager:
                 self._log.warning("risk_rejected", check="unhedged_exposure", reason=reason)
                 return False, reason
 
-        # 6. Dead zone
+        # 6. Dead zone (skip for late-game strategies — they trade near close by design)
         start_ts = opp.market.start_time.timestamp()
         end_ts = opp.market.end_time.timestamp()
-        if is_in_dead_zone(start_ts, end_ts):
-            reason = "market is in dead zone (too close to start or end)"
-            self._log.warning("risk_rejected", check="dead_zone", reason=reason)
-            return False, reason
+        if opp.strategy not in _LATE_GAME_STRATEGIES:
+            if is_in_dead_zone(start_ts, end_ts):
+                reason = "market is in dead zone (too close to start or end)"
+                self._log.warning("risk_rejected", check="dead_zone", reason=reason)
+                return False, reason
 
         # 7. Cooldown
         last_trade = self._last_trade_time.get(condition_id, 0.0)
@@ -192,12 +201,13 @@ class RiskManager:
             self._log.warning("risk_rejected", check="cooldown", reason=reason)
             return False, reason
 
-        # 8. Time remaining
+        # 8. Time remaining (skip for late-game strategies — they have their own hard stops)
         remaining = time_remaining_seconds(end_ts)
-        if remaining <= _MIN_TIME_REMAINING:
-            reason = f"insufficient time remaining: {remaining:.1f}s <= {_MIN_TIME_REMAINING:.1f}s"
-            self._log.warning("risk_rejected", check="time_remaining", reason=reason)
-            return False, reason
+        if opp.strategy not in _LATE_GAME_STRATEGIES:
+            if remaining <= _MIN_TIME_REMAINING:
+                reason = f"insufficient time remaining: {remaining:.1f}s <= {_MIN_TIME_REMAINING:.1f}s"
+                self._log.warning("risk_rejected", check="time_remaining", reason=reason)
+                return False, reason
 
         self._log.debug(
             "risk_approved",
