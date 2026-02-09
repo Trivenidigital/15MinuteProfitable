@@ -242,6 +242,10 @@ class ResolutionSniperStrategy(BaseStrategy):
 
         tranche_size = self._settings.sniper_order_size / 3.0
 
+        # Boost tranche size for high-confidence entries
+        if win_prob >= self._settings.sniper_high_confidence_threshold:
+            tranche_size *= self._settings.sniper_high_confidence_multiplier
+
         fill = self._book_manager.get_fill_estimate(
             target_token_id,
             Side.BUY,

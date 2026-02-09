@@ -196,6 +196,65 @@ async def _strategy_loop(
             pass
 
 
+def _resolve_strategy_conflicts(
+    best_per_strategy: dict[StrategyType, object],
+) -> dict[StrategyType, object]:
+    """Remove conflicting opportunities where strategies bet opposite sides of the same market.
+
+    Groups opportunities by condition_id, detects opposite 'direction' metadata,
+    and keeps only the highest-confidence one.  Strategies without 'direction'
+    metadata (arbitrage, asymmetric, maker_arb) are never suppressed.
+    """
+    from collections import defaultdict
+
+    # Group directional opportunities by condition_id
+    # key: condition_id -> list of (strategy_type, opportunity)
+    by_market: dict[str, list[tuple[StrategyType, object]]] = defaultdict(list)
+
+    for strat_type, opp in best_per_strategy.items():
+        direction = opp.metadata.get("direction")
+        if direction is None:
+            continue  # non-directional strategies are never in conflict
+        by_market[opp.market.condition_id].append((strat_type, opp))
+
+    suppressed: set[StrategyType] = set()
+
+    for condition_id, entries in by_market.items():
+        if len(entries) < 2:
+            continue
+
+        # Check for opposite directions
+        directions: dict[str, list[tuple[StrategyType, object]]] = defaultdict(list)
+        for strat_type, opp in entries:
+            directions[opp.metadata["direction"]].append((strat_type, opp))
+
+        if len(directions) < 2:
+            continue  # all same direction — no conflict
+
+        # Conflict detected: keep only the highest-confidence opportunity
+        all_entries = [item for group in directions.values() for item in group]
+        all_entries.sort(key=lambda x: x[1].confidence, reverse=True)
+
+        winner_strat, winner_opp = all_entries[0]
+        for strat_type, opp in all_entries[1:]:
+            suppressed.add(strat_type)
+            _log.warning(
+                "strategy_conflict_suppressed",
+                market=opp.market.slug,
+                suppressed_strategy=strat_type.value,
+                suppressed_direction=opp.metadata.get("direction"),
+                suppressed_confidence=round(opp.confidence, 4),
+                kept_strategy=winner_strat.value,
+                kept_direction=winner_opp.metadata.get("direction"),
+                kept_confidence=round(winner_opp.confidence, 4),
+            )
+
+    if not suppressed:
+        return best_per_strategy
+
+    return {k: v for k, v in best_per_strategy.items() if k not in suppressed}
+
+
 async def _execute_parallel_strategies(
     scanner: MarketScanner,
     markets: list,
@@ -220,6 +279,12 @@ async def _execute_parallel_strategies(
     if not best_per_strategy:
         if decision_logger:
             decision_logger.log_no_opportunities(cycle_id)
+        return
+
+    # Resolve conflicts where strategies bet opposite sides of the same market
+    best_per_strategy = _resolve_strategy_conflicts(best_per_strategy)
+
+    if not best_per_strategy:
         return
 
     _log.info(

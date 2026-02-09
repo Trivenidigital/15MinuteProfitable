@@ -168,6 +168,7 @@ class Settings(BaseSettings):
     fade_panic_odds_window_seconds: int = 60   # Window for measuring odds shift
     fade_panic_order_size: float = 50.0        # Doubled back — 35% WR at 15% threshold with 3.6:1 win/loss ratio is profitable
     fade_panic_max_entry_price: float = 0.92   # Don't buy above this price
+    fade_panic_spot_vs_open_max_change: float = 0.003  # 0.3% max spot move from window open
 
     # Resolution Sniper Strategy Parameters
     enable_resolution_sniper: bool = True
@@ -183,6 +184,8 @@ class Settings(BaseSettings):
     sniper_vol_window_seconds: int = 600      # Seconds of spot data for vol calc (10 min)
     sniper_vol_multiplier: float = 3.0        # Inflate sigma to correct overconfident CDF (fat tails + mean reversion)
     sniper_momentum_window_seconds: int = 30  # Seconds of recent prices for momentum check
+    sniper_high_confidence_threshold: float = 0.90  # Win prob above this gets boosted size
+    sniper_high_confidence_multiplier: float = 3.0  # Tranche size multiplier for high confidence
 
     # Chainlink Oracle Validation
     enable_chainlink_filter: bool = True

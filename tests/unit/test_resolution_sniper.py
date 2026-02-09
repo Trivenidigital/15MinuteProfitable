@@ -213,6 +213,7 @@ def settings() -> Settings:
         sniper_min_vol_data_points=10,
         sniper_vol_floor=0.0001,
         sniper_vol_multiplier=1.0,  # disable calibration for unit tests
+        sniper_high_confidence_threshold=1.0,  # disable boost for unit tests
     )
 
 
@@ -960,6 +961,94 @@ class TestCleanup:
         strategy._tranches_taken["cond_x"] = {0, 1}
         strategy.cleanup_market("cond_x")
         assert "cond_x" not in strategy._tranches_taken
+
+
+# ---------------------------------------------------------------------------
+# High-confidence size boost
+# ---------------------------------------------------------------------------
+
+
+class TestHighConfidenceBoost:
+
+    async def test_boost_applied_above_threshold(
+        self,
+        spot_buffer: MockSpotBuffer,
+        book_manager: MockOrderBookManager,
+    ) -> None:
+        """Tranche size should be multiplied when win_prob >= threshold."""
+        s = Settings(
+            private_key="0x" + "ab" * 32,  # type: ignore[arg-type]
+            sniper_order_size=150.0,
+            sniper_min_confidence=0.50,
+            sniper_max_entry_price=0.97,
+            sniper_vol_multiplier=1.0,
+            sniper_min_vol_data_points=10,
+            sniper_vol_floor=0.0001,
+            sniper_high_confidence_threshold=0.90,
+            sniper_high_confidence_multiplier=3.0,
+        )
+        strat = ResolutionSniperStrategy(
+            settings=s,
+            book_manager=book_manager,  # type: ignore[arg-type]
+            spot_buffer=spot_buffer,  # type: ignore[arg-type]
+        )
+        market = _make_market(end_offset=100.0)
+        # 3% move with low vol → very high confidence (> 0.90)
+        _setup_for_sniper(
+            spot_buffer, book_manager,
+            open_price=100000.0, current_spot=103000.0,
+            fill_vwap=0.85, vol=0.0003,
+        )
+        strat._opening_prices[market.condition_id] = (
+            100000.0, time.time(),
+        )
+
+        result = await strat.evaluate(market)
+
+        assert result is not None
+        base_tranche = 150.0 / 3.0
+        assert result.metadata["tranche_size"] == pytest.approx(
+            base_tranche * 3.0,
+        )
+
+    async def test_no_boost_below_threshold(
+        self,
+        spot_buffer: MockSpotBuffer,
+        book_manager: MockOrderBookManager,
+    ) -> None:
+        """Tranche size should NOT be boosted below threshold."""
+        s = Settings(
+            private_key="0x" + "ab" * 32,  # type: ignore[arg-type]
+            sniper_order_size=150.0,
+            sniper_min_confidence=0.50,
+            sniper_max_entry_price=0.97,
+            sniper_vol_multiplier=1.0,
+            sniper_min_vol_data_points=10,
+            sniper_vol_floor=0.0001,
+            sniper_high_confidence_threshold=0.99,  # very high
+            sniper_high_confidence_multiplier=3.0,
+        )
+        strat = ResolutionSniperStrategy(
+            settings=s,
+            book_manager=book_manager,  # type: ignore[arg-type]
+            spot_buffer=spot_buffer,  # type: ignore[arg-type]
+        )
+        market = _make_market(end_offset=100.0)
+        _setup_for_sniper(
+            spot_buffer, book_manager,
+            open_price=100000.0, current_spot=101000.0,
+            fill_vwap=0.85, vol=0.0005,
+        )
+        strat._opening_prices[market.condition_id] = (
+            100000.0, time.time(),
+        )
+
+        result = await strat.evaluate(market)
+
+        assert result is not None
+        assert result.metadata["tranche_size"] == pytest.approx(
+            150.0 / 3.0,
+        )
 
 
 # ---------------------------------------------------------------------------

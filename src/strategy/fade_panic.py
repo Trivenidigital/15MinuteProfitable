@@ -47,6 +47,8 @@ class FadePanicStrategy(BaseStrategy):
         self._spot_buffer = spot_buffer
         # condition_id -> deque of (timestamp, yes_ask_price)
         self._odds_history: dict[str, deque[tuple[float, float]]] = {}
+        # condition_id -> (open_price, capture_timestamp)
+        self._window_open_prices: dict[str, tuple[float, float]] = {}
 
     @property
     def name(self) -> str:
@@ -144,6 +146,28 @@ class FadePanicStrategy(BaseStrategy):
                 max_allowed=round(self._settings.fade_panic_spot_max_change * 100, 4),
             )
             return None
+
+        # 4a2. Check spot vs window open price — catches mean-reverting spikes
+        #       that the 60s rolling window misses
+        spot_vs_open_pct: float | None = None
+        market_start_ts = market.start_time.timestamp()
+        window_open_price = self._capture_window_open_price(
+            market.condition_id, binance_symbol, market_start_ts
+        )
+        if window_open_price is not None and window_open_price > 0:
+            spot_vs_open_pct = abs(spot_end - window_open_price) / window_open_price
+            if spot_vs_open_pct > self._settings.fade_panic_spot_vs_open_max_change:
+                self._log.info(
+                    "fade_panic_spot_moved_from_open",
+                    market=market.slug,
+                    spot_vs_open_pct=round(spot_vs_open_pct * 100, 4),
+                    max_allowed=round(
+                        self._settings.fade_panic_spot_vs_open_max_change * 100, 4
+                    ),
+                    window_open_price=round(window_open_price, 4),
+                    current_spot=round(spot_end, 4),
+                )
+                return None
 
         # 4b. Cross-validate Binance spot with Chainlink oracle
         oracle_price: float | None = None
@@ -277,6 +301,11 @@ class FadePanicStrategy(BaseStrategy):
                 "target_token_id": target_token_id,
                 "odds_shift": round(odds_shift, 4),
                 "spot_change_pct": round(spot_change_pct, 6),
+                **(
+                    {"spot_vs_open_pct": round(spot_vs_open_pct, 6)}
+                    if spot_vs_open_pct is not None
+                    else {}
+                ),
                 "win_probability": round(win_prob, 4),
                 "time_remaining": round(time_remaining, 1),
                 "binance_symbol": binance_symbol,
@@ -309,3 +338,38 @@ class FadePanicStrategy(BaseStrategy):
     def cleanup_market(self, condition_id: str) -> None:
         """Remove odds tracking state for an expired market."""
         self._odds_history.pop(condition_id, None)
+        self._window_open_prices.pop(condition_id, None)
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _capture_window_open_price(
+        self, condition_id: str, binance_symbol: str, market_start_ts: float
+    ) -> float | None:
+        """Return the spot price closest to the market's 15-min window open.
+
+        Caches the result so subsequent calls within the same window reuse it.
+        Mirrors ResolutionSniperStrategy._capture_opening_price().
+        """
+        entry = self._window_open_prices.get(condition_id)
+        if entry is not None:
+            return entry[0]
+
+        history = self._spot_buffer.get_price_history(binance_symbol)
+        if not history:
+            return None
+
+        best_price: float | None = None
+        best_diff = float("inf")
+        for ts, price in history:
+            diff = abs(ts - market_start_ts)
+            if diff < best_diff:
+                best_diff = diff
+                best_price = price
+
+        if best_price is None:
+            return None
+
+        self._window_open_prices[condition_id] = (best_price, time.time())
+        return best_price
