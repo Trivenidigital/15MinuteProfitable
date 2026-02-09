@@ -163,7 +163,7 @@ class Settings(BaseSettings):
     fade_panic_odds_shift_threshold: float = 0.15  # 15% odds shift to trigger (raised from 8% — low shifts had 20% WR)
     fade_panic_spot_max_change: float = 0.0005 # Max spot change for "no movement" (0.05%)
     fade_panic_odds_window_seconds: int = 60   # Window for measuring odds shift
-    fade_panic_order_size: float = 25.0        # Halved from 50 — 20% WR at 8% threshold doesn't justify large positions
+    fade_panic_order_size: float = 50.0        # Doubled back — 35% WR at 15% threshold with 3.6:1 win/loss ratio is profitable
     fade_panic_max_entry_price: float = 0.92   # Don't buy above this price
 
     # Resolution Sniper Strategy Parameters
@@ -196,11 +196,11 @@ class Settings(BaseSettings):
 
     # Risk Limits (AGGRESSIVE MODE)
     disable_circuit_breaker: bool = False  # skip circuit breaker (useful in DRY_RUN)
-    max_entries_per_market: int = 5  # limit accumulation; 5 * $25 = $125 max per market
-    max_position_per_market: float = 1000.0  # 2x increase
-    max_total_position: float = 5000.0  # 2.5x increase
-    max_daily_loss: float = 250.0  # 5x increase (matches position size)
-    max_unhedged_exposure: float = 500.0  # 5x increase for directional trades
+    max_entries_per_market: int = 10  # limit accumulation; 10 * $50 = $500 max per market
+    max_position_per_market: float = 1000.0  # aggressive for learning mode
+    max_total_position: float = 4000.0  # paper money — let strategies play
+    max_daily_loss: float = 250.0  # safety valve
+    max_unhedged_exposure: float = 800.0  # aggressive for fade_panic learning
 
     # Simulation
     dry_run: bool = False
