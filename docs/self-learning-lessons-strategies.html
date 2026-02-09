@@ -265,7 +265,7 @@
 <h2>3. Current Configuration State</h2>
 
 <p>
-    Current parameter values on the server. Updated 2026-02-09 16:55 UTC.
+    Current parameter values on the server. Updated 2026-02-09 17:35 UTC.
     <span class="badge badge-active">PERFORMANCE-BASED ALLOCATION</span> = sizes flipped to favor winners.
 </p>
 
@@ -317,6 +317,9 @@
         <tr><td><code>sniper_min_confidence</code></td><td><strong>0.75</strong></td><td>0.90</td><td>Feb 9 03:45</td></tr>
         <tr><td><code>sniper_vol_multiplier</code></td><td><strong>3.0</strong></td><td>2.0</td><td>Feb 9 05:03</td></tr>
         <tr><td><code>sniper_vol_floor</code></td><td><strong>0.0005</strong></td><td>0.0001</td><td>Feb 9 05:03</td></tr>
+        <tr><td><code>sniper_high_confidence_threshold</code></td><td class="green"><strong>0.90</strong></td><td>N/A (new)</td><td>Feb 9 17:35</td></tr>
+        <tr><td><code>sniper_high_confidence_multiplier</code></td><td class="green"><strong>3.0</strong></td><td>N/A (new)</td><td>Feb 9 17:35</td></tr>
+        <tr><td><code>fade_panic_spot_vs_open_max_change</code></td><td class="green"><strong>0.003</strong></td><td>N/A (new)</td><td>Feb 9 17:35</td></tr>
         <tr><td colspan="4" class="muted"><em>Sniper max_entries=3 override: REMOVED (was blocking fade_panic)</em></td></tr>
     </table>
 </div>
@@ -373,6 +376,25 @@
 <h2>4. Experiment Timeline</h2>
 
 <p>Chronological record of every parameter change. Newest entries at the top.</p>
+
+<!-- Experiment #27 -->
+<div class="timeline-entry kept">
+    <div class="timeline-date">2026-02-09 ~17:35 UTC &mdash; Experiment #27</div>
+    <div class="timeline-title">
+        Fade Panic Spot-vs-Open Filter + Strategy Conflict Detection + Sniper Confidence Boost
+        <span class="badge badge-new">NEW CODE</span>
+    </div>
+    <p><strong>Problem:</strong> The $87.54 XRP fade_panic loss revealed three compounding issues: (1) fade_panic misread a mean-reverting spike as panic &mdash; spot moved +0.78% from window open then reverted, but the 60s rolling window showed &ldquo;flat&rdquo;, so it bet UP; (2) fade_panic (UP, 62%) and resolution_sniper (DOWN, 83%) both executed opposite sides of the same market &mdash; sniper was right, fade_panic wasted $87.54; (3) sniper sizes all tranches equally regardless of confidence.</p>
+    <p><strong>Changes (3 fixes):</strong></p>
+    <ul style="margin: 0.5rem 0 0.75rem 1.5rem; color: var(--text-muted); font-size: 0.9rem;">
+        <li><strong>Fade panic spot-vs-open filter:</strong> New check compares current spot vs 15-min window open price. If spot moved &gt;0.3% from open (<code>fade_panic_spot_vs_open_max_change=0.003</code>), the odds shift is fundamental repricing, not panic &mdash; reject. Uses cached open price (mirrors sniper&rsquo;s pattern).</li>
+        <li><strong>Strategy conflict detection:</strong> New <code>_resolve_strategy_conflicts()</code> in main.py. Groups opportunities by condition_id, detects opposite direction metadata, keeps only the highest-confidence one. Non-directional strategies (arbitrage, asymmetric, maker_arb) are never suppressed. Log: <code>strategy_conflict_suppressed</code>.</li>
+        <li><strong>Sniper confidence boost:</strong> When <code>win_prob &ge; 0.90</code>, tranche size &times;3.0. A 95% confidence trade now gets $30 per tranche instead of $10. Risk manager&rsquo;s <code>adjust_size()</code> still caps the final executed size.</li>
+    </ul>
+    <p><strong>New Config:</strong> <code>fade_panic_spot_vs_open_max_change=0.003</code>, <code>sniper_high_confidence_threshold=0.90</code>, <code>sniper_high_confidence_multiplier=3.0</code></p>
+    <p><strong>Observable:</strong> Watch for <code>fade_panic_spot_moved_from_open</code> (new filter firing), <code>strategy_conflict_suppressed</code> (conflict detection working), and sniper <code>tranche_size</code> in metadata showing boosted values for high-confidence entries.</p>
+    <p><strong>Status:</strong> Deployed 17:35 UTC. Awaiting first cycle of observations.</p>
+</div>
 
 <!-- Experiment #26 -->
 <div class="timeline-entry kept">
@@ -1420,7 +1442,7 @@
 
 <hr class="separator">
 <p class="muted" style="text-align: center; font-size: 0.8rem;">
-    This document is auto-maintained by the Claude analysis agent. Last updated: 2026-02-09 16:55 UTC.
+    This document is auto-maintained by the Claude analysis agent. Last updated: 2026-02-09 17:35 UTC.
 </p>
 
 </body>
