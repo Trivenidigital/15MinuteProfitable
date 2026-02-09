@@ -57,6 +57,14 @@ class DipBuyerStrategy(BaseStrategy):
     def strategy_type(self) -> StrategyType:
         return StrategyType.DIP_BUYER
 
+    def _maybe_invert(
+        self, direction: str, market: Market,
+    ) -> tuple[str, str]:
+        """Dip buyer always trades original direction (no inversion)."""
+        if direction == "UP":
+            return direction, market.yes_token_id
+        return direction, market.no_token_id
+
     async def evaluate(self, market: Market) -> Opportunity | None:
         """Evaluate market for a mean-reversion dip opportunity.
 
