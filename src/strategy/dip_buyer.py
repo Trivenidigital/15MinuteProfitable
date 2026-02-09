@@ -147,11 +147,13 @@ class DipBuyerStrategy(BaseStrategy):
         # Spike UP → buy NO (expect reversion DOWN)
         # Crash DOWN → buy YES (expect reversion UP)
         if short_movement.direction == "UP":
-            direction = "DOWN"  # we're betting against the spike
-            target_token_id = market.no_token_id
+            raw_direction = "DOWN"
         else:
-            direction = "UP"
-            target_token_id = market.yes_token_id
+            raw_direction = "UP"
+
+        direction, target_token_id = self._maybe_invert(
+            raw_direction, market,
+        )
 
         # 6. Get fill estimate
         size = self._settings.dip_order_size

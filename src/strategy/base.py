@@ -74,6 +74,21 @@ class BaseStrategy(ABC):
 
     # -- helpers --------------------------------------------------------------
 
+    def _maybe_invert(
+        self, direction: str, market: Market,
+    ) -> tuple[str, str]:
+        """If ``invert_signals`` is enabled, flip direction and token.
+
+        Returns ``(direction, target_token_id)``.
+        """
+        if self._settings.invert_signals:
+            if direction == "UP":
+                return "DOWN", market.no_token_id
+            return "UP", market.yes_token_id
+        if direction == "UP":
+            return direction, market.yes_token_id
+        return direction, market.no_token_id
+
     def _is_book_stale(self, token_id: str, threshold_s: float = 30.0) -> bool:
         """Return True if the orderbook for *token_id* is stale or missing."""
         return self._book_manager.is_stale(token_id, threshold_s)

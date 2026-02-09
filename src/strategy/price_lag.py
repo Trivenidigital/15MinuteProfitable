@@ -193,16 +193,19 @@ class PriceLagStrategy(BaseStrategy):
         if movement.direction == "UP":
             # Spot says price going up -> want to buy YES
             # The opportunity exists if YES is still cheap
-            target_token_id = market.yes_token_id
             current_price = yes_ask
             # The lag = how far YES is from reflecting the upward move
             # For a significant up move, YES should be higher
             odds_lag = max(0, 0.5 + movement.change_pct * 10 - current_price)
         else:
             # Spot says price going down -> want to buy NO
-            target_token_id = market.no_token_id
             current_price = no_ask
             odds_lag = max(0, 0.5 + movement.change_pct * 10 - current_price)
+
+        # Apply signal inversion if enabled (swap direction + token)
+        direction, target_token_id = self._maybe_invert(
+            movement.direction, market,
+        )
 
         # 7. Check discrepancy threshold
         if odds_lag < self._settings.odds_lag_threshold:
@@ -258,7 +261,7 @@ class PriceLagStrategy(BaseStrategy):
 
         # 10. Build opportunity
         # Store fill in yes_fill or no_fill depending on direction
-        if movement.direction == "UP":
+        if direction == "UP":
             yes_fill = fill
             no_fill = None
         else:
@@ -284,7 +287,7 @@ class PriceLagStrategy(BaseStrategy):
             confidence=confidence,
             requested_size=adjusted_size,
             metadata={
-                "direction": movement.direction,
+                "direction": direction,
                 "spot_change_pct": movement.change_pct,
                 "odds_lag": odds_lag,
                 "current_price": current_price,
@@ -301,12 +304,12 @@ class PriceLagStrategy(BaseStrategy):
             entry_kl = kl_meta.get("kl_kl_divergence", 0.0)
             if isinstance(entry_kl, (int, float)) and entry_kl > 0:
                 self._entry_kl[market.condition_id] = entry_kl
-                self._entry_direction[market.condition_id] = movement.direction
+                self._entry_direction[market.condition_id] = direction
 
         self._log.info(
             "lag_opportunity_found",
             market=market.slug,
-            direction=movement.direction,
+            direction=direction,
             spot_change=round(movement.change_pct * 100, 3),
             odds_lag=round(odds_lag, 4),
             expected_profit=round(expected_profit, 4),

@@ -201,11 +201,13 @@ class ResolutionSniperStrategy(BaseStrategy):
 
         # 9. Direction
         if current_spot > open_price:
-            direction = "UP"
-            target_token_id = market.yes_token_id
+            raw_direction = "UP"
         else:
-            direction = "DOWN"
-            target_token_id = market.no_token_id
+            raw_direction = "DOWN"
+
+        direction, target_token_id = self._maybe_invert(
+            raw_direction, market,
+        )
 
         # 9b. Momentum confirmation — reject if recent trend opposes direction
         momentum_window = self._settings.sniper_momentum_window_seconds

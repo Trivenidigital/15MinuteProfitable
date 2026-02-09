@@ -213,6 +213,9 @@ class Settings(BaseSettings):
     max_daily_loss: float = 250.0  # safety valve
     max_unhedged_exposure: float = 800.0  # aggressive for fade_panic learning
 
+    # Signal Inversion (contrarian paper test)
+    invert_signals: bool = False  # Flip all directional signals: YES→NO, NO→YES
+
     # Simulation
     dry_run: bool = False
     sim_balance: float = 1000.0

@@ -195,13 +195,13 @@ class FadePanicStrategy(BaseStrategy):
         # If YES odds spiked UP (someone panic-bought YES), buy NO
         # If YES odds crashed DOWN (someone panic-sold YES), buy YES
         if odds_shift > 0:
-            # YES spiked up → fade by buying NO
-            direction = "DOWN"
-            target_token_id = market.no_token_id
+            raw_direction = "DOWN"
         else:
-            # YES crashed down → fade by buying YES
-            direction = "UP"
-            target_token_id = market.yes_token_id
+            raw_direction = "UP"
+
+        direction, target_token_id = self._maybe_invert(
+            raw_direction, market,
+        )
 
         # 6. Get fill estimate
         size = self._settings.fade_panic_order_size
