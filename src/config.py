@@ -181,6 +181,11 @@ class Settings(BaseSettings):
     sniper_vol_multiplier: float = 3.0        # Inflate sigma to correct overconfident CDF (fat tails + mean reversion)
     sniper_momentum_window_seconds: int = 30  # Seconds of recent prices for momentum check
 
+    # Chainlink Oracle Validation
+    enable_chainlink_filter: bool = True
+    chainlink_max_divergence_pct: float = 0.003  # 0.3% max Binance-Chainlink divergence
+    chainlink_rpc_url: str = "https://polygon-rpc.com"
+
     # Fill quality guards
     min_entry_price: float = 0.10             # Don't buy contracts below this price
     max_fill_slippage: float = 0.05           # Max VWAP-to-best-price ratio (5% default)

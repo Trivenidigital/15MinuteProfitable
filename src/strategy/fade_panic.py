@@ -145,6 +145,28 @@ class FadePanicStrategy(BaseStrategy):
             )
             return None
 
+        # 4b. Cross-validate Binance spot with Chainlink oracle
+        oracle_price: float | None = None
+        oracle_divergence: float | None = None
+        if self._settings.enable_chainlink_filter:
+            from src.utils.chainlink import validate_spot_price
+
+            is_valid, oracle_price, oracle_divergence = await validate_spot_price(
+                asset=market.asset,
+                binance_price=spot_end,
+                max_divergence_pct=self._settings.chainlink_max_divergence_pct,
+                rpc_url=self._settings.chainlink_rpc_url,
+            )
+            if not is_valid:
+                self._log.info(
+                    "fade_panic_oracle_rejected",
+                    market=market.slug,
+                    binance_price=round(spot_end, 2),
+                    oracle_price=round(oracle_price, 2) if oracle_price else None,
+                    divergence_pct=round(oracle_divergence * 100, 4) if oracle_divergence else None,
+                )
+                return None
+
         # 5. Mispricing detected — fade the panic
         # If YES odds spiked UP (someone panic-bought YES), buy NO
         # If YES odds crashed DOWN (someone panic-sold YES), buy YES
@@ -258,6 +280,8 @@ class FadePanicStrategy(BaseStrategy):
                 "win_probability": round(win_prob, 4),
                 "time_remaining": round(time_remaining, 1),
                 "binance_symbol": binance_symbol,
+                **({"oracle_price": round(oracle_price, 2)} if oracle_price else {}),
+                **({"oracle_divergence_pct": round(oracle_divergence * 100, 4)} if oracle_divergence is not None else {}),
                 **kl_meta,
             },
         )
