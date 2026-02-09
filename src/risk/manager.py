@@ -255,6 +255,13 @@ class RiskManager:
         # Reject dust trades — sizes below the minimum are not worth executing
         # and can arise from floating-point drift in capacity calculations.
         if size < _MIN_TRADE_SIZE:
+            logger.warning(
+                "size_below_minimum",
+                requested=round(size, 2),
+                minimum=_MIN_TRADE_SIZE,
+                strategy=opp.strategy.value,
+                market=opp.market.slug,
+            )
             return 0.0
 
         return size

@@ -168,7 +168,7 @@ class Settings(BaseSettings):
 
     # Resolution Sniper Strategy Parameters
     enable_resolution_sniper: bool = True
-    sniper_order_size: float = 10.0           # Reduced — marginal strategy
+    sniper_order_size: float = 30.0           # Must be >= 3 * MIN_TRADE_SIZE (3 tranches)
     sniper_min_confidence: float = 0.90       # Min win probability to enter
     sniper_window_seconds: float = 120.0      # Activate at T-120s
     sniper_hard_stop_seconds: float = 15.0    # Stop buying at T-15s
