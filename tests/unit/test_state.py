@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import os
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -519,7 +519,8 @@ class TestPnLTracking:
 
     def test_daily_pnl_returns_today(self, state: StateManager) -> None:
         pnl = state.daily_pnl()
-        assert pnl.date == date.today().isoformat()
+        # StateManager uses UTC dates, so compare against UTC today
+        assert pnl.date == datetime.now(timezone.utc).date().isoformat()
 
     def test_daily_pnl_default_values(self, state: StateManager) -> None:
         pnl = state.daily_pnl()
