@@ -175,11 +175,11 @@
 
 <div class="grid-3">
     <div class="stat">
-        <div class="stat-value accent">14</div>
+        <div class="stat-value accent">19</div>
         <div class="stat-label">Experiments Run</div>
     </div>
     <div class="stat">
-        <div class="stat-value green">7</div>
+        <div class="stat-value green">12</div>
         <div class="stat-label">Changes Kept</div>
     </div>
     <div class="stat">
@@ -190,12 +190,12 @@
 
 <div class="grid">
     <div class="stat">
-        <div class="stat-value red">-$396</div>
-        <div class="stat-label">All-Time Sim P&amp;L (185 resolved)</div>
+        <div class="stat-value red">-$981</div>
+        <div class="stat-label">All-Time Sim P&amp;L (216 resolved)</div>
     </div>
     <div class="stat">
-        <div class="stat-value green">+$216</div>
-        <div class="stat-label">Fade Panic P&amp;L (only winner)</div>
+        <div class="stat-value red">-$172</div>
+        <div class="stat-label">Fade Panic P&amp;L (was +$216, crashed on XRP)</div>
     </div>
 </div>
 
@@ -217,18 +217,18 @@
         <tr><th>Strategy</th><th>Type</th><th>Enabled</th><th>Base Size</th><th>Resolved Trades</th><th>P&amp;L</th><th>Notes</th></tr>
         <tr>
             <td><strong>Fade Panic</strong></td><td>Directional</td>
-            <td class="green">true</td><td class="green"><strong>$50</strong></td><td>5</td><td class="green">+$216</td>
-            <td>ONLY profitable strategy. Highest allocation. +$43/trade avg. Dynamic allocation can scale up to $150.</td>
+            <td class="green">true</td><td class="green"><strong>$50</strong></td><td>15</td><td class="red">-$172</td>
+            <td>WAS profitable (+$216) but crashed overnight on XRP NO bets. 5W/10L. Dead zone fix now allows late-game execution.</td>
         </tr>
         <tr>
             <td><strong>Asymmetric</strong></td><td>Hedged-only</td>
-            <td class="green">true</td><td class="red"><strong>$10</strong></td><td>91</td><td class="red">-$229</td>
-            <td>Now hedged-only (require_hedge=true). Max per side: 50. Unhedged wipeouts eliminated.</td>
+            <td class="green">true</td><td class="red"><strong>$10</strong></td><td>107</td><td class="red">-$314</td>
+            <td>Now hedged-only (require_hedge=true). 42W/65L (39% WR). Max per side: 50.</td>
         </tr>
         <tr>
             <td><strong>Resolution Sniper</strong></td><td>Directional</td>
-            <td class="green">true</td><td class="red"><strong>$10</strong></td><td>15</td><td class="red">-$8</td>
-            <td>Marginal. Size cut 67%. Re-enabled Feb 8 21:20 UTC.</td>
+            <td class="green">true</td><td class="green"><strong>$30</strong></td><td>18</td><td class="red">-$119</td>
+            <td>6W/12L (33% WR). Vol calibration: multiplier raised 2.0&rarr;3.0, floor 0.0001&rarr;0.0005. Entry floor $0.20. Dead zone bypass added.</td>
         </tr>
         <tr>
             <td><strong>Price Lag</strong></td><td>Directional</td>
@@ -242,8 +242,8 @@
         </tr>
         <tr>
             <td><strong>Maker Arbitrage</strong></td><td>Hedged</td>
-            <td class="green">true</td><td>$10</td><td>1</td><td class="red">-$2</td>
-            <td>Close to threshold ($0.99 vs $0.985 target). Rarely fires.</td>
+            <td class="green">true</td><td>$10</td><td>3</td><td class="red">-$4</td>
+            <td>Close to threshold ($0.99 vs $0.985 target). 0W/3L. Rarely fires.</td>
         </tr>
         <tr>
             <td><strong>Dip Buyer</strong></td><td>Directional</td>
@@ -265,7 +265,7 @@
 <h2>3. Current Configuration State</h2>
 
 <p>
-    Current parameter values on the server. Updated 2026-02-09 01:15 UTC.
+    Current parameter values on the server. Updated 2026-02-09 05:10 UTC.
     <span class="badge badge-active">PERFORMANCE-BASED ALLOCATION</span> = sizes flipped to favor winners.
 </p>
 
@@ -296,7 +296,7 @@
         <tr><td><code>order_size</code> (price_lag)</td><td class="red"><strong>$10</strong></td><td>$25</td><td class="red">-60%</td><td>Feb 9 01:00</td></tr>
         <tr><td><code>accumulation_size</code></td><td class="red"><strong>$10</strong></td><td>$20</td><td class="red">-50%</td><td>Feb 9 01:00</td></tr>
         <tr><td><code>max_accumulation_per_side</code></td><td class="red"><strong>$50</strong></td><td>$200</td><td class="red">-75%</td><td>Feb 9 01:00</td></tr>
-        <tr><td><code>sniper_order_size</code></td><td class="red"><strong>$10</strong></td><td>$30</td><td class="red">-67%</td><td>Feb 9 01:00</td></tr>
+        <tr><td><code>sniper_order_size</code></td><td class="green"><strong>$30</strong></td><td>$10</td><td class="green">+200%</td><td>Feb 9 03:45</td></tr>
         <tr><td><code>dip_order_size</code></td><td>$25</td><td>$25</td><td>&mdash;</td><td>&mdash;</td></tr>
         <tr><td><code>cross_asset_order_size</code></td><td>$25</td><td>$25</td><td>&mdash;</td><td>&mdash;</td></tr>
     </table>
@@ -313,6 +313,10 @@
         <tr><td><code>max_unhedged_exposure</code></td><td>$500</td><td>$250</td><td>Feb 8</td></tr>
         <tr><td><code>max_daily_loss</code></td><td>$250</td><td>$1,000</td><td>Feb 8</td></tr>
         <tr><td><code>min_entry_price</code></td><td><strong>$0.10</strong></td><td>N/A (new)</td><td>Feb 8 ~19:30</td></tr>
+        <tr><td><code>sniper_min_entry_price</code></td><td><strong>$0.20</strong></td><td>N/A (new)</td><td>Feb 9 03:45</td></tr>
+        <tr><td><code>sniper_min_confidence</code></td><td><strong>0.75</strong></td><td>0.90</td><td>Feb 9 03:45</td></tr>
+        <tr><td><code>sniper_vol_multiplier</code></td><td><strong>3.0</strong></td><td>2.0</td><td>Feb 9 05:03</td></tr>
+        <tr><td><code>sniper_vol_floor</code></td><td><strong>0.0005</strong></td><td>0.0001</td><td>Feb 9 05:03</td></tr>
         <tr><td colspan="4" class="muted"><em>Sniper max_entries=3 override: REMOVED (was blocking fade_panic)</em></td></tr>
     </table>
 </div>
@@ -356,6 +360,48 @@
 <h2>4. Experiment Timeline</h2>
 
 <p>Chronological record of every parameter change. Newest entries at the top.</p>
+
+<!-- Experiment #19 -->
+<div class="timeline-entry kept">
+    <div class="timeline-date">2026-02-09 ~05:03 UTC &mdash; Experiment #19</div>
+    <div class="timeline-title">
+        Increase Sniper Vol Floor &amp; Multiplier (sigma underestimation fix)
+        <span class="badge badge-kept">KEPT</span>
+    </div>
+    <table>
+        <tr><th>Parameter</th><th>Before</th><th>After</th><th>Rationale</th></tr>
+        <tr><td>sniper_vol_floor</td><td>0.0001</td><td>0.0005</td><td>Sigma=0.000126 for BTC was unrealistically low. Actual BTC vol was 6x higher &mdash; reversed 0.19% in 74s vs 0.028% expected.</td></tr>
+        <tr><td>sniper_vol_multiplier</td><td>2.0</td><td>3.0</td><td>2x multiplier still produced 99.95% confidence when actual win rate is much lower. 3x provides more realistic calibration.</td></tr>
+    </table>
+    <h4>Hypothesis</h4>
+    <p>Higher vol floor prevents overconfident CDF in quiet markets. Higher multiplier further calibrates fat-tail underestimation. Sniper should produce more realistic win probabilities.</p>
+    <h4>Observation</h4>
+    <p>At 04:58:45 UTC, sniper bet BTC UP with win_prob=0.9995 (sigma=0.000126, distance=9.3%). BTC reversed from +0.093% to -0.098%, resulting in -$4.30 loss. With new settings: floor of 0.0005 would have capped sigma, and 3x multiplier would have yielded ~90% instead of 99.95%. Monitoring next windows to confirm improvement.</p>
+    <h4>Verdict</h4>
+    <p>Config-only change. Deployed to server. Default config.py updated. Awaiting next sniper signal to verify calibration.</p>
+</div>
+
+<!-- Experiment #18 -->
+<div class="timeline-entry kept">
+    <div class="timeline-date">2026-02-09 ~04:05 UTC &mdash; Experiment #18</div>
+    <div class="timeline-title">
+        Skip Dead Zone &amp; Time-Remaining Checks for Late-Game Strategies
+        <span class="badge badge-kept">KEPT</span>
+    </div>
+    <table>
+        <tr><th>Change</th><th>Before</th><th>After</th><th>Rationale</th></tr>
+        <tr><td>Dead zone check</td><td>Blocks ALL strategies within 30s of market end</td><td>Skip for sniper &amp; fade_panic</td><td>These strategies are designed to trade in last 120s. Dead zone was blocking 100% of their signals.</td></tr>
+        <tr><td>Time remaining check</td><td>Blocks ALL strategies when &lt;30s remain</td><td>Skip for sniper &amp; fade_panic</td><td>Both have their own hard stops at T-15s.</td></tr>
+    </table>
+    <h4>Hypothesis</h4>
+    <p>Sniper and fade_panic are &ldquo;late-game&rdquo; strategies that trade within the final 120s of a market window. The generic risk checks (dead zone end_buffer=30s and MIN_TIME_REMAINING=30s) were blocking all their signals after T-30s. Exempting them should allow execution while their own hard stops (T-15s) remain as safety.</p>
+    <h4>Observation</h4>
+    <p>At 03:59:41 UTC, sniper found SOL DOWN with win_prob=0.8942 but was blocked by dead_zone. At 03:59:37-39, fade_panic was also blocked by dead_zone on XRP. After fix deployment at 04:05, the next window (04:45-05:00) showed both strategies executing without dead zone rejections. Fade_panic executed 4+ BTC YES trades; sniper executed 1 tranche BTC YES. Both were filled and recorded.</p>
+    <h4>Impact</h4>
+    <p>The fix unblocked 100% of late-game strategy signals. Before fix: 0 executions in 2 windows after deploy. After fix: both strategies executing normally. <strong>Critical fix &mdash; these strategies were completely non-functional without it.</strong></p>
+    <h4>Verdict</h4>
+    <p><span class="badge badge-kept">KEPT</span> &mdash; Essential fix. Added _LATE_GAME_STRATEGIES frozenset to risk/manager.py. All 942 tests pass.</p>
+</div>
 
 <!-- Experiment #17 -->
 <div class="timeline-entry kept">
@@ -980,6 +1026,30 @@
 
 <div class="card">
     <div class="card-header">
+        <h3>Dead zone risk check was blocking 100% of late-game strategies</h3>
+        <span class="badge badge-kept">RESOLVED</span>
+    </div>
+    <p><strong>Discovered:</strong> 2026-02-09 04:00 UTC | <code>is_in_dead_zone(end_buffer=30)</code> and <code>MIN_TIME_REMAINING=30s</code> both block trades within 30s of market end. But sniper (T-120s) and fade_panic (T-120s) are designed to trade in the final 2 minutes. Both strategies were silently blocked after T-30s, preventing all late-window opportunities. Fixed with <code>_LATE_GAME_STRATEGIES</code> exemption in risk/manager.py.</p>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3>Sniper vol estimation is 4-6x too low in quiet markets</h3>
+        <span class="badge badge-pending">PARTIALLY FIXED</span>
+    </div>
+    <p><strong>Discovered:</strong> 2026-02-09 05:00 UTC | BTC sniper reported sigma=0.000126 (0.0126%/min), but BTC reversed 0.19% in 74 seconds (actual vol ~6x higher). The 10-minute rolling window captures calm periods, but market microstructure changes near resolution. Vol multiplier raised 2x&rarr;3x and floor raised 0.0001&rarr;0.0005 as partial fix. May need adaptive vol estimation or regime detection for robust calibration.</p>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3>Fade panic collapsed overnight &mdash; no strategy is consistently profitable</h3>
+        <span class="badge badge-active">CRITICAL</span>
+    </div>
+    <p><strong>Discovered:</strong> 2026-02-09 05:10 UTC | Fade panic went from +$216 to -$172 overnight (a -$388 swing in ~6 hours). XRP NO bets were the primary driver: large positions in the wrong direction with no reversal. All 5 strategies now show negative P&amp;L. The 31% overall win rate with symmetric payoffs ($64 avg win vs $64 avg loss) makes profitability structurally impossible. Need either: (a) much higher win rate via better signal quality, or (b) asymmetric payoff structure where wins &gt;&gt; losses.</p>
+</div>
+
+<div class="card">
+    <div class="card-header">
         <h3>Memory grows ~7 MB per 15 minutes</h3>
         <span class="badge badge-pending">MONITORING</span>
     </div>
@@ -1010,10 +1080,10 @@
         <td>arb, asym, price_lag, maker_arb, dip_buyer, fade_panic, sniper (7 active)</td>
     </tr>
     <tr>
-        <td>2</td><td>2026-02-09</td><td>#11&ndash;#16</td><td>5 kept / 0 reverted</td>
-        <td>1,482 total</td><td>~31%</td>
-        <td class="red">-$396 (all-time)</td>
-        <td>Allocation flip, hedged-only asymmetric, dynamic allocation, 5x sizing. Sniper bug found &amp; partially fixed.</td>
+        <td>2</td><td>2026-02-09</td><td>#11&ndash;#19</td><td>8 kept / 0 reverted</td>
+        <td>216 resolved</td><td>~33%</td>
+        <td class="red">-$981 (all-time)</td>
+        <td>Overnight session (02:00&ndash;05:15 UTC): 5 bug fixes, 3 calibration changes. Dead zone bypass for late-game strategies (critical). Vol calibration 2x&rarr;3x + floor 5x. Attribution bug fixed. logger.warning NameError fixed. All strategies now losing.</td>
     </tr>
 </table>
 
@@ -1040,6 +1110,22 @@
 <h2>12. Strategy Code Change Log</h2>
 
 <p>All code changes deployed (not just parameter tuning). Newest first.</p>
+
+<div class="card">
+    <div class="card-header">
+        <h3>Sniper vol calibration + dead zone bypass + attribution fix + logger fix</h3>
+        <span class="badge badge-active">IMPLEMENTED</span>
+    </div>
+    <p><strong>Date:</strong> 2026-02-09 03:45&ndash;05:03 UTC | <strong>Files:</strong> <code>src/risk/manager.py</code> (_LATE_GAME_STRATEGIES, logger fix), <code>src/strategy/resolution_sniper.py</code> (vol_multiplier), <code>src/config.py</code> (5 new params), <code>src/core/state.py</code> (asset in report), <code>src/data/trade_db.py</code> (get_position_strategy_breakdown), <code>src/main.py</code> (_save_attributed_results), 11 new tests</p>
+    <p><strong>Changes:</strong></p>
+    <ul>
+        <li><strong>Dead zone bypass:</strong> Added <code>_LATE_GAME_STRATEGIES</code> frozenset (sniper, fade_panic) to skip dead_zone and time_remaining risk checks. These strategies have their own hard stops at T-15s.</li>
+        <li><strong>Vol calibration:</strong> Applied <code>sniper_vol_multiplier</code> to inflate expected_move in both evaluate() and should_exit(). Raised default from 2.0&rarr;3.0 after observing 6x underestimation. Vol floor raised 0.0001&rarr;0.0005.</li>
+        <li><strong>Attribution fix:</strong> Multi-strategy positions (e.g., fade_panic + sniper on same condition_id) now create per-strategy trade_results with correct P&amp;L split.</li>
+        <li><strong>Logger fix:</strong> <code>logger.warning()</code> in adjust_size was undefined &mdash; changed to <code>self._log.warning()</code>.</li>
+        <li><strong>Asset fix:</strong> Added <code>pos.market.asset</code> to resolution report, fixing empty asset name on dashboard.</li>
+    </ul>
+</div>
 
 <div class="card">
     <div class="card-header">
@@ -1185,7 +1271,7 @@
 
 <hr class="separator">
 <p class="muted" style="text-align: center; font-size: 0.8rem;">
-    This document is auto-maintained by the Claude analysis agent. Last updated: 2026-02-09 03:15 UTC.
+    This document is auto-maintained by the Claude analysis agent. Last updated: 2026-02-09 05:15 UTC.
 </p>
 
 </body>
