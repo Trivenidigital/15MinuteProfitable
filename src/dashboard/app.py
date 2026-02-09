@@ -291,6 +291,66 @@ def create_app() -> FastAPI:
         })
 
     # ------------------------------------------------------------------
+    # /api/performance-summary
+    # ------------------------------------------------------------------
+
+    @router.get("/api/performance-summary")
+    async def api_performance_summary() -> JSONResponse:
+        """Return strategy and asset performance across time windows."""
+        trade_db: Optional[TradeDatabase] = getattr(app.state, "trade_db", None)
+        if trade_db is None:
+            return JSONResponse({"strategies": {}, "assets": {}})
+
+        results = trade_db.get_performance_summary()
+        now = time.time()
+        windows = {
+            "1h": now - 3600,
+            "6h": now - 6 * 3600,
+            "24h": now - 24 * 3600,
+            "all": 0.0,
+        }
+
+        def compute_metrics(
+            trades: list,
+        ) -> dict[str, int | float]:
+            count = len(trades)
+            if count == 0:
+                return {"trades": 0, "wins": 0, "win_rate": 0.0, "roi": 0.0, "pnl": 0.0}
+            wins = sum(1 for t in trades if t.net_profit > 0)
+            total_investment = sum(t.investment for t in trades)
+            total_pnl = sum(t.net_profit for t in trades)
+            roi = (total_pnl / total_investment * 100) if total_investment > 0 else 0.0
+            return {
+                "trades": count,
+                "wins": wins,
+                "win_rate": round(wins / count * 100, 1),
+                "roi": round(roi, 2),
+                "pnl": round(total_pnl, 4),
+            }
+
+        # Group by strategy
+        strategies: dict[str, dict] = {}
+        strategy_names = sorted({r.strategy for r in results})
+        for name in strategy_names:
+            strategy_trades = [r for r in results if r.strategy == name]
+            strategies[name] = {}
+            for window_key, cutoff in windows.items():
+                filtered = [t for t in strategy_trades if t.timestamp >= cutoff]
+                strategies[name][window_key] = compute_metrics(filtered)
+
+        # Group by asset
+        assets: dict[str, dict] = {}
+        asset_names = sorted({r.asset for r in results})
+        for name in asset_names:
+            asset_trades = [r for r in results if r.asset == name]
+            assets[name] = {}
+            for window_key, cutoff in windows.items():
+                filtered = [t for t in asset_trades if t.timestamp >= cutoff]
+                assets[name][window_key] = compute_metrics(filtered)
+
+        return JSONResponse({"strategies": strategies, "assets": assets})
+
+    # ------------------------------------------------------------------
     # /api/strategies
     # ------------------------------------------------------------------
 

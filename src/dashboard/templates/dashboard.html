@@ -471,6 +471,50 @@
             </div>
         </div>
 
+        <!-- Strategy Performance table -->
+        <div class="section-title">Strategy Performance</div>
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Strategy</th>
+                        <th>Trades</th>
+                        <th>Win%</th>
+                        <th>ROI%</th>
+                        <th>1h P&amp;L</th>
+                        <th>6h P&amp;L</th>
+                        <th>24h P&amp;L</th>
+                        <th>All-Time P&amp;L</th>
+                    </tr>
+                </thead>
+                <tbody id="strategyPerfBody">
+                    <tr><td colspan="8" class="empty-state">No data</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Asset Performance table -->
+        <div class="section-title">Asset Performance</div>
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Asset</th>
+                        <th>Trades</th>
+                        <th>Win%</th>
+                        <th>ROI%</th>
+                        <th>1h P&amp;L</th>
+                        <th>6h P&amp;L</th>
+                        <th>24h P&amp;L</th>
+                        <th>All-Time P&amp;L</th>
+                    </tr>
+                </thead>
+                <tbody id="assetPerfBody">
+                    <tr><td colspan="8" class="empty-state">No data</td></tr>
+                </tbody>
+            </table>
+        </div>
+
         <!-- Positions table -->
         <div class="section-title">Open Positions</div>
         <div class="table-wrapper">
@@ -994,6 +1038,58 @@
             panel.innerHTML = html;
         }
 
+        /* -- Performance summary tables -- */
+        async function fetchPerformanceSummary() {
+            const data = await fetchJSON('/api/performance-summary');
+            if (!data) return;
+
+            function colorVal(val, fmt) {
+                const color = val > 0 ? 'var(--green)' : val < 0 ? 'var(--red)' : '';
+                const style = color ? ' style="color:' + color + ';font-weight:600"' : '';
+                return '<td' + style + '>' + fmt + '</td>';
+            }
+
+            function renderPerfRows(groups, tbodyId) {
+                const tbody = document.getElementById(tbodyId);
+                const names = Object.keys(groups);
+                if (names.length === 0) {
+                    const cols = tbodyId === 'strategyPerfBody' ? 8 : 8;
+                    tbody.innerHTML = '<tr><td colspan="' + cols + '" class="empty-state">No data</td></tr>';
+                    return;
+                }
+                let html = '';
+                for (const name of names) {
+                    const g = groups[name];
+                    const allTime = g['all'] || {};
+                    const trades = allTime.trades || 0;
+                    const winRate = allTime.win_rate || 0;
+                    const roi = allTime.roi || 0;
+                    const pnl1h = (g['1h'] || {}).pnl || 0;
+                    const pnl6h = (g['6h'] || {}).pnl || 0;
+                    const pnl24h = (g['24h'] || {}).pnl || 0;
+                    const pnlAll = allTime.pnl || 0;
+
+                    const winColor = winRate >= 50 ? 'var(--green)' : winRate > 0 ? 'var(--yellow)' : '';
+                    const winStyle = winColor ? ' style="color:' + winColor + ';font-weight:600"' : '';
+
+                    html += '<tr>'
+                        + '<td><span class="badge badge-blue">' + escHtml(name) + '</span></td>'
+                        + '<td>' + trades + '</td>'
+                        + '<td' + winStyle + '>' + winRate.toFixed(1) + '%</td>'
+                        + colorVal(roi, roi.toFixed(2) + '%')
+                        + colorVal(pnl1h, fmtDollars(pnl1h))
+                        + colorVal(pnl6h, fmtDollars(pnl6h))
+                        + colorVal(pnl24h, fmtDollars(pnl24h))
+                        + colorVal(pnlAll, fmtDollars(pnlAll))
+                        + '</tr>';
+                }
+                tbody.innerHTML = html;
+            }
+
+            renderPerfRows(data.strategies || {}, 'strategyPerfBody');
+            renderPerfRows(data.assets || {}, 'assetPerfBody');
+        }
+
         /* -- Equity curve chart -- */
         async function fetchEquityCurve() {
             const data = await fetchJSON('/api/equity-curve');
@@ -1190,6 +1286,7 @@
         async function refreshAll() {
             await Promise.all([
                 fetchMetrics(),
+                fetchPerformanceSummary(),
                 fetchPositions(),
                 fetchTradeResults(),
                 fetchTrades(),

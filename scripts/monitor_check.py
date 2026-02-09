@@ -55,8 +55,6 @@ sizes = c.execute(
 ).fetchall()
 for s in sizes:
     flags = ""
-    if s[1] < 50:
-        flags += " <-- BELOW $50!"
     if s[2] < 0.10:
         flags += " <-- BELOW $0.10!"
     print(f"  {s[0]:15s} size=${s[1]:.0f} price={s[2]:.4f}{flags}")

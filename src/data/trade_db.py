@@ -872,6 +872,17 @@ class TradeDatabase:
         return result
 
     # ------------------------------------------------------------------
+    # Performance summary
+    # ------------------------------------------------------------------
+
+    def get_performance_summary(self) -> list[TradeResult]:
+        """Fetch all trade results for performance summary computation."""
+        rows = self._conn.execute(
+            "SELECT * FROM trade_results ORDER BY timestamp DESC"
+        ).fetchall()
+        return [self._row_to_trade_result(r) for r in rows]
+
+    # ------------------------------------------------------------------
     # Analytics
     # ------------------------------------------------------------------
 
