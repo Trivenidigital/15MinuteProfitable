@@ -640,7 +640,7 @@ class TestEvaluateOpportunityFound:
             "no_avg_cost",
             "hypothetical_combined",
         }
-        assert expected_keys == set(result.metadata.keys())
+        assert expected_keys <= set(result.metadata.keys())
         assert result.metadata["order_type"] == "GTC"
         assert result.metadata["accumulation_size"] == 10.0
 

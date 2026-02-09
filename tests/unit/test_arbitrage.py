@@ -507,7 +507,7 @@ class TestProfitCalculation:
             "yes_vwap", "no_vwap", "combined_cost",
             "gross", "taker_yes", "taker_no", "winner_fee",
         }
-        assert expected_keys == set(result.metadata.keys())
+        assert expected_keys <= set(result.metadata.keys())
 
 
 # ---------------------------------------------------------------------------

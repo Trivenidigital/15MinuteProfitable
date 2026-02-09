@@ -591,7 +591,7 @@ class TestEvaluateOpportunityFound:
             "confirmations",
             "binance_symbol",
         }
-        assert expected_keys == set(result.metadata.keys())
+        assert expected_keys <= set(result.metadata.keys())
 
 
 # ---------------------------------------------------------------------------

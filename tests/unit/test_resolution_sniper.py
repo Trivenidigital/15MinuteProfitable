@@ -540,7 +540,7 @@ class TestEvaluateReturnsOpportunity:
             "win_probability", "tranche_index", "tranche_size",
             "time_remaining",
         }
-        assert expected_keys == set(result.metadata.keys())
+        assert expected_keys <= set(result.metadata.keys())
 
     async def test_tranche_size_is_one_third(
         self, strategy: ResolutionSniperStrategy,

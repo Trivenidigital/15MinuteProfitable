@@ -130,8 +130,8 @@ class Settings(BaseSettings):
     lag_rsi_oversold: float = 20.0          # RSI below this blocks DOWN signals
 
     # Asymmetric Entry Strategy Parameters
-    yes_cheap_threshold: float = 0.42  # buy YES when ask < this
-    no_cheap_threshold: float = 0.42  # buy NO when ask < this
+    yes_cheap_threshold: float = 0.35  # buy YES when ask < this (tightened from 0.42)
+    no_cheap_threshold: float = 0.35  # buy NO when ask < this (tightened from 0.42)
     accumulation_size: float = 10.0  # reduced — losing strategy
     max_accumulation_per_side: float = 50.0  # reduced — cap unhedged risk
     target_avg_combined: float = 0.90  # target avg combined cost for profit
@@ -234,7 +234,7 @@ class Settings(BaseSettings):
     db_path: str = "data/trades.db"
 
     # Divergence / Information-Theoretic Features
-    enable_divergence_scoring: bool = False
+    enable_divergence_scoring: bool = True
     divergence_ranking_alpha: float = 0.7  # profit_pct weight in composite ranking
     divergence_kelly_scaling: bool = False
     divergence_exit_signals: bool = False
