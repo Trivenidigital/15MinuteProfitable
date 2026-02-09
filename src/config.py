@@ -141,11 +141,12 @@ class Settings(BaseSettings):
     asymmetric_require_hedge: bool = True  # only enter when both sides are cheap
 
     # Maker Arbitrage Strategy Parameters
-    maker_target_pair_cost: float = 0.985  # aggressive threshold (higher fill rate)
+    maker_target_pair_cost: float = 0.97  # tighter threshold to absorb slippage (was 0.985)
     maker_price_offset: float = 0.01  # place limit below best ask (more aggressive)
     maker_pair_timeout_seconds: float = 180.0  # cancel if not filled in 3 min
     maker_max_pending_pairs: int = 5  # max concurrent arb attempts
     maker_min_profit_margin: float = 0.002  # 0.2% min profit per share (lower bar)
+    maker_max_combined_fill_cost: float = 0.995  # post-fill hard ceiling on YES+NO combined
 
     # Dip Buyer / Mean Reversion Strategy Parameters
     enable_dip_buyer: bool = True

@@ -159,6 +159,22 @@ class OrderExecutor:
         if self._dry_run:
             order.order_id = f"dry_{uuid.uuid4().hex[:8]}"
 
+            # GTC (maker) orders fill at their limit price, not VWAP.
+            # Makers sit on the book and get filled at the price they posted.
+            if order.order_type == "GTC":
+                order.fill_price = order.price
+                order.status = OrderStatus.FILLED
+                order.fill_size = order.size
+                self._log.info(
+                    "order_submitted_dry_gtc",
+                    order_id=order.order_id,
+                    token_id=order.token_id[:12],
+                    side=order.side.value,
+                    price=order.price,
+                    size=order.size,
+                )
+                return order
+
             # BUY: check orderbook liquidity, slippage, depth, and use VWAP
             if order.side == Side.BUY and self._book_manager is not None:
                 fill_est = self._book_manager.get_fill_estimate(

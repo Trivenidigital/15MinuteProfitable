@@ -537,6 +537,20 @@ async def _execute_maker_arb_trade(
 
         # Handle dry-run immediate fills
         if settings.dry_run:
+            # Post-fill combined cost validation
+            actual_combined = (yes_result.fill_price or 0) + (no_result.fill_price or 0)
+            if actual_combined > settings.maker_max_combined_fill_cost:
+                _log.warning(
+                    "maker_arb_post_fill_rejected",
+                    market=market.slug,
+                    yes_fill=yes_result.fill_price,
+                    no_fill=no_result.fill_price,
+                    combined=round(actual_combined, 4),
+                    limit=settings.maker_max_combined_fill_cost,
+                )
+                pair.status = "rejected"
+                return
+
             pair.yes_filled = True
             pair.no_filled = True
             pair.yes_fill_size = adjusted_size
@@ -548,6 +562,7 @@ async def _execute_maker_arb_trade(
                 "maker_arb_complete_dry",
                 market=market.slug,
                 pair_id=pair.pair_id,
+                combined_cost=round(actual_combined, 4),
             )
             if _alerts and settings.alert_on_trade:
                 await _alerts.send_trade(
@@ -898,15 +913,32 @@ async def _maker_arb_monitor_loop(
                         no_order.fill_size = checked.fill_size or pair.size
                         no_order.fill_price = checked.fill_price or pair.no_price
 
-                # If both filled: complete
+                # If both filled: validate combined cost then complete
                 if pair.is_complete:
                     to_remove.append(entry)
+                    actual_combined = (
+                        (yes_order.fill_price or pair.yes_price)
+                        + (no_order.fill_price or pair.no_price)
+                    )
+                    if actual_combined > settings.maker_max_combined_fill_cost:
+                        _log.warning(
+                            "maker_arb_post_fill_rejected",
+                            market=market.slug,
+                            pair_id=pair.pair_id,
+                            yes_fill=yes_order.fill_price,
+                            no_fill=no_order.fill_price,
+                            combined=round(actual_combined, 4),
+                            limit=settings.maker_max_combined_fill_cost,
+                        )
+                        pair.status = "rejected"
+                        continue
                     await state_manager.record_trade(opp, [yes_order, no_order])
                     risk_manager.record_execution_success(market.condition_id)
                     _log.info(
                         "maker_arb_complete",
                         market=market.slug,
                         pair_id=pair.pair_id,
+                        combined_cost=round(actual_combined, 4),
                         daily_pnl=round(state_manager.daily_pnl().net_profit, 4),
                     )
                     if _alerts and settings.alert_on_trade:
