@@ -1,9 +1,14 @@
 """Dynamic strategy allocation based on rolling performance.
 
-Scores each strategy using exponential-decay-weighted profit factor
-over a rolling window. Strategies with higher recent profit factors
-get larger order sizes (up to 3x base), while losing strategies get
-reduced sizes (down to 0.1x base).
+Scores each strategy (and optionally each strategy+asset pair) using
+exponential-decay-weighted profit factor over a rolling window.
+Strategies with higher recent profit factors get larger order sizes
+(up to 3x base), while losing strategies get reduced sizes (down to
+0.1x base).
+
+Supports per-asset allocation: when an asset is provided, the manager
+looks up a (strategy, asset) multiplier first, falling back to the
+strategy-level multiplier if per-asset data is insufficient.
 
 Recalculates every 15 minutes. Falls back to static config sizes
 when insufficient data (< 5 trades per strategy in the window).
@@ -51,6 +56,8 @@ class AllocationManager:
         self._settings = settings
         self._trade_db = trade_db
         self._allocations: dict[str, StrategyAllocation] = {}
+        # Per-asset allocations keyed by "strategy:asset" (e.g. "fade_panic:ETH")
+        self._asset_allocations: dict[str, StrategyAllocation] = {}
         self._last_recalc: float = 0.0
         self._log = get_logger("allocation")
 
@@ -59,9 +66,17 @@ class AllocationManager:
         return self._settings.enable_dynamic_allocation
 
     def get_allocated_size(
-        self, strategy_type: StrategyType, base_size: float
+        self,
+        strategy_type: StrategyType,
+        base_size: float,
+        asset: str = "",
     ) -> float:
-        """Return the dynamically adjusted size for a strategy.
+        """Return the dynamically adjusted size for a strategy (and asset).
+
+        Lookup order:
+        1. Per-(strategy, asset) multiplier if asset is provided and data exists
+        2. Per-strategy multiplier (fallback)
+        3. base_size unchanged (no data)
 
         If dynamic allocation is disabled or insufficient data exists,
         returns base_size unchanged.
@@ -71,7 +86,16 @@ class AllocationManager:
 
         self._maybe_recalculate()
 
-        alloc = self._allocations.get(strategy_type.value)
+        # Try per-asset allocation first
+        alloc: StrategyAllocation | None = None
+        if asset:
+            asset_key = f"{strategy_type.value}:{asset}"
+            alloc = self._asset_allocations.get(asset_key)
+
+        # Fall back to strategy-level allocation
+        if alloc is None or not alloc.sufficient_data:
+            alloc = self._allocations.get(strategy_type.value)
+
         if alloc is None or not alloc.sufficient_data:
             return base_size
 
@@ -79,6 +103,7 @@ class AllocationManager:
         self._log.debug(
             "allocation_applied",
             strategy=strategy_type.value,
+            asset=asset or "all",
             base_size=base_size,
             multiplier=round(alloc.multiplier, 3),
             adjusted_size=round(adjusted, 2),
@@ -107,41 +132,41 @@ class AllocationManager:
         for r in results:
             by_strategy.setdefault(r.strategy, []).append(r)
 
-        # Compute weighted profit factor per strategy
+        # Also group by (strategy, asset) for per-asset allocation
+        by_strategy_asset: dict[str, list[TradeResult]] = {}
+        for r in results:
+            key = f"{r.strategy}:{r.asset}"
+            by_strategy_asset.setdefault(key, []).append(r)
+
+        # --- Strategy-level allocation ---
         scores: dict[str, float] = {}
         trade_counts: dict[str, int] = {}
         for strat, strat_results in by_strategy.items():
             trade_counts[strat] = len(strat_results)
             if len(strat_results) < _MIN_TRADES_REQUIRED:
-                continue  # insufficient data, will use static size
+                continue
             scores[strat] = self._weighted_profit_factor(strat_results, now)
 
-        if not scores:
-            self._allocations = {}
-            self._log.info("allocation_recalc_no_data")
-            return
-
-        # Proportional allocation: score / sum(scores) * num_strategies
-        total_score = sum(scores.values())
-        num_scored = len(scores)
-
         new_allocations: dict[str, StrategyAllocation] = {}
-        for strat, score in scores.items():
-            # If all strategies scored equally, multiplier = 1.0
-            raw_multiplier = (
-                (score / total_score) * num_scored if total_score > 0 else 1.0
-            )
-            clamped = max(_MIN_MULTIPLIER, min(_MAX_MULTIPLIER, raw_multiplier))
+        if scores:
+            total_score = sum(scores.values())
+            num_scored = len(scores)
+            for strat, score in scores.items():
+                raw_multiplier = (
+                    (score / total_score) * num_scored if total_score > 0 else 1.0
+                )
+                clamped = max(_MIN_MULTIPLIER, min(_MAX_MULTIPLIER, raw_multiplier))
+                new_allocations[strat] = StrategyAllocation(
+                    strategy=strat,
+                    score=score,
+                    multiplier=clamped,
+                    trade_count=trade_counts.get(strat, 0),
+                    sufficient_data=True,
+                )
+        else:
+            self._log.info("allocation_recalc_no_data")
 
-            new_allocations[strat] = StrategyAllocation(
-                strategy=strat,
-                score=score,
-                multiplier=clamped,
-                trade_count=trade_counts.get(strat, 0),
-                sufficient_data=True,
-            )
-
-        # Log changes
+        # Log strategy-level changes
         for strat, alloc in new_allocations.items():
             old = self._allocations.get(strat)
             old_mult = old.multiplier if old else 1.0
@@ -156,6 +181,50 @@ class AllocationManager:
                 )
 
         self._allocations = new_allocations
+
+        # --- Per-asset allocation ---
+        asset_scores: dict[str, float] = {}
+        asset_counts: dict[str, int] = {}
+        for key, key_results in by_strategy_asset.items():
+            asset_counts[key] = len(key_results)
+            if len(key_results) < _MIN_TRADES_REQUIRED:
+                continue
+            asset_scores[key] = self._weighted_profit_factor(key_results, now)
+
+        new_asset_allocs: dict[str, StrategyAllocation] = {}
+        if asset_scores:
+            total_asset_score = sum(asset_scores.values())
+            num_asset_scored = len(asset_scores)
+            for key, score in asset_scores.items():
+                raw_multiplier = (
+                    (score / total_asset_score) * num_asset_scored
+                    if total_asset_score > 0
+                    else 1.0
+                )
+                clamped = max(_MIN_MULTIPLIER, min(_MAX_MULTIPLIER, raw_multiplier))
+                new_asset_allocs[key] = StrategyAllocation(
+                    strategy=key,
+                    score=score,
+                    multiplier=clamped,
+                    trade_count=asset_counts.get(key, 0),
+                    sufficient_data=True,
+                )
+
+            # Log per-asset changes
+            for key, alloc in new_asset_allocs.items():
+                old = self._asset_allocations.get(key)
+                old_mult = old.multiplier if old else 1.0
+                if abs(alloc.multiplier - old_mult) > 0.01:
+                    self._log.info(
+                        "asset_allocation_changed",
+                        strategy_asset=key,
+                        old_multiplier=round(old_mult, 3),
+                        new_multiplier=round(alloc.multiplier, 3),
+                        score=round(alloc.score, 3),
+                        trades=alloc.trade_count,
+                    )
+
+        self._asset_allocations = new_asset_allocs
 
     @staticmethod
     def _exponential_weight(trade_ts: float, now: float) -> float:

@@ -240,6 +240,82 @@ class TestAllocationManager:
         assert allocs["fade_panic"].trade_count == 6
 
 
+class TestPerAssetAllocation:
+    """Tests for per-(strategy, asset) allocation."""
+
+    def test_winning_asset_gets_higher_allocation(self, db):
+        settings = _make_settings()
+        now = time.time()
+        # fade_panic on ETH: 8 wins
+        for i in range(8):
+            db.save_trade_result(TradeResult(
+                timestamp=now - i * 60,
+                condition_id=f"cond_eth_{i}",
+                market_slug="eth-updown-15m",
+                asset="ETH",
+                strategy="fade_panic",
+                was_hedged=False,
+                yes_shares=0.0, no_shares=50.0,
+                investment=25.0, gross_payout=50.0,
+                net_profit=25.0, outcome="NO",
+            ))
+        # fade_panic on BTC: 8 losses
+        for i in range(8):
+            db.save_trade_result(TradeResult(
+                timestamp=now - i * 60,
+                condition_id=f"cond_btc_{i}",
+                market_slug="btc-updown-15m",
+                asset="BTC",
+                strategy="fade_panic",
+                was_hedged=False,
+                yes_shares=0.0, no_shares=50.0,
+                investment=25.0, gross_payout=0.0,
+                net_profit=-25.0, outcome="YES",
+            ))
+        am = AllocationManager(settings, db)
+        from src.core.models import StrategyType
+
+        eth_size = am.get_allocated_size(StrategyType.FADE_PANIC, 50.0, asset="ETH")
+        btc_size = am.get_allocated_size(StrategyType.FADE_PANIC, 50.0, asset="BTC")
+
+        # ETH should get more than BTC
+        assert eth_size > btc_size
+        assert eth_size > 50.0  # boosted
+        assert btc_size < 50.0  # penalized
+
+    def test_unknown_asset_falls_back_to_strategy(self, db):
+        settings = _make_settings()
+        now = time.time()
+        # Only strategy-level data for fade_panic (mix of assets)
+        for i in range(8):
+            db.save_trade_result(_make_result(
+                strategy="fade_panic", net_profit=10.0, timestamp=now - i * 60,
+            ))
+        am = AllocationManager(settings, db)
+        from src.core.models import StrategyType
+
+        # XRP has no per-asset data -> falls back to strategy-level
+        xrp_size = am.get_allocated_size(StrategyType.FADE_PANIC, 50.0, asset="XRP")
+        no_asset = am.get_allocated_size(StrategyType.FADE_PANIC, 50.0)
+
+        # Both should use the strategy-level multiplier
+        assert xrp_size == no_asset
+
+    def test_no_asset_still_works(self, db):
+        """Backward compatibility: no asset param uses strategy-level."""
+        settings = _make_settings()
+        now = time.time()
+        for i in range(8):
+            db.save_trade_result(_make_result(
+                strategy="fade_panic", net_profit=10.0, timestamp=now - i * 60,
+            ))
+        am = AllocationManager(settings, db)
+        from src.core.models import StrategyType
+
+        result = am.get_allocated_size(StrategyType.FADE_PANIC, 50.0)
+        assert result > 0  # should work without asset
+
+
 class TestTradeResultsSince:
     def test_filters_by_timestamp(self, db):
         now = time.time()

@@ -150,7 +150,9 @@ async def _strategy_loop(
                 # Adjust size (use strategy-specific size if available)
                 base_size = opp.requested_size if opp.requested_size > 0 else settings.order_size
                 if allocation_manager is not None:
-                    base_size = allocation_manager.get_allocated_size(opp.strategy, base_size)
+                    base_size = allocation_manager.get_allocated_size(
+                        opp.strategy, base_size, asset=opp.market.asset,
+                    )
                 adjusted_size = risk_manager.adjust_size(
                     opp, base_size
                 )
@@ -246,7 +248,9 @@ async def _execute_parallel_strategies(
         # Adjust size (use strategy-specific size if available)
         base_size = opp.requested_size if opp.requested_size > 0 else settings.order_size
         if allocation_manager is not None:
-            base_size = allocation_manager.get_allocated_size(opp.strategy, base_size)
+            base_size = allocation_manager.get_allocated_size(
+                opp.strategy, base_size, asset=opp.market.asset,
+            )
         adjusted_size = risk_manager.adjust_size(opp, base_size)
         if adjusted_size <= 0:
             _log.debug(
