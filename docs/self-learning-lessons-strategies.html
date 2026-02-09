@@ -265,7 +265,7 @@
 <h2>3. Current Configuration State</h2>
 
 <p>
-    Current parameter values on the server. Updated 2026-02-09 05:10 UTC.
+    Current parameter values on the server. Updated 2026-02-09 16:55 UTC.
     <span class="badge badge-active">PERFORMANCE-BASED ALLOCATION</span> = sizes flipped to favor winners.
 </p>
 
@@ -339,6 +339,19 @@
 </div>
 
 <div class="card">
+    <h4>Maker Arbitrage Parameters</h4>
+    <table>
+        <tr><th>Parameter</th><th>Current Value</th><th>Previous</th><th>Last Changed</th></tr>
+        <tr><td><code>maker_target_pair_cost</code></td><td class="green"><strong>0.97</strong></td><td>0.985</td><td>Feb 9 16:50 (tighter slippage margin)</td></tr>
+        <tr><td><code>maker_price_offset</code></td><td>0.01</td><td>0.01</td><td>&mdash;</td></tr>
+        <tr><td><code>maker_pair_timeout_seconds</code></td><td>180</td><td>180</td><td>&mdash;</td></tr>
+        <tr><td><code>maker_max_pending_pairs</code></td><td>5</td><td>5</td><td>&mdash;</td></tr>
+        <tr><td><code>maker_min_profit_margin</code></td><td>0.002</td><td>0.002</td><td>&mdash;</td></tr>
+        <tr><td><code>maker_max_combined_fill_cost</code></td><td class="green"><strong>0.995</strong></td><td>N/A (new)</td><td>Feb 9 16:50 (post-fill hard ceiling)</td></tr>
+    </table>
+</div>
+
+<div class="card">
     <h4>Bregman Divergence / Information-Theoretic (all default OFF)</h4>
     <table>
         <tr><th>Parameter</th><th>Default</th><th>Description</th></tr>
@@ -360,6 +373,27 @@
 <h2>4. Experiment Timeline</h2>
 
 <p>Chronological record of every parameter change. Newest entries at the top.</p>
+
+<!-- Experiment #26 -->
+<div class="timeline-entry kept">
+    <div class="timeline-date">2026-02-09 ~16:50 UTC &mdash; Experiment #26</div>
+    <div class="timeline-title">
+        Fix Maker Arb Slippage: Tighten Target + Post-Fill Validation + GTC Fill Pricing
+        <span class="badge badge-kept">BUG FIX</span>
+        <span class="badge badge-new">NEW CODE</span>
+    </div>
+    <p><strong>Problem:</strong> Maker arb systematically losing money. Every YES+NO pair costs more than $1.00 payout. Signal targets $0.985 combined, but actual fills average $1.011 &mdash; a 2.6&cent; gap guaranteeing losses. Today: 27W/57L (32% WR), -$1,083 net P&amp;L from maker_arb alone.</p>
+    <p><strong>Root Cause:</strong> In dry-run mode, GTC (maker) limit orders were using VWAP fill pricing (taker simulation). Real maker orders fill at their limit price. This made dry-run overly pessimistic for maker orders. Additionally, the 0.985 target gave only 1.5&cent; of margin &mdash; not enough to absorb any slippage.</p>
+    <p><strong>Changes (3 fixes):</strong></p>
+    <ul style="margin: 0.5rem 0 0.75rem 1.5rem; color: var(--text-muted); font-size: 0.9rem;">
+        <li><strong>GTC fill pricing fix:</strong> executor.py now uses <code>order.price</code> (limit price) for GTC dry-run fills instead of VWAP. Only FOK/taker orders use VWAP.</li>
+        <li><strong>Tighter target:</strong> <code>maker_target_pair_cost</code> 0.985 &rarr; 0.97 (3&cent; margin instead of 1.5&cent;).</li>
+        <li><strong>Post-fill validation:</strong> New <code>maker_max_combined_fill_cost=0.995</code> hard ceiling. Rejects trades where actual fill prices sum &gt; $0.995, in both dry-run and live monitoring paths.</li>
+    </ul>
+    <p><strong>Expected Impact:</strong> With GTC fix, dry-run fills will match limit prices (combined cost = target, not VWAP). Post-fill validation adds a safety net for live trading where actual fills may drift. Fewer trades recorded, but profitable ones only.</p>
+    <p><strong>Observable:</strong> Watch for <code>maker_arb_post_fill_rejected</code> log events (should see rejections for bad fills). Trades that DO record should have <code>combined_cost &le; 0.995</code>.</p>
+    <p><strong>Status:</strong> Deployed. Awaiting first cycle of observations.</p>
+</div>
 
 <!-- Experiment #25 -->
 <div class="timeline-entry kept">
@@ -1386,7 +1420,7 @@
 
 <hr class="separator">
 <p class="muted" style="text-align: center; font-size: 0.8rem;">
-    This document is auto-maintained by the Claude analysis agent. Last updated: 2026-02-09 15:05 UTC.
+    This document is auto-maintained by the Claude analysis agent. Last updated: 2026-02-09 16:55 UTC.
 </p>
 
 </body>
