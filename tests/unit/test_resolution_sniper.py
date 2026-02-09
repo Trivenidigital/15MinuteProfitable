@@ -796,12 +796,12 @@ class TestVolMultiplier:
         # Calibrated model should report lower confidence
         assert result_cal.confidence < result_raw.confidence
 
-    async def test_default_multiplier_is_2(self) -> None:
-        """Production default vol_multiplier should be 2.0."""
+    async def test_default_multiplier_is_3(self) -> None:
+        """Production default vol_multiplier should be 3.0."""
         settings = Settings(
             private_key="0x" + "ab" * 32,  # type: ignore[arg-type]
         )
-        assert settings.sniper_vol_multiplier == pytest.approx(2.0)
+        assert settings.sniper_vol_multiplier == pytest.approx(3.0)
 
 
 # ---------------------------------------------------------------------------

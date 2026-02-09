@@ -176,9 +176,9 @@ class Settings(BaseSettings):
     sniper_max_entry_price: float = 0.97      # Reject fills above this
     sniper_exit_confidence_floor: float = 0.0 # Emergency exit threshold (0 = disabled)
     sniper_min_vol_data_points: int = 10      # Min data points for vol calc
-    sniper_vol_floor: float = 0.0001          # Min sigma floor (0.01%/min)
+    sniper_vol_floor: float = 0.0005          # Min sigma floor (0.05%/min) — prevents overconfident CDF in quiet markets
     sniper_vol_window_seconds: int = 600      # Seconds of spot data for vol calc (10 min)
-    sniper_vol_multiplier: float = 2.0        # Inflate sigma to correct overconfident CDF (fat tails + mean reversion)
+    sniper_vol_multiplier: float = 3.0        # Inflate sigma to correct overconfident CDF (fat tails + mean reversion)
     sniper_momentum_window_seconds: int = 30  # Seconds of recent prices for momentum check
 
     # Fill quality guards
