@@ -175,11 +175,11 @@
 
 <div class="grid-3">
     <div class="stat">
-        <div class="stat-value accent">19</div>
+        <div class="stat-value accent">21</div>
         <div class="stat-label">Experiments Run</div>
     </div>
     <div class="stat">
-        <div class="stat-value green">12</div>
+        <div class="stat-value green">14</div>
         <div class="stat-label">Changes Kept</div>
     </div>
     <div class="stat">
@@ -360,6 +360,40 @@
 <h2>4. Experiment Timeline</h2>
 
 <p>Chronological record of every parameter change. Newest entries at the top.</p>
+
+<!-- Experiment #21 -->
+<div class="timeline-entry kept">
+    <div class="timeline-date">2026-02-09 ~06:05 UTC &mdash; Experiment #21</div>
+    <div class="timeline-title">
+        Tighten Fade Panic: Raise Threshold, Cut Size, Limit Entries
+        <span class="badge badge-kept">KEPT</span>
+    </div>
+    <table>
+        <tr><th>Parameter</th><th>Before</th><th>After</th><th>Rationale</th></tr>
+        <tr><td>fade_panic_odds_shift_threshold</td><td>0.08 (8%)</td><td>0.15 (15%)</td><td>8% signals had 20% actual WR (54% model WR) &mdash; net negative EV. Requiring 15% filters marginal signals.</td></tr>
+        <tr><td>fade_panic_order_size</td><td>$50</td><td>$25</td><td>Halved to reduce per-entry exposure while still meaningful.</td></tr>
+        <tr><td>max_entries_per_market</td><td>10</td><td>5</td><td>5 * $25 = $125 max per market vs previous 10 * $50 = $500. Reduces max loss per wrong bet from ~$290 to ~$125.</td></tr>
+    </table>
+    <h4>Hypothesis</h4>
+    <p>Fade panic at 8% threshold entered on nearly every market window (424 opportunities vs 223 executed). The 20% actual WR vs 54% model WR indicates systematic overconfidence. By raising the threshold, only extreme panic events (15%+ odds shift with minimal spot movement) will trigger, which should have higher reversion probability. Smaller positions limit downside per trade.</p>
+    <h4>Risk/Reward at New Settings</h4>
+    <p>Max loss per market: 5 * $25 = $125. Previous max: 18 * $50 = $900 (observed). Win payoff at 15% shift: ~$100-150 (higher because deeper entry price). Need ~50% WR to break even at these sizes.</p>
+</div>
+
+<!-- Experiment #20 -->
+<div class="timeline-entry kept">
+    <div class="timeline-date">2026-02-09 ~05:35 UTC &mdash; Experiment #20</div>
+    <div class="timeline-title">
+        Reduce max_entries_per_market 50&rarr;10 (position accumulation cap)
+        <span class="badge badge-kept">KEPT</span>
+    </div>
+    <table>
+        <tr><th>Parameter</th><th>Before</th><th>After</th><th>Rationale</th></tr>
+        <tr><td>max_entries_per_market</td><td>50</td><td>10</td><td>Fade panic entered 18 times in one window (~$290 unhedged), causing massive wipeout on reversal. Cap of 10 limits max unhedged to ~$500.</td></tr>
+    </table>
+    <h4>Immediate Impact</h4>
+    <p><strong class="green">First profitable window at 05:45 UTC:</strong> ETH DOWN bet with sniper (win_prob=76.5%) + fade_panic (odds_shift=12-13%). 10 entries (capped at limit), 460 NO shares, ETH resolved NO. <strong>+$329 net profit.</strong> Vol floor working correctly (sigma=0.0005 floor applied). Multi-strategy attribution split between sniper and fade_panic.</p>
+</div>
 
 <!-- Experiment #19 -->
 <div class="timeline-entry kept">
@@ -1271,7 +1305,7 @@
 
 <hr class="separator">
 <p class="muted" style="text-align: center; font-size: 0.8rem;">
-    This document is auto-maintained by the Claude analysis agent. Last updated: 2026-02-09 05:15 UTC.
+    This document is auto-maintained by the Claude analysis agent. Last updated: 2026-02-09 06:10 UTC.
 </p>
 
 </body>
