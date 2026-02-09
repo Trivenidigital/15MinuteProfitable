@@ -175,11 +175,11 @@
 
 <div class="grid-3">
     <div class="stat">
-        <div class="stat-value accent">10</div>
+        <div class="stat-value accent">14</div>
         <div class="stat-label">Experiments Run</div>
     </div>
     <div class="stat">
-        <div class="stat-value green">4</div>
+        <div class="stat-value green">7</div>
         <div class="stat-label">Changes Kept</div>
     </div>
     <div class="stat">
@@ -190,18 +190,18 @@
 
 <div class="grid">
     <div class="stat">
-        <div class="stat-value accent">~25%</div>
-        <div class="stat-label">Current Win Rate</div>
+        <div class="stat-value red">-$396</div>
+        <div class="stat-label">All-Time Sim P&amp;L (185 resolved)</div>
     </div>
     <div class="stat">
-        <div class="stat-value green">+$54</div>
-        <div class="stat-label">Sim P&amp;L (as of 21:54 UTC)</div>
+        <div class="stat-value green">+$216</div>
+        <div class="stat-label">Fade Panic P&amp;L (only winner)</div>
     </div>
 </div>
 
 <div class="callout purple" style="margin-top: 1rem;">
-    <strong>Major milestone (Feb 8):</strong> Bregman divergence / information-theoretic framework integrated across all 7+1 strategies.
-    Two new strategies deployed (dip_buyer, fade_panic). Cross-asset correlation strategy created. Analysis mode activated with small trade sizes to observe all strategies.
+    <strong>Major milestone (Feb 9):</strong> Performance-based allocation overhaul. Flipped capital allocation to favor winning strategies (fade_panic 50&rarr;50, losers cut 60-67%).
+    Forced asymmetric hedged-only mode. Added dynamic allocation system (exponential-decay weighted profit factor, auto-rebalances every 15 min).
 </div>
 
 <!-- ============================================================ -->
@@ -210,50 +210,50 @@
 
 <h2>2. Active Strategy Roster</h2>
 
-<p>All strategies currently deployed on the server. <span class="badge badge-new">NEW</span> = added Feb 8.</p>
+<p>All strategies currently deployed on the server. Sizes updated Feb 9 after allocation overhaul.</p>
 
 <div class="card">
     <table>
-        <tr><th>Strategy</th><th>Type</th><th>Enabled</th><th>Trade Size</th><th>All-Time Trades</th><th>Notes</th></tr>
+        <tr><th>Strategy</th><th>Type</th><th>Enabled</th><th>Base Size</th><th>Resolved Trades</th><th>P&amp;L</th><th>Notes</th></tr>
         <tr>
-            <td><strong>Arbitrage</strong></td><td>Hedged</td>
-            <td class="green">true</td><td>$25</td><td>0</td>
-            <td>Spreads too wide ($1.01-1.05 vs $0.94 target). Structural — unlikely to fire.</td>
+            <td><strong>Fade Panic</strong></td><td>Directional</td>
+            <td class="green">true</td><td class="green"><strong>$50</strong></td><td>5</td><td class="green">+$216</td>
+            <td>ONLY profitable strategy. Highest allocation. +$43/trade avg. Dynamic allocation can scale up to $150.</td>
         </tr>
         <tr>
-            <td><strong>Asymmetric</strong></td><td>Directional</td>
-            <td class="green">true</td><td>$20</td><td>282+</td>
-            <td>Most active strategy. Accumulates cheap YES/NO tokens.</td>
-        </tr>
-        <tr>
-            <td><strong>Price Lag</strong></td><td>Directional</td>
-            <td class="green">true</td><td>$25</td><td>335</td>
-            <td>Historically biggest loser (23% WR, -$373). Needs spot-odds divergence.</td>
-        </tr>
-        <tr>
-            <td><strong>Maker Arbitrage</strong></td><td>Hedged</td>
-            <td class="green">true</td><td>$25</td><td>80</td>
-            <td>Close to threshold ($0.99 vs $0.985 target). Rarely fires.</td>
-        </tr>
-        <tr>
-            <td><strong>Fade Panic</strong> <span class="badge badge-new">NEW</span></td><td>Directional</td>
-            <td class="green">true</td><td>$30</td><td>11</td>
-            <td>Best strategy by ROI (+78%, 60% WR). Active T-120s to T-15s only. Prioritized with largest analysis size.</td>
-        </tr>
-        <tr>
-            <td><strong>Dip Buyer</strong> <span class="badge badge-new">NEW</span></td><td>Directional</td>
-            <td class="green">true</td><td>$25</td><td>0</td>
-            <td>Mean reversion — needs sharp spot spike. Condition-gated, waiting for volatility.</td>
+            <td><strong>Asymmetric</strong></td><td>Hedged-only</td>
+            <td class="green">true</td><td class="red"><strong>$10</strong></td><td>91</td><td class="red">-$229</td>
+            <td>Now hedged-only (require_hedge=true). Max per side: 50. Unhedged wipeouts eliminated.</td>
         </tr>
         <tr>
             <td><strong>Resolution Sniper</strong></td><td>Directional</td>
-            <td class="green">true</td><td>$30</td><td>150</td>
-            <td>Re-enabled Feb 8 21:20 UTC. Active T-120s to T-15s.</td>
+            <td class="green">true</td><td class="red"><strong>$10</strong></td><td>15</td><td class="red">-$8</td>
+            <td>Marginal. Size cut 67%. Re-enabled Feb 8 21:20 UTC.</td>
         </tr>
         <tr>
-            <td><strong>Cross-Asset Correlation</strong> <span class="badge badge-new">NEW</span></td><td>Multi-Market</td>
-            <td class="red">false</td><td>$25</td><td>0</td>
-            <td>Bregman projection across BTC/ETH/SOL/XRP. Behind <code>enable_cross_asset_strategy</code> toggle.</td>
+            <td><strong>Price Lag</strong></td><td>Directional</td>
+            <td class="red">false</td><td class="red"><strong>$10</strong></td><td>73</td><td class="red">-$373</td>
+            <td>DISABLED. Biggest loser (23% WR). Size cut 60% as safety if re-enabled.</td>
+        </tr>
+        <tr>
+            <td><strong>Arbitrage</strong></td><td>Hedged</td>
+            <td class="green">true</td><td>$10</td><td>0</td><td>&mdash;</td>
+            <td>Spreads too wide ($1.01-1.05 vs $0.94 target). Structural — unlikely to fire.</td>
+        </tr>
+        <tr>
+            <td><strong>Maker Arbitrage</strong></td><td>Hedged</td>
+            <td class="green">true</td><td>$10</td><td>1</td><td class="red">-$2</td>
+            <td>Close to threshold ($0.99 vs $0.985 target). Rarely fires.</td>
+        </tr>
+        <tr>
+            <td><strong>Dip Buyer</strong></td><td>Directional</td>
+            <td class="green">true</td><td>$25</td><td>0</td><td>&mdash;</td>
+            <td>Mean reversion — needs sharp spot spike. Still 0 trades after 2 days.</td>
+        </tr>
+        <tr>
+            <td><strong>Cross-Asset</strong></td><td>Multi-Market</td>
+            <td class="red">false</td><td>$25</td><td>0</td><td>&mdash;</td>
+            <td>Bregman projection across BTC/ETH/SOL/XRP. Behind toggle.</td>
         </tr>
     </table>
 </div>
@@ -265,43 +265,42 @@
 <h2>3. Current Configuration State</h2>
 
 <p>
-    Current parameter values on the server (analysis mode). Updated 2026-02-08 21:54 UTC.
-    <span class="badge badge-pending">ANALYSIS MODE</span> = small trade sizes to observe all strategies.
+    Current parameter values on the server. Updated 2026-02-09 01:15 UTC.
+    <span class="badge badge-active">PERFORMANCE-BASED ALLOCATION</span> = sizes flipped to favor winners.
 </p>
 
 <div class="card">
-    <h4>Strategy Enables</h4>
+    <h4>Strategy Enables &amp; Modes</h4>
     <table>
         <tr><th>Parameter</th><th>Current Value</th><th>Pre-Sprint Baseline</th><th>Last Changed</th></tr>
         <tr><td><code>enable_arbitrage</code></td><td class="green">true</td><td>true</td><td>&mdash;</td></tr>
-        <tr><td><code>enable_price_lag</code></td><td class="green">true</td><td>false</td><td>Feb 8 (code default)</td></tr>
+        <tr><td><code>enable_price_lag</code></td><td class="red">false</td><td>false</td><td>Feb 9 (disabled, biggest loser)</td></tr>
         <tr><td><code>enable_asymmetric</code></td><td class="green">true</td><td>true</td><td>&mdash;</td></tr>
+        <tr><td><code>asymmetric_require_hedge</code></td><td class="green"><strong>true</strong></td><td>N/A (new)</td><td>Feb 9 01:00 (forced hedging)</td></tr>
         <tr><td><code>enable_maker_arbitrage</code></td><td class="green">true</td><td>false</td><td>Feb 7</td></tr>
         <tr><td><code>enable_dip_buyer</code></td><td class="green">true</td><td>N/A (new)</td><td>Feb 8 ~18:00</td></tr>
         <tr><td><code>enable_fade_panic</code></td><td class="green">true</td><td>N/A (new)</td><td>Feb 8 ~18:00</td></tr>
         <tr><td><code>enable_resolution_sniper</code></td><td class="green">true</td><td>false</td><td>Feb 8 21:20</td></tr>
         <tr><td><code>enable_parallel_strategies</code></td><td class="green">true</td><td>false</td><td>Feb 8 ~18:00</td></tr>
+        <tr><td><code>enable_dynamic_allocation</code></td><td class="green"><strong>true</strong></td><td>N/A (new)</td><td>Feb 9 01:14 (auto-rebalance)</td></tr>
         <tr><td><code>enable_cross_asset_strategy</code></td><td class="red">false</td><td>N/A (new)</td><td>Feb 8 (created)</td></tr>
         <tr><td><code>enable_divergence_scoring</code></td><td class="red">false</td><td>N/A (new)</td><td>Feb 8 (created)</td></tr>
-        <tr><td><code>divergence_kelly_scaling</code></td><td class="red">false</td><td>N/A (new)</td><td>Feb 8 (created)</td></tr>
-        <tr><td><code>divergence_exit_signals</code></td><td class="red">false</td><td>N/A (new)</td><td>Feb 8 (created)</td></tr>
     </table>
 </div>
 
 <div class="card">
-    <h4>Trade Sizing (Analysis Mode)</h4>
+    <h4>Trade Sizing (Performance-Based, Feb 9)</h4>
     <table>
-        <tr><th>Parameter</th><th>Current Value</th><th>Previous Value</th><th>Baseline</th><th>Last Changed</th></tr>
-        <tr><td><code>order_size</code></td><td><strong>$25</strong></td><td>$200</td><td>$250</td><td>Feb 8 21:00</td></tr>
-        <tr><td><code>accumulation_size</code></td><td><strong>$20</strong></td><td>$50</td><td>$10</td><td>Feb 8 21:00</td></tr>
-        <tr><td><code>dip_order_size</code></td><td><strong>$25</strong></td><td>$100</td><td>N/A</td><td>Feb 8 21:00</td></tr>
-        <tr><td><code>fade_panic_order_size</code></td><td><strong>$30</strong></td><td>$175</td><td>N/A</td><td>Feb 8 21:00</td></tr>
-        <tr><td><code>sniper_order_size</code></td><td><strong>$30</strong></td><td>$150</td><td>N/A</td><td>Feb 8 21:00</td></tr>
-        <tr><td><code>cross_asset_order_size</code></td><td><strong>$25</strong></td><td>$100</td><td>N/A</td><td>Feb 8 21:00</td></tr>
-        <tr><td><code>_MIN_TRADE_SIZE</code> (code)</td><td><strong>$10</strong></td><td>$50</td><td>$5</td><td>Feb 8 21:00</td></tr>
-        <tr><td><code>PositionSizer min_size</code></td><td><strong>$10</strong></td><td>$50</td><td>$5</td><td>Feb 8 21:00</td></tr>
-        <tr><td><code>PositionSizer max_size</code></td><td>$500</td><td>$500</td><td>$500</td><td>&mdash;</td></tr>
+        <tr><th>Parameter</th><th>Current Value</th><th>Previous Value</th><th>Change</th><th>Last Changed</th></tr>
+        <tr><td><code>fade_panic_order_size</code></td><td class="green"><strong>$50</strong></td><td>$30</td><td class="green">+67%</td><td>Feb 9 01:00</td></tr>
+        <tr><td><code>order_size</code> (price_lag)</td><td class="red"><strong>$10</strong></td><td>$25</td><td class="red">-60%</td><td>Feb 9 01:00</td></tr>
+        <tr><td><code>accumulation_size</code></td><td class="red"><strong>$10</strong></td><td>$20</td><td class="red">-50%</td><td>Feb 9 01:00</td></tr>
+        <tr><td><code>max_accumulation_per_side</code></td><td class="red"><strong>$50</strong></td><td>$200</td><td class="red">-75%</td><td>Feb 9 01:00</td></tr>
+        <tr><td><code>sniper_order_size</code></td><td class="red"><strong>$10</strong></td><td>$30</td><td class="red">-67%</td><td>Feb 9 01:00</td></tr>
+        <tr><td><code>dip_order_size</code></td><td>$25</td><td>$25</td><td>&mdash;</td><td>&mdash;</td></tr>
+        <tr><td><code>cross_asset_order_size</code></td><td>$25</td><td>$25</td><td>&mdash;</td><td>&mdash;</td></tr>
     </table>
+    <p class="muted">Dynamic allocation (when enabled) applies a 0.1x&ndash;3.0x multiplier on top of these base sizes, recalculated every 15 min using 2-hour rolling profit factor.</p>
 </div>
 
 <div class="card">
@@ -357,6 +356,90 @@
 <h2>4. Experiment Timeline</h2>
 
 <p>Chronological record of every parameter change. Newest entries at the top.</p>
+
+<!-- Experiment #14 -->
+<div class="timeline-entry kept">
+    <div class="timeline-date">2026-02-09 01:14 UTC &mdash; Experiment #14</div>
+    <div class="timeline-title">
+        Dynamic Allocation System: auto-rebalance based on rolling performance
+        <span class="badge badge-kept">DEPLOYED</span>
+    </div>
+    <p><strong>Hypothesis:</strong> Static allocations can't adapt to changing market conditions. A system that automatically shifts capital toward recently profitable strategies should improve overall P&amp;L.</p>
+    <p><strong>Implementation:</strong> New <code>AllocationManager</code> class (<code>src/risk/allocation.py</code>, 185 lines).</p>
+    <ul>
+        <li><strong>Metric:</strong> Exponential-decay-weighted profit factor (gross_wins / gross_losses) over 2-hour rolling window</li>
+        <li><strong>Half-life:</strong> 30 minutes &mdash; recent trades weighted ~2x more than 30-min-old trades</li>
+        <li><strong>Recalculation:</strong> Every 15 minutes (aligned with market cycles)</li>
+        <li><strong>Multiplier bounds:</strong> 0.1x&ndash;3.0x of base size (floor prevents starvation, ceiling prevents over-concentration)</li>
+        <li><strong>Cold start:</strong> Requires 5+ resolved trades per strategy before overriding static sizing</li>
+        <li><strong>Integration:</strong> Hooks into main.py between <code>opp.requested_size</code> and <code>RiskManager.adjust_size()</code>. Risk manager still acts as absolute ceiling.</li>
+    </ul>
+    <p><strong>Files:</strong> <code>src/risk/allocation.py</code> (new), <code>src/data/trade_db.py</code> (+query), <code>src/config.py</code> (+flag), <code>src/main.py</code> (+wiring), <code>tests/unit/test_allocation.py</code> (18 tests, all passing)</p>
+    <p><strong>Status:</strong> Enabled on server. First recalculation pending (needs 5+ trades per strategy in the 2-hour window).</p>
+</div>
+
+<!-- Experiment #13 -->
+<div class="timeline-entry kept">
+    <div class="timeline-date">2026-02-09 01:00 UTC &mdash; Experiment #13</div>
+    <div class="timeline-title">
+        Force asymmetric hedged-only mode + remove heavy-loss exit skip
+        <span class="badge badge-kept">DEPLOYED</span>
+    </div>
+    <p><strong>Root cause:</strong> Asymmetric's #1 loss pattern: accumulates one side (e.g., 200 YES shares), fails to get the other side before expiry, then loses 100% of investment at resolution. 19 unhedged YES losses cost -$1,201 (avg -$63/trade). Additionally, the "skip exit if down >70%" logic guaranteed total wipeout instead of recovering partial value.</p>
+    <p><strong>Changes:</strong></p>
+    <ul>
+        <li><code>asymmetric_require_hedge=true</code>: Only enter when BOTH YES and NO sides are cheap simultaneously. Prevents one-sided accumulation.</li>
+        <li>Removed <code>unhedged_exit_skipped_heavy_loss</code> logic: All unhedged positions now exit before resolution regardless of loss magnitude. Better to lose 80% than 100%.</li>
+    </ul>
+    <p><strong>Expected impact:</strong> Fewer asymmetric trades but dramatically fewer total wipeouts. Win rate should improve significantly.</p>
+</div>
+
+<!-- Experiment #12 -->
+<div class="timeline-entry kept">
+    <div class="timeline-date">2026-02-09 00:50 UTC &mdash; Experiment #12</div>
+    <div class="timeline-title">
+        Flip allocations: winners up, losers down
+        <span class="badge badge-kept">DEPLOYED</span>
+    </div>
+    <p><strong>Root cause:</strong> All-time P&amp;L analysis revealed only fade_panic is profitable (+$216). Three strategies are losing: price_lag (-$373, 23% WR), asymmetric (-$229, 37% WR), sniper (-$8). Despite this, losing strategies had equal or larger order sizes than the winner.</p>
+    <p><strong>Changes:</strong></p>
+    <div class="experiment-metrics">
+        <div class="stat"><div class="stat-value green">$50</div><div class="stat-label">Fade Panic (was $30)</div></div>
+        <div class="stat"><div class="stat-value red">$10</div><div class="stat-label">Asymmetric (was $20)</div></div>
+        <div class="stat"><div class="stat-value red">$10</div><div class="stat-label">Price Lag (was $25)</div></div>
+        <div class="stat"><div class="stat-value red">$10</div><div class="stat-label">Sniper (was $30)</div></div>
+    </div>
+    <p>Also reduced <code>max_accumulation_per_side</code> from $200 to $50 to cap single-market asymmetric exposure.</p>
+    <p><strong>Rationale:</strong> Capital should flow to proven edge. Fade panic averages +$43/trade vs asymmetric -$2.52/trade.</p>
+</div>
+
+<!-- Observation #11 -->
+<div class="timeline-entry pending">
+    <div class="timeline-date">2026-02-09 00:09&ndash;00:59 UTC &mdash; Observation #11</div>
+    <div class="timeline-title">
+        1-Hour Overnight Monitoring Session
+        <span class="badge badge-pending">OBSERVING</span>
+    </div>
+    <p><strong>Method:</strong> 4 health checks at ~15-min intervals via SSH. Checked service status, logs, trades DB, metrics, and error logs.</p>
+    <p><strong>Service health:</strong> Bot ran continuously. One auto-restart at 00:50 UTC (systemd recovered in seconds, new PID 140438). Memory grew ~7 MB per 15 min (131&rarr;145 MB) before restart reset it to 72 MB. No critical errors in logs.</p>
+    <p><strong>Trading activity:</strong> 160 dry-run trades in 1 hour (~54 per 15-min window, very consistent). Asymmetric dominated (~85% of volume), fade_panic contributed 28 trades, resolution_sniper fired sporadically.</p>
+    <p><strong>Performance:</strong></p>
+    <div class="experiment-metrics">
+        <div class="stat"><div class="stat-value red">-$247</div><div class="stat-label">Net P&amp;L (1h)</div></div>
+        <div class="stat"><div class="stat-value yellow">31%</div><div class="stat-label">Win Rate</div></div>
+        <div class="stat"><div class="stat-value">$63.72</div><div class="stat-label">Avg Win</div></div>
+        <div class="stat"><div class="stat-value">$64.47</div><div class="stat-label">Avg Loss</div></div>
+    </div>
+    <p><strong>Key findings:</strong></p>
+    <ul>
+        <li><strong>Negative edge:</strong> Avg loss ($64.47) slightly exceeds avg win ($63.72). Even at 50% WR this would lose after fees.</li>
+        <li><strong>4-asset wipeout:</strong> One 15-min window (1770596100) saw all 4 assets lose simultaneously (&minus;$62.82 XRP, &minus;$73.94 SOL, &minus;$59.92 BTC, &minus;$62.75 ETH). Asymmetric picked the wrong direction on all 4.</li>
+        <li><strong>BTC/ETH outperform SOL/XRP:</strong> In resolved markets, BTC (+$110.54) and ETH (+$47.54) won while SOL (&minus;$60.64) and XRP (&minus;$51.75) lost in the same window. Suggests per-asset strategy tuning may be needed.</li>
+        <li><strong>Memory growth pattern:</strong> ~7 MB per 15 min before restart. Not alarming but worth monitoring for leaks over longer periods.</li>
+        <li><strong>Arb still dead:</strong> All markets $1.01 combined ask, gap $0.07 above $0.94 target. No arb opportunities.</li>
+    </ul>
+    <p><strong>Verdict:</strong> <em>Continue observation. Win rate too low and edge too thin for live trading. Asymmetric strategy needs directional improvement or per-asset filtering.</em></p>
+</div>
 
 <!-- Experiment #10 -->
 <div class="timeline-entry kept">
@@ -634,12 +717,12 @@
         <li>Spot change must be &lt;0.05% to confirm it's panic, not fundamental</li>
     </ul>
     <p><strong>Exit logic:</strong> Hold to resolution (same as sniper).</p>
-    <p><strong>Performance:</strong> Best strategy by ROI.</p>
+    <p><strong>Performance:</strong> Promising but sample growing. 28 trades as of Feb 9 01:00 UTC. Early ROI figures degrading as sample grows &mdash; needs continued observation.</p>
     <div class="experiment-metrics">
-        <div class="stat"><div class="stat-value green">60%</div><div class="stat-label">Win Rate</div></div>
-        <div class="stat"><div class="stat-value green">+$215</div><div class="stat-label">Total P&amp;L</div></div>
-        <div class="stat"><div class="stat-value green">+78%</div><div class="stat-label">ROI</div></div>
-        <div class="stat"><div class="stat-value">11</div><div class="stat-label">Trades</div></div>
+        <div class="stat"><div class="stat-value yellow">28</div><div class="stat-label">Trades</div></div>
+        <div class="stat"><div class="stat-value">$368</div><div class="stat-label">Total Cost</div></div>
+        <div class="stat"><div class="stat-value">$0.22</div><div class="stat-label">Avg Price</div></div>
+        <div class="stat"><div class="stat-value yellow">TBD</div><div class="stat-label">WR (needs analysis)</div></div>
     </div>
 </div>
 
@@ -692,35 +775,53 @@
 <!-- TRADE ANALYSIS                                                -->
 <!-- ============================================================ -->
 
-<h2>8. Trade Analysis (Feb 8 snapshot)</h2>
+<h2>8. Trade Analysis (Feb 9 01:15 UTC &mdash; 185 resolved trades)</h2>
 
-<p>Comprehensive analysis from <code>scripts/analyze_trades.py</code> run at ~19:00 UTC.</p>
+<p>Comprehensive P&amp;L breakdown from <code>trade_results</code> table. All-time resolved trades with known outcomes.</p>
 
 <div class="card">
     <div class="card-header">
-        <h3>Strategy Performance Breakdown</h3>
+        <h3>Strategy Performance (Resolved Trades)</h3>
     </div>
     <table>
-        <tr><th>Strategy</th><th>Trades</th><th>Win Rate</th><th>Net P&amp;L</th><th>ROI</th><th>Verdict</th></tr>
-        <tr><td>Fade Panic</td><td>11</td><td class="green">60%</td><td class="green">+$215</td><td class="green">+78%</td><td class="green">BEST &mdash; scale up</td></tr>
-        <tr><td>Asymmetric</td><td>~80</td><td>~30%</td><td class="yellow">~$0</td><td>~0%</td><td>Break-even, high volume</td></tr>
-        <tr><td>Resolution Sniper</td><td>150</td><td>~25%</td><td class="red">-$50</td><td>-8%</td><td>Needs tuning</td></tr>
-        <tr><td>Price Lag</td><td>335</td><td class="red">23%</td><td class="red">-$373</td><td class="red">-22%</td><td class="red">WORST &mdash; biggest loser</td></tr>
-        <tr><td>Arbitrage</td><td>0</td><td>&mdash;</td><td>$0</td><td>&mdash;</td><td>No opportunities (structural)</td></tr>
-        <tr><td>Dip Buyer</td><td>0</td><td>&mdash;</td><td>$0</td><td>&mdash;</td><td>Waiting for spike conditions</td></tr>
+        <tr><th>Strategy</th><th>Resolved</th><th>Wins</th><th>Losses</th><th>Win Rate</th><th>Total P&amp;L</th><th>Avg P&amp;L</th><th>Worst</th><th>Best</th></tr>
+        <tr><td class="green"><strong>Fade Panic</strong></td><td>5</td><td>3</td><td>2</td><td class="green">60%</td><td class="green"><strong>+$216</strong></td><td class="green">+$43</td><td>-$103</td><td>+$142</td></tr>
+        <tr><td>Resolution Sniper</td><td>15</td><td>6</td><td>9</td><td>40%</td><td class="red">-$8</td><td>-$0.51</td><td>-$15</td><td>+$6</td></tr>
+        <tr><td>Maker Arbitrage</td><td>1</td><td>0</td><td>1</td><td>0%</td><td class="red">-$2</td><td>-$2</td><td>-$2</td><td>-$2</td></tr>
+        <tr><td class="red">Asymmetric</td><td>91</td><td>34</td><td>57</td><td class="red">37%</td><td class="red"><strong>-$229</strong></td><td class="red">-$2.52</td><td>-$109</td><td>+$133</td></tr>
+        <tr><td class="red">Price Lag</td><td>73</td><td>17</td><td>56</td><td class="red">23%</td><td class="red"><strong>-$373</strong></td><td class="red">-$5.10</td><td>-$127</td><td>+$217</td></tr>
+        <tr style="border-top: 2px solid var(--border); font-weight: 700;">
+            <td>TOTAL</td><td>185</td><td>60</td><td>125</td><td class="red">32%</td><td class="red"><strong>-$396</strong></td><td class="red">-$2.14</td><td colspan="2"></td>
+        </tr>
     </table>
 </div>
 
 <div class="card">
     <div class="card-header">
-        <h3>Key Findings</h3>
+        <h3>Loss Anatomy: Unhedged Resolution Wipeouts</h3>
+    </div>
+    <p>The #1 source of losses across ALL strategies: unhedged directional bets held to resolution.</p>
+    <table>
+        <tr><th>Strategy</th><th>Outcome</th><th>Count</th><th>P&amp;L</th><th>Avg Loss</th></tr>
+        <tr><td>Asymmetric (unhedged)</td><td>YES resolution</td><td>19</td><td class="red">-$1,201</td><td class="red">-$63/trade</td></tr>
+        <tr><td>Price Lag (unhedged)</td><td>YES resolution</td><td>19</td><td class="red">-$933</td><td class="red">-$49/trade</td></tr>
+        <tr><td>Price Lag (unhedged)</td><td>NO resolution</td><td>10</td><td class="red">-$533</td><td class="red">-$53/trade</td></tr>
+        <tr><td>Asymmetric (unhedged)</td><td>NO resolution</td><td>6</td><td class="red">-$303</td><td class="red">-$51/trade</td></tr>
+    </table>
+    <p class="muted">Early exits are profitable (+$928 price_lag, +$466 asymmetric). The problem is positions that reach resolution unhedged. Hedging fix deployed in Experiment #13.</p>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3>Key Findings (Updated Feb 9)</h3>
     </div>
     <ul>
-        <li><strong>Hedged vs unhedged:</strong> Hedged trades 80% WR vs unhedged 26% WR. Hedging is critical.</li>
-        <li><strong>Entry price matters:</strong> Entries below $0.10 lose 100% when wrong &rarr; added $0.10 floor.</li>
-        <li><strong>ETH most profitable asset.</strong> XRP most volatile.</li>
-        <li><strong>Early exits are sole source of alpha</strong> &mdash; held-to-resolution positions consistently lose.</li>
-        <li><strong>P&amp;L recovered</strong> from -$290 to +$54 during analysis mode session (several large asymmetric wins).</li>
+        <li><strong>Only fade_panic has a real edge:</strong> +$216 across 5 trades, 60% WR, +$43 avg. All other strategies are net negative.</li>
+        <li><strong>Unhedged resolution = guaranteed wipeout:</strong> 54 unhedged trades went to resolution: -$2,970 total. This single pattern accounts for 7.5x the total losses.</li>
+        <li><strong>Early exits are the only alpha source:</strong> Price_lag early exits: +$928. Asymmetric early exits: +$466. Both strategies are profitable IF positions exit early, but catastrophically lose when held to resolution.</li>
+        <li><strong>Hedged vs unhedged WR:</strong> was_hedged=1 positions lose less catastrophically (capped at known cost). was_hedged=0 lose 100% of investment.</li>
+        <li><strong>BTC/ETH outperform SOL/XRP in asymmetric:</strong> BTC +$175, ETH +$233 vs SOL +$114, XRP -$57 (asymmetric only). Per-asset filtering may help.</li>
+        <li><strong>Price lag disabled:</strong> 23% WR with -$5.10/trade avg. -$1,300 on resolution positions alone. Not viable in current form.</li>
     </ul>
 </div>
 
@@ -784,6 +885,54 @@
     <p><strong>Rule:</strong> After any config default change, ALWAYS check and update server .env.</p>
 </div>
 
+<div class="card">
+    <div class="card-header">
+        <h3>BTC/ETH outperform SOL/XRP in directional strategies</h3>
+        <span class="badge badge-pending">INVESTIGATING</span>
+    </div>
+    <p><strong>Discovered:</strong> 2026-02-09 overnight | In the same 15-min window, BTC asymmetric won +$110.54 and ETH won +$47.54, while SOL lost -$60.64 and XRP lost -$51.75. Consistent across multiple windows. SOL has the widest swings (biggest wins AND losses). Per-asset strategy parameters or filtering may improve overall edge.</p>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3>Correlated 4-asset wipeout risk</h3>
+        <span class="badge badge-pending">INVESTIGATING</span>
+    </div>
+    <p><strong>Discovered:</strong> 2026-02-09 00:27 UTC | All 4 markets lost simultaneously in window 1770596100 (-$259 total). Asymmetric picked the same direction on all assets. Since BTC/ETH/SOL/XRP are correlated, directional bets across all 4 amplify losses when wrong. Cross-asset correlation strategy (currently disabled) could detect and hedge this risk.</p>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3>Win/loss sizes nearly equal &mdash; must achieve &gt;50% WR to profit</h3>
+        <span class="badge badge-active">CRITICAL</span>
+    </div>
+    <p><strong>Discovered:</strong> 2026-02-09 overnight | Avg win $63.72, avg loss $64.47. At current sizing, the bot needs &gt;50% win rate just to break even (before fees). Currently at 31% WR. Either win rate must improve dramatically, or wins must be made significantly larger than losses (asymmetric payoff).</p>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3>Unhedged resolution is the #1 loss pattern</h3>
+        <span class="badge badge-kept">RESOLVED</span>
+    </div>
+    <p><strong>Discovered:</strong> 2026-02-09 01:00 UTC | 54 unhedged trades held to resolution lost -$2,970 total. This single pattern causes 7.5x more losses than the bot's total P&amp;L. Fixed by: (1) asymmetric hedged-only mode, (2) always-exit-unhedged logic, (3) reduced max_accumulation_per_side from 200 to 50.</p>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3>Static allocation doesn't adapt to market conditions</h3>
+        <span class="badge badge-kept">RESOLVED</span>
+    </div>
+    <p><strong>Discovered:</strong> 2026-02-09 01:00 UTC | All strategies had similar order sizes regardless of performance. Fade panic (+$216) had same base size as sniper (-$8). Dynamic allocation system deployed to auto-rebalance based on rolling 2-hour profit factor with exponential decay.</p>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3>Memory grows ~7 MB per 15 minutes</h3>
+        <span class="badge badge-pending">MONITORING</span>
+    </div>
+    <p><strong>Discovered:</strong> 2026-02-09 overnight | Memory grew 131&rarr;138&rarr;145 MB over 30 minutes before an auto-restart at 00:50 UTC reset it to 72 MB. Growth rate is ~7 MB per 15 min (~28 MB/hour). At this rate, the 3.7 GB server can run for days, but a slow memory leak may exist. Systemd auto-restarts mitigate the risk.</p>
+</div>
+
 <!-- ============================================================ -->
 <!-- DAILY PERFORMANCE LOG                                         -->
 <!-- ============================================================ -->
@@ -803,9 +952,15 @@
     </tr>
     <tr>
         <td>1</td><td>2026-02-08</td><td>#1&ndash;#10</td><td>4 kept / 1 reverted (#2)</td>
-        <td>858+</td><td>~25%</td>
-        <td class="green">+$54</td>
+        <td>801</td><td>32% (55W/118L)</td>
+        <td class="red">-$336</td>
         <td>arb, asym, price_lag, maker_arb, dip_buyer, fade_panic, sniper (7 active)</td>
+    </tr>
+    <tr>
+        <td>2</td><td>2026-02-09</td><td>#11&ndash;#14</td><td>3 kept / 0 reverted</td>
+        <td>185 resolved</td><td>32% (60W/125L)</td>
+        <td class="red">-$396 (all-time)</td>
+        <td>Major overhaul: allocation flip, hedged-only asymmetric, dynamic allocation deployed.</td>
     </tr>
 </table>
 
@@ -832,6 +987,33 @@
 <h2>12. Strategy Code Change Log</h2>
 
 <p>All code changes deployed (not just parameter tuning). Newest first.</p>
+
+<div class="card">
+    <div class="card-header">
+        <h3>Dynamic allocation system</h3>
+        <span class="badge badge-active">IMPLEMENTED</span>
+    </div>
+    <p><strong>Date:</strong> 2026-02-09 01:14 | <strong>Files:</strong> <code>src/risk/allocation.py</code> (new, 185 lines), <code>src/data/trade_db.py</code> (+query), <code>src/config.py</code> (+flag), <code>src/main.py</code> (+wiring), <code>tests/unit/test_allocation.py</code> (18 tests)</p>
+    <p><strong>Change:</strong> AllocationManager scores strategies using exponential-decay weighted profit factor over 2-hour window. Winning strategies get up to 3x base size, losers down to 0.1x. Recalculates every 15 min. Hooks in between strategy evaluate() and RiskManager.</p>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3>Asymmetric hedged-only mode + always-exit-unhedged</h3>
+        <span class="badge badge-active">IMPLEMENTED</span>
+    </div>
+    <p><strong>Date:</strong> 2026-02-09 01:00 | <strong>Files:</strong> <code>src/config.py</code> (+flag), <code>src/strategy/asymmetric.py</code> (evaluate + should_exit)</p>
+    <p><strong>Changes:</strong> (1) <code>asymmetric_require_hedge</code> config flag: when true, only enter when both YES and NO sides are cheap simultaneously. (2) Removed <code>unhedged_exit_skipped_heavy_loss</code> logic &mdash; all unhedged positions exit before resolution regardless of loss magnitude.</p>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3>Allocation rebalancing (static sizes)</h3>
+        <span class="badge badge-active">IMPLEMENTED</span>
+    </div>
+    <p><strong>Date:</strong> 2026-02-09 00:50 | <strong>Files:</strong> <code>src/config.py</code> (defaults), server <code>.env</code></p>
+    <p><strong>Changes:</strong> fade_panic 30&rarr;50, order_size 25&rarr;10, accumulation_size 20&rarr;10, max_accumulation_per_side 200&rarr;50, sniper_order_size 30&rarr;10. Price_lag disabled.</p>
+</div>
 
 <div class="card">
     <div class="card-header">
@@ -915,37 +1097,40 @@
 <div class="card">
     <h4>Immediate (next 24h)</h4>
     <ul>
-        <li>Continue analysis mode observation &mdash; collect data from all 7 strategies</li>
-        <li>Watch for fade_panic and sniper trades at new window boundaries</li>
-        <li>Watch for dip_buyer activation during volatile markets</li>
-        <li>Evaluate whether price_lag should be disabled (biggest loser at -$373)</li>
+        <li>Monitor dynamic allocation in action &mdash; check <code>allocation_changed</code> log events after 2+ hours of trading</li>
+        <li>Verify hedged-only asymmetric reduces wipeout frequency &mdash; compare unhedged resolution losses before/after</li>
+        <li>Monitor fade_panic performance at $50 size &mdash; ensure higher size doesn't degrade fill quality</li>
+        <li>Watch for edge cases in dynamic allocation (e.g., one strategy scoring infinity, cold-start behavior)</li>
     </ul>
 </div>
 
 <div class="card">
     <h4>Short-term (this week)</h4>
     <ul>
+        <li>Accumulate 24h of data under new allocation regime for meaningful comparison</li>
+        <li>Enable <code>enable_cross_asset_strategy</code> &mdash; 4-asset wipeout risk confirms correlation is real and exploitable</li>
         <li>Enable <code>enable_divergence_scoring</code> and observe KL scores in metadata</li>
-        <li>If KL scoring looks good, enable <code>divergence_kelly_scaling</code> for information-theoretic position sizing</li>
-        <li>Collect enough data to enable <code>enable_cross_asset_strategy</code> (needs correlation matrix)</li>
-        <li>Scale up trade sizes for winning strategies once analysis is complete</li>
-        <li>Consider per-strategy entry tracking instead of global per-market</li>
+        <li>Consider per-asset filtering for asymmetric &mdash; BTC/ETH outperform SOL/XRP significantly</li>
+        <li>Investigate whether dip_buyer's trigger conditions are too strict (still 0 trades after 2 days)</li>
+        <li>If fade_panic continues to dominate, consider increasing its max_entry_price (currently $0.92)</li>
     </ul>
 </div>
 
 <div class="card">
     <h4>Open Questions</h4>
     <ul>
-        <li>Should price_lag be disabled given -22% ROI? Or does the TA filter + TP fix change things?</li>
-        <li>Is fade_panic's 60% WR sustainable or sample-size luck (only 11 trades)?</li>
-        <li>Will dip_buyer ever find opportunities in current market conditions?</li>
-        <li>Optimal <code>divergence_ranking_alpha</code> &mdash; how much weight should KL get vs raw profit_pct?</li>
+        <li>Will hedged-only mode kill asymmetric's trade volume? Both sides cheap simultaneously may be rare.</li>
+        <li>Is fade_panic's edge sustainable at $50 size? 5 resolved trades is still too small for statistical confidence.</li>
+        <li>Does dynamic allocation converge or oscillate? Need to observe multiplier stability over multiple recalculations.</li>
+        <li>Should price_lag be permanently removed or just kept disabled with low allocation?</li>
+        <li>Can early-exit logic be improved to capture more of the +$1,400 in early exit profits while avoiding resolution wipeouts?</li>
+        <li>Why do BTC/ETH asymmetric picks outperform SOL/XRP? Is it lower volatility = more predictable?</li>
     </ul>
 </div>
 
 <hr class="separator">
 <p class="muted" style="text-align: center; font-size: 0.8rem;">
-    This document is auto-maintained by the Claude analysis agent. Last updated: 2026-02-08 22:00 UTC.
+    This document is auto-maintained by the Claude analysis agent. Last updated: 2026-02-09 01:05 UTC.
 </p>
 
 </body>

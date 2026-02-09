@@ -125,6 +125,20 @@
 - **Update `tasks/lessons.md` after every correction or discovery.** This captures development patterns and mistakes to prevent repeats.
 - **Two docs serve different purposes.** The HTML experiment log tracks bot tuning (what changed, what happened, what we learned). The lessons.md tracks development patterns (coding mistakes, deployment gotchas, API quirks).
 
+## Dynamic Allocation System
+
+- **Exponential-decay weighted profit factor is the right metric.** Using `exp(-0.693 * age / half_life)` with a 30-min half-life over a 2-hour window naturally prioritizes recent performance while keeping some memory. Simple win rate or raw P&L would over-react to individual trades.
+- **Multiplier bounds (0.1x–3.0x) prevent starvation and over-concentration.** Without a floor, a brief losing streak would zero out a strategy permanently. Without a ceiling, a hot streak could put 100% of capital in one strategy. These bounds keep all strategies alive while still meaningfully differentiating.
+- **Cold start protection (5+ trades minimum) avoids noisy early signals.** With fewer than 5 trades, the profit factor is statistically meaningless. Return base_size unchanged until sufficient data accumulates.
+- **Lazy recalculation (every 15 min) avoids per-trade overhead.** The allocation multipliers don't need to update on every trade. Recalculating once per market window is frequent enough to adapt while keeping the hot path fast.
+- **Proportional normalization preserves relative ranking.** Each strategy's weighted profit factor is divided by the mean across all strategies with sufficient data, then multiplied by the number of scored strategies. This makes the multipliers a zero-sum rebalancing: capital flows from underperformers to outperformers without changing the total.
+
+## Asymmetric Strategy Fixes
+
+- **Unhedged resolution wipeout is the #1 loss pattern.** 54 unhedged trades lost -$2,970 total. Single-side accumulation going to resolution loses 100% of investment when the outcome goes against you. The fix: `asymmetric_require_hedge=True` ensures both YES and NO sides must be cheap before entering.
+- **Never skip exit on heavy losses.** The old logic skipped time-based exit when `value_ratio < 0.30` ("already lost too much, hold for recovery"). This is wrong — it converts a known loss into a guaranteed total loss. Always exit unhedged positions before resolution, regardless of current loss severity.
+- **Static allocation is a silent capital drain.** When losing strategies get the same order size as winners, the bot systematically transfers capital from profitable strategies to unprofitable ones. The allocation flip (fade_panic 30→50, losers 25→10) immediately improved capital efficiency.
+
 ## Common Mistakes
 
 - **Heredoc in SSH:** Copy-pasting heredocs (`cat << 'EOF'`) over SSH often fails. Use multiple `printf` or `echo` commands instead.
