@@ -265,7 +265,7 @@
 <h2>3. Current Configuration State</h2>
 
 <p>
-    Current parameter values on the server. Updated 2026-02-09 18:27 UTC.
+    Current parameter values on the server. Updated 2026-02-09 18:44 UTC.
     <span class="badge badge-active">PERFORMANCE-BASED ALLOCATION</span> = sizes flipped to favor winners.
 </p>
 
@@ -274,7 +274,7 @@
     <table>
         <tr><th>Parameter</th><th>Current Value</th><th>Pre-Sprint Baseline</th><th>Last Changed</th></tr>
         <tr><td><code>enable_arbitrage</code></td><td class="green">true</td><td>true</td><td>&mdash;</td></tr>
-        <tr><td><code>enable_price_lag</code></td><td class="red">false</td><td>false</td><td>Feb 9 (disabled, biggest loser)</td></tr>
+        <tr><td><code>enable_price_lag</code></td><td class="green"><strong>true</strong></td><td>false</td><td>Feb 9 18:44 (re-enabled for inversion test)</td></tr>
         <tr><td><code>enable_asymmetric</code></td><td class="green">true</td><td>true</td><td>&mdash;</td></tr>
         <tr><td><code>asymmetric_require_hedge</code></td><td class="green"><strong>true</strong></td><td>N/A (new)</td><td>Feb 9 01:00 (forced hedging)</td></tr>
         <tr><td><code>enable_maker_arbitrage</code></td><td class="green">true</td><td>false</td><td>Feb 7</td></tr>
@@ -284,7 +284,8 @@
         <tr><td><code>enable_parallel_strategies</code></td><td class="green">true</td><td>false</td><td>Feb 8 ~18:00</td></tr>
         <tr><td><code>enable_dynamic_allocation</code></td><td class="green"><strong>true</strong></td><td>N/A (new)</td><td>Feb 9 01:14 (auto-rebalance)</td></tr>
         <tr><td><code>enable_cross_asset_strategy</code></td><td class="red">false</td><td>N/A (new)</td><td>Feb 8 (created)</td></tr>
-        <tr><td><code>enable_divergence_scoring</code></td><td class="red">false</td><td>N/A (new)</td><td>Feb 8 (created)</td></tr>
+        <tr><td><code>enable_divergence_scoring</code></td><td class="green"><strong>true</strong></td><td>N/A (new)</td><td>Feb 9 (enabled)</td></tr>
+        <tr><td><code>invert_signals</code></td><td class="green"><strong>true</strong></td><td>N/A (new)</td><td>Feb 9 18:44 (contrarian paper test)</td></tr>
     </table>
 </div>
 
@@ -292,11 +293,11 @@
     <h4>Trade Sizing (Performance-Based, Feb 9)</h4>
     <table>
         <tr><th>Parameter</th><th>Current Value</th><th>Previous Value</th><th>Change</th><th>Last Changed</th></tr>
-        <tr><td><code>fade_panic_order_size</code></td><td class="green"><strong>$50</strong></td><td>$30</td><td class="green">+67%</td><td>Feb 9 01:00</td></tr>
-        <tr><td><code>order_size</code> (price_lag)</td><td class="red"><strong>$10</strong></td><td>$25</td><td class="red">-60%</td><td>Feb 9 01:00</td></tr>
+        <tr><td><code>fade_panic_order_size</code></td><td class="green"><strong>$100</strong></td><td>$50</td><td class="green">+100%</td><td>Feb 9 18:44 (aggressive)</td></tr>
+        <tr><td><code>order_size</code> (price_lag)</td><td class="green"><strong>$100</strong></td><td>$50</td><td class="green">+100%</td><td>Feb 9 18:44 (aggressive)</td></tr>
         <tr><td><code>accumulation_size</code></td><td class="red"><strong>$10</strong></td><td>$20</td><td class="red">-50%</td><td>Feb 9 01:00</td></tr>
         <tr><td><code>max_accumulation_per_side</code></td><td class="red"><strong>$50</strong></td><td>$200</td><td class="red">-75%</td><td>Feb 9 01:00</td></tr>
-        <tr><td><code>sniper_order_size</code></td><td class="green"><strong>$30</strong></td><td>$10</td><td class="green">+200%</td><td>Feb 9 03:45</td></tr>
+        <tr><td><code>sniper_order_size</code></td><td class="green"><strong>$60</strong></td><td>$30</td><td class="green">+100%</td><td>Feb 9 18:44 (aggressive)</td></tr>
         <tr><td><code>dip_order_size</code></td><td>$25</td><td>$25</td><td>&mdash;</td><td>&mdash;</td></tr>
         <tr><td><code>cross_asset_order_size</code></td><td>$25</td><td>$25</td><td>&mdash;</td><td>&mdash;</td></tr>
     </table>
@@ -308,13 +309,13 @@
     <table>
         <tr><th>Parameter</th><th>Current Value</th><th>Previous</th><th>Last Changed</th></tr>
         <tr><td><code>max_entries_per_market</code></td><td><strong>50</strong> (unlimited)</td><td>2</td><td>Feb 8 21:00</td></tr>
-        <tr><td><code>max_position_per_market</code></td><td>$1,000</td><td>$750</td><td>Feb 8</td></tr>
-        <tr><td><code>max_total_position</code></td><td>$5,000</td><td>$2,000</td><td>Feb 8</td></tr>
-        <tr><td><code>max_unhedged_exposure</code></td><td>$500</td><td>$250</td><td>Feb 8</td></tr>
+        <tr><td><code>max_position_per_market</code></td><td class="green"><strong>$2,000</strong></td><td>$1,000</td><td>Feb 9 18:44 (aggressive)</td></tr>
+        <tr><td><code>max_total_position</code></td><td class="green"><strong>$8,000</strong></td><td>$4,000</td><td>Feb 9 18:44 (aggressive)</td></tr>
+        <tr><td><code>max_unhedged_exposure</code></td><td>$800</td><td>$500</td><td>Feb 9</td></tr>
         <tr><td><code>max_daily_loss</code></td><td>$250</td><td>$1,000</td><td>Feb 8</td></tr>
         <tr><td><code>min_entry_price</code></td><td><strong>$0.10</strong></td><td>N/A (new)</td><td>Feb 8 ~19:30</td></tr>
         <tr><td><code>sniper_min_entry_price</code></td><td><strong>$0.20</strong></td><td>N/A (new)</td><td>Feb 9 03:45</td></tr>
-        <tr><td><code>sniper_min_confidence</code></td><td><strong>0.75</strong></td><td>0.90</td><td>Feb 9 03:45</td></tr>
+        <tr><td><code>sniper_min_confidence</code></td><td class="green"><strong>0.65</strong></td><td>0.75</td><td>Feb 9 18:44 (aggressive)</td></tr>
         <tr><td><code>sniper_vol_multiplier</code></td><td><strong>3.0</strong></td><td>2.0</td><td>Feb 9 05:03</td></tr>
         <tr><td><code>sniper_vol_floor</code></td><td><strong>0.0005</strong></td><td>0.0001</td><td>Feb 9 05:03</td></tr>
         <tr><td><code>sniper_high_confidence_threshold</code></td><td class="green"><strong>0.90</strong></td><td>N/A (new)</td><td>Feb 9 17:35</td></tr>
@@ -376,6 +377,36 @@
 <h2>4. Experiment Timeline</h2>
 
 <p>Chronological record of every parameter change. Newest entries at the top.</p>
+
+<!-- Experiment #29 -->
+<div class="timeline-entry pending">
+    <div class="timeline-date">2026-02-09 ~18:44 UTC &mdash; Experiment #29</div>
+    <div class="timeline-title">
+        Signal Inversion + Aggressive Mode (Contrarian Paper Test)
+        <span class="badge badge-new">NEW CODE + PARAMS</span>
+    </div>
+    <p><strong>Hypothesis:</strong> Market manipulation thesis &mdash; directional signals from spot-to-odds lag are being exploited by market makers who move odds in the &ldquo;correct&rdquo; direction then resolve opposite. By inverting ALL directional signals (YES&rarr;NO, NO&rarr;YES), we bet against the apparent direction and profit from manipulated outcomes.</p>
+    <p><strong>Code changes (6 files):</strong></p>
+    <ul style="margin: 0.5rem 0 0.75rem 1.5rem; color: var(--text-muted); font-size: 0.9rem;">
+        <li><code>config.py</code>: Added <code>invert_signals: bool = False</code></li>
+        <li><code>base.py</code>: Added <code>_maybe_invert(direction, market)</code> helper &mdash; flips direction and target token when enabled</li>
+        <li><code>price_lag.py</code>, <code>resolution_sniper.py</code>, <code>dip_buyer.py</code>, <code>fade_panic.py</code>: All use <code>_maybe_invert()</code> to determine final direction and token</li>
+    </ul>
+    <p><strong>Config changes (aggressive mode):</strong></p>
+    <ul style="margin: 0.5rem 0 0.75rem 1.5rem; color: var(--text-muted); font-size: 0.9rem;">
+        <li><code>BOT_INVERT_SIGNALS=true</code> &mdash; flip all directional signals</li>
+        <li><code>BOT_ENABLE_PRICE_LAG=true</code> &mdash; re-enabled (was disabled as biggest loser)</li>
+        <li><code>order_size</code>: $50 &rarr; $100, <code>sniper_order_size</code>: $30 &rarr; $60, <code>fade_panic_order_size</code>: $50 &rarr; $100</li>
+        <li><code>sniper_min_confidence</code>: 0.75 &rarr; 0.65, <code>sniper_max_entry_price</code>: 0.75 &rarr; 0.85</li>
+        <li><code>max_position_per_market</code>: $1,000 &rarr; $2,000, <code>max_total_position</code>: $4,000 &rarr; $8,000</li>
+        <li><code>sim_balance</code>: $5,000 &rarr; $10,000</li>
+        <li>All 7 strategies enabled: arbitrage, price_lag, asymmetric, maker_arb, dip_buyer, fade_panic, resolution_sniper</li>
+    </ul>
+    <p><strong>Design note:</strong> Inversion happens AFTER signal detection but BEFORE fill estimation. So inverted trades still get proper fill quotes for the inverted side. EV calculation uses inverted fill prices. The win_prob is NOT inverted (still reflects original direction confidence) &mdash; this means inverted EV may be lower, which could filter out weak signals. If too many signals get rejected by EV check, may need to bypass EV gate when <code>invert_signals=true</code>.</p>
+    <p><strong>Risk:</strong> Paper trading only (<code>DRY_RUN=true</code>). Sim balance $10,000. If thesis is wrong, losses are simulated only. Backup of pre-inversion .env saved as <code>.env.backup.pre-inversion</code>.</p>
+    <p><strong>Observable:</strong> Watch direction metadata in trade logs &mdash; inverted signals should show opposite direction from what spot movement suggests. Track win rate over 20+ trades to validate thesis.</p>
+    <p><strong>Status:</strong> Deployed 18:44 UTC. All 7 strategies loaded. Monitoring.</p>
+</div>
 
 <!-- Experiment #28 -->
 <div class="timeline-entry kept">
@@ -1462,7 +1493,7 @@
 
 <hr class="separator">
 <p class="muted" style="text-align: center; font-size: 0.8rem;">
-    This document is auto-maintained by the Claude analysis agent. Last updated: 2026-02-09 18:27 UTC.
+    This document is auto-maintained by the Claude analysis agent. Last updated: 2026-02-09 18:44 UTC.
 </p>
 
 </body>
