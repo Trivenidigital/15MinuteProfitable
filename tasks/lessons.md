@@ -139,6 +139,14 @@
 - **Never skip exit on heavy losses.** The old logic skipped time-based exit when `value_ratio < 0.30` ("already lost too much, hold for recovery"). This is wrong — it converts a known loss into a guaranteed total loss. Always exit unhedged positions before resolution, regardless of current loss severity.
 - **Static allocation is a silent capital drain.** When losing strategies get the same order size as winners, the bot systematically transfers capital from profitable strategies to unprofitable ones. The allocation flip (fade_panic 30→50, losers 25→10) immediately improved capital efficiency.
 
+## Overnight Monitoring Lessons (Feb 9 02:00-05:15 UTC)
+
+- **Dead zone and time-remaining checks silently block late-game strategies.** `is_in_dead_zone(end_buffer=30)` and `MIN_TIME_REMAINING=30s` both prevent trades within 30s of market end. But sniper (T-120s) and fade_panic (T-120s) are designed to trade in the final 2 minutes. Symptom: strategies evaluate and find signals but risk manager rejects 100% after T-30s. Fix: add `_LATE_GAME_STRATEGIES` exemption in risk/manager.py. These strategies have their own hard stops at T-15s.
+- **Sniper vol estimation is 4-6x too low in quiet markets.** The 10-minute rolling spot window captures calm periods, but BTC/ETH can have regime changes near market close. sigma=0.000126 produced 99.95% win confidence, but actual vol was 6x higher (BTC reversed 0.19% in 74s). Fix: raise `sniper_vol_floor` from 0.0001 to 0.0005 and `sniper_vol_multiplier` from 2.0 to 3.0.
+- **`logger` vs `self._log` in class methods.** RiskManager's `adjust_size()` used `logger.warning()` but the class uses `self._log = get_logger("risk")`. This would crash at runtime when dust trades are rejected. Always verify the logger variable name when adding log calls to existing classes.
+- **Multi-strategy attribution bug.** When fade_panic and sniper both trade the same condition_id, Position stores a single `strategy` field. Resolution creates one trade_result attributed to whichever strategy opened the position first. Fix: `get_position_strategy_breakdown()` queries the trades table for per-strategy shares, and `_save_attributed_results()` splits the trade_result into per-strategy records.
+- **All strategies can go negative simultaneously.** Fade panic was the only profitable strategy (+$216) but crashed to -$172 overnight on XRP NO bets. With 31% win rate and symmetric payoffs ($64 avg win vs $64 avg loss), profitability is structurally impossible. Need either higher win rate or asymmetric payoff structure.
+
 ## Common Mistakes
 
 - **Heredoc in SSH:** Copy-pasting heredocs (`cat << 'EOF'`) over SSH often fails. Use multiple `printf` or `echo` commands instead.
