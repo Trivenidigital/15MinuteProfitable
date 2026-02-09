@@ -180,7 +180,10 @@ class ResolutionSniperStrategy(BaseStrategy):
             return None  # No movement — no directional edge
 
         # time_remaining in minutes for vol scaling
-        expected_move = sigma * math.sqrt(time_remaining / 60.0)
+        # Apply vol_multiplier to correct for fat tails and mean reversion
+        # in short-horizon crypto markets (raw CDF is overconfident)
+        vol_mult = self._settings.sniper_vol_multiplier
+        expected_move = sigma * vol_mult * math.sqrt(time_remaining / 60.0)
         if expected_move <= 0.0:
             return None
 
@@ -249,6 +252,15 @@ class ResolutionSniperStrategy(BaseStrategy):
             return None
 
         # 11. Price and profitability checks
+        if fill.vwap < self._settings.sniper_min_entry_price:
+            self._log.debug(
+                "sniper_fill_too_cheap",
+                market=market.slug,
+                vwap=round(fill.vwap, 4),
+                min_price=self._settings.sniper_min_entry_price,
+            )
+            return None
+
         if fill.vwap > self._settings.sniper_max_entry_price:
             self._log.debug(
                 "sniper_fill_too_expensive",
@@ -385,7 +397,8 @@ class ResolutionSniperStrategy(BaseStrategy):
             return False
 
         distance = abs(current_spot - open_price) / open_price
-        expected_move = sigma * math.sqrt(time_remaining / 60.0)
+        vol_mult = self._settings.sniper_vol_multiplier
+        expected_move = sigma * vol_mult * math.sqrt(time_remaining / 60.0)
         if expected_move <= 0:
             return False
 

@@ -458,6 +458,72 @@ class TradeDatabase:
         ).fetchone()
         return row[0] if row else 0
 
+    def get_position_strategy_breakdown(
+        self, condition_id: str
+    ) -> dict[str, dict[str, float]]:
+        """Get per-strategy share/cost breakdown for a condition_id.
+
+        Queries the ``trades`` table and groups by strategy, computing net
+        YES/NO shares and costs (BUY adds, SELL subtracts).
+
+        Returns a dict keyed by strategy name::
+
+            {
+                "fade_panic": {
+                    "yes_shares": 0.0, "no_shares": 700.0,
+                    "yes_cost": 0.0,   "no_cost": 103.0,
+                },
+                "resolution_sniper": {
+                    "yes_shares": 20.0, "no_shares": 0.0,
+                    "yes_cost": 3.40,   "no_cost": 0.0,
+                },
+            }
+
+        Returns an empty dict if no trades found for the condition.
+        """
+        rows = self._conn.execute(
+            "SELECT strategy, side, token_side, size, cost "
+            "FROM trades WHERE condition_id = ?",
+            (condition_id,),
+        ).fetchall()
+
+        if not rows:
+            return {}
+
+        breakdown: dict[str, dict[str, float]] = {}
+        for row in rows:
+            strat = row["strategy"]
+            if strat not in breakdown:
+                breakdown[strat] = {
+                    "yes_shares": 0.0,
+                    "no_shares": 0.0,
+                    "yes_cost": 0.0,
+                    "no_cost": 0.0,
+                }
+            entry = breakdown[strat]
+            side = row["side"]       # BUY or SELL
+            token = row["token_side"]  # YES or NO
+            size = float(row["size"])
+            cost = float(row["cost"])
+
+            if side == "BUY":
+                if token == "YES":
+                    entry["yes_shares"] += size
+                    entry["yes_cost"] += cost
+                else:
+                    entry["no_shares"] += size
+                    entry["no_cost"] += cost
+            else:
+                # SELL reduces position
+                if token == "YES":
+                    entry["yes_shares"] -= size
+                    entry["yes_cost"] -= cost
+                else:
+                    entry["no_shares"] -= size
+                    entry["no_cost"] -= cost
+
+        return breakdown
+
     # ------------------------------------------------------------------
     # Daily snapshots
     # ------------------------------------------------------------------

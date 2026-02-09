@@ -559,6 +559,7 @@ class StateManager:
             report: dict[str, Any] = {
                 "condition_id": cid,
                 "slug": pos.market.slug,
+                "asset": pos.market.asset,
                 "strategy": pos.strategy.value,
                 "was_hedged": pos.is_hedged,
                 "yes_shares": pos.yes_shares,

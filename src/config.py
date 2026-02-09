@@ -169,14 +169,16 @@ class Settings(BaseSettings):
     # Resolution Sniper Strategy Parameters
     enable_resolution_sniper: bool = True
     sniper_order_size: float = 30.0           # Must be >= 3 * MIN_TRADE_SIZE (3 tranches)
-    sniper_min_confidence: float = 0.90       # Min win probability to enter
+    sniper_min_confidence: float = 0.75       # Min win probability to enter (calibrated via vol_multiplier)
     sniper_window_seconds: float = 120.0      # Activate at T-120s
     sniper_hard_stop_seconds: float = 15.0    # Stop buying at T-15s
+    sniper_min_entry_price: float = 0.20      # Reject fills below this (0% win rate historically)
     sniper_max_entry_price: float = 0.97      # Reject fills above this
     sniper_exit_confidence_floor: float = 0.0 # Emergency exit threshold (0 = disabled)
     sniper_min_vol_data_points: int = 10      # Min data points for vol calc
     sniper_vol_floor: float = 0.0001          # Min sigma floor (0.01%/min)
     sniper_vol_window_seconds: int = 600      # Seconds of spot data for vol calc (10 min)
+    sniper_vol_multiplier: float = 2.0        # Inflate sigma to correct overconfident CDF (fat tails + mean reversion)
     sniper_momentum_window_seconds: int = 30  # Seconds of recent prices for momentum check
 
     # Fill quality guards

@@ -357,6 +357,59 @@
 
 <p>Chronological record of every parameter change. Newest entries at the top.</p>
 
+<!-- Experiment #17 -->
+<div class="timeline-entry kept">
+    <div class="timeline-date">2026-02-09 ~03:45 UTC &mdash; Experiment #17</div>
+    <div class="timeline-title">
+        3 Sniper Signal Quality Fixes: Entry Floor + Attribution + Vol Calibration
+        <span class="badge badge-kept">DEPLOYED</span>
+    </div>
+    <p><strong>Problem:</strong> Sniper reported 97%+ win probability but actual win rate was ~40%. Three root causes identified:</p>
+    <ol>
+        <li><strong>Entry price floor (fixed):</strong> Entries at price &lt; $0.20 had 0% win rate (10/10 losses). Added <code>sniper_min_entry_price=0.20</code> config guard. Entries at &ge; $0.50 had 70% win rate.</li>
+        <li><strong>Attribution bug (fixed):</strong> When multiple strategies (fade_panic + sniper) traded the same condition_id, the entire P&L was attributed to one strategy. Sniper&rsquo;s $106 &ldquo;loss&rdquo; was actually $3.40 sniper + $103 fade_panic. Now creates per-strategy <code>trade_result</code> records using trades-table breakdown.</li>
+        <li><strong>Vol calibration (fixed):</strong> Normal CDF model assumed random walk, but 15-min crypto has mean reversion + fat tails. Added <code>sniper_vol_multiplier=2.0</code> to inflate expected_move, reducing overconfident probabilities. Also lowered <code>sniper_min_confidence</code> from 0.90 to 0.75 (calibrated threshold).</li>
+    </ol>
+    <div class="experiment-metrics">
+        <div class="stat"><div class="stat-value green">0.20</div><div class="stat-label">sniper_min_entry_price (new)</div></div>
+        <div class="stat"><div class="stat-value green">2.0</div><div class="stat-label">sniper_vol_multiplier (new)</div></div>
+        <div class="stat"><div class="stat-value">0.75</div><div class="stat-label">sniper_min_confidence (was 0.90)</div></div>
+    </div>
+    <p><strong>Files changed:</strong> config.py, resolution_sniper.py, state.py, trade_db.py, main.py. 11 new tests (all pass, 942 total).</p>
+    <p><strong>Expected impact:</strong> Sniper enters only on high-quality signals (large moves, proper vol calibration). Attribution bug fix gives accurate per-strategy P&amp;L on the dashboard performance tables.</p>
+</div>
+
+<!-- Observation #16 -->
+<div class="timeline-entry pending">
+    <div class="timeline-date">2026-02-09 02:47&ndash;03:11 UTC &mdash; Observation #16</div>
+    <div class="timeline-title">
+        30-Minute Monitoring: Sniper Silent Rejection Bug Confirmed
+        <span class="badge badge-pending">INVESTIGATING</span>
+    </div>
+    <p><strong>Method:</strong> 3 health checks at 02:47, 02:58, and 03:08 UTC via SSH.</p>
+    <p><strong>Key finding &mdash; sniper execution silently blocked:</strong> Scanner found sniper opportunities with 97&ndash;100% win probability, logged <code>parallel_strategies_found</code>, but no <code>executing_parallel_strategy</code> followed. Risk checks all passed (no WARNING-level rejections). The rejection happens at DEBUG level via <code>opportunity_rejected</code> or <code>size_adjusted_to_zero</code>.</p>
+    <p><strong>Root cause theory:</strong> <code>BOT_SNIPER_ORDER_SIZE=10.0</code> sat at the exact <code>_MIN_TRADE_SIZE=10.0</code> boundary. The <code>AllocationManager</code> (with <code>_MIN_MULTIPLIER=0.1</code>) could reduce $10 &rarr; $1, which then gets rejected by risk manager as dust. Sniper order size has since been increased to $30.</p>
+    <p><strong>Trading activity:</strong> Zero trades during the 30-min window. Only fade_panic generated trades, and only during the last ~60s of each 15-min window. Bot auto-restarted twice (02:09 and 02:48 UTC).</p>
+    <p><strong>Total trades:</strong> 1,482 all-time. Last 10 trades all <code>fade_panic</code> strategy from 02:14&ndash;02:29 UTC cluster.</p>
+</div>
+
+<!-- Experiment #15 -->
+<div class="timeline-entry kept">
+    <div class="timeline-date">2026-02-09 01:45 UTC &mdash; Experiment #15</div>
+    <div class="timeline-title">
+        5x sizing increase for hedge positions + sniper order size bump
+        <span class="badge badge-kept">DEPLOYED</span>
+    </div>
+    <p><strong>Changes:</strong></p>
+    <div class="experiment-metrics">
+        <div class="stat"><div class="stat-value green">$50</div><div class="stat-label">ORDER_SIZE (was $10)</div></div>
+        <div class="stat"><div class="stat-value green">$50</div><div class="stat-label">ACCUMULATION_SIZE (was $10)</div></div>
+        <div class="stat"><div class="stat-value green">$30</div><div class="stat-label">SNIPER_ORDER_SIZE (was $10)</div></div>
+    </div>
+    <p><strong>Rationale:</strong> Fade_panic at $50 size generated a massive +$358 window (BTC +$285, ETH +$96). Higher sizing amplifies the proven edge. Sniper increased from $10 to $30 to prevent dust rejection by <code>AllocationManager</code>.</p>
+    <p><strong>Result so far:</strong> Fade_panic continues to perform well with larger sizing. Sniper execution needs further monitoring after the size increase.</p>
+</div>
+
 <!-- Experiment #14 -->
 <div class="timeline-entry kept">
     <div class="timeline-date">2026-02-09 01:14 UTC &mdash; Experiment #14</div>
@@ -957,10 +1010,10 @@
         <td>arb, asym, price_lag, maker_arb, dip_buyer, fade_panic, sniper (7 active)</td>
     </tr>
     <tr>
-        <td>2</td><td>2026-02-09</td><td>#11&ndash;#14</td><td>3 kept / 0 reverted</td>
-        <td>185 resolved</td><td>32% (60W/125L)</td>
+        <td>2</td><td>2026-02-09</td><td>#11&ndash;#16</td><td>5 kept / 0 reverted</td>
+        <td>1,482 total</td><td>~31%</td>
         <td class="red">-$396 (all-time)</td>
-        <td>Major overhaul: allocation flip, hedged-only asymmetric, dynamic allocation deployed.</td>
+        <td>Allocation flip, hedged-only asymmetric, dynamic allocation, 5x sizing. Sniper bug found &amp; partially fixed.</td>
     </tr>
 </table>
 
@@ -1097,6 +1150,7 @@
 <div class="card">
     <h4>Immediate (next 24h)</h4>
     <ul>
+        <li><strong>Verify sniper executes at $30 size</strong> &mdash; check for <code>executing_parallel_strategy strategy=resolution_sniper</code> in logs after next window</li>
         <li>Monitor dynamic allocation in action &mdash; check <code>allocation_changed</code> log events after 2+ hours of trading</li>
         <li>Verify hedged-only asymmetric reduces wipeout frequency &mdash; compare unhedged resolution losses before/after</li>
         <li>Monitor fade_panic performance at $50 size &mdash; ensure higher size doesn't degrade fill quality</li>
@@ -1119,6 +1173,7 @@
 <div class="card">
     <h4>Open Questions</h4>
     <ul>
+        <li>Is sniper now unblocked at $30 size, or is there a second silent rejection path?</li>
         <li>Will hedged-only mode kill asymmetric's trade volume? Both sides cheap simultaneously may be rare.</li>
         <li>Is fade_panic's edge sustainable at $50 size? 5 resolved trades is still too small for statistical confidence.</li>
         <li>Does dynamic allocation converge or oscillate? Need to observe multiplier stability over multiple recalculations.</li>
@@ -1130,7 +1185,7 @@
 
 <hr class="separator">
 <p class="muted" style="text-align: center; font-size: 0.8rem;">
-    This document is auto-maintained by the Claude analysis agent. Last updated: 2026-02-09 01:05 UTC.
+    This document is auto-maintained by the Claude analysis agent. Last updated: 2026-02-09 03:15 UTC.
 </p>
 
 </body>

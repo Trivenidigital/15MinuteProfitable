@@ -1416,6 +1416,96 @@ def _update_kelly_state(
         _log.warning("kelly_persist_failed", error=str(exc))
 
 
+def _save_attributed_results(
+    trade_db: TradeDatabase,
+    report: dict[str, object],
+) -> None:
+    """Save trade results with correct per-strategy attribution.
+
+    When multiple strategies traded the same condition_id, each strategy
+    gets its own trade_result record with correctly attributed shares,
+    investment, payout, and P&L — instead of lumping everything under
+    whichever strategy created the position first.
+    """
+    from src.utils.fees import WINNER_FEE_RATE
+
+    condition_id = str(report["condition_id"])
+    breakdown = trade_db.get_position_strategy_breakdown(condition_id)
+
+    # Fall back to single record if no trade data or only one strategy
+    if len(breakdown) <= 1:
+        strategy = str(report.get("strategy", ""))
+        # If breakdown has one entry, use its strategy (more accurate than
+        # the Position's strategy which may have been overwritten)
+        if len(breakdown) == 1:
+            strategy = next(iter(breakdown))
+        trade_db.save_trade_result(TradeResult(
+            timestamp=time.time(),
+            condition_id=condition_id,
+            market_slug=str(report.get("slug", "")),
+            asset=str(report.get("asset", "")),
+            strategy=strategy,
+            was_hedged=bool(report.get("was_hedged", False)),
+            yes_shares=float(report.get("yes_shares", 0.0)),
+            no_shares=float(report.get("no_shares", 0.0)),
+            investment=float(report.get("investment", 0.0)),
+            gross_payout=float(report.get("gross_payout", 0.0)),
+            net_profit=float(report.get("net_profit", 0.0)),
+            outcome=str(report.get("outcome", "")),
+        ))
+        return
+
+    # Multiple strategies contributed — split into per-strategy results
+    outcome = str(report.get("outcome", ""))
+    now = time.time()
+    slug = str(report.get("slug", ""))
+    asset = str(report.get("asset", ""))
+
+    for strat_name, shares in breakdown.items():
+        s_yes = max(shares["yes_shares"], 0.0)
+        s_no = max(shares["no_shares"], 0.0)
+        s_investment = max(shares["yes_cost"] + shares["no_cost"], 0.0)
+        s_hedged = s_yes > 0 and s_no > 0
+
+        # Compute per-strategy payout based on outcome
+        if outcome == "YES":
+            s_payout = s_yes * 1.0
+        elif outcome == "NO":
+            s_payout = s_no * 1.0
+        elif s_hedged:
+            # Hedged: guaranteed payout = min(yes, no) pairs
+            s_payout = min(s_yes, s_no) * 1.0
+        else:
+            # Unknown outcome: assume breakeven
+            s_payout = s_investment
+
+        raw_profit = s_payout - s_investment
+        winner_fee = WINNER_FEE_RATE * max(0.0, raw_profit)
+        s_net_profit = raw_profit - winner_fee
+
+        trade_db.save_trade_result(TradeResult(
+            timestamp=now,
+            condition_id=condition_id,
+            market_slug=slug,
+            asset=asset,
+            strategy=strat_name,
+            was_hedged=s_hedged,
+            yes_shares=s_yes,
+            no_shares=s_no,
+            investment=s_investment,
+            gross_payout=s_payout,
+            net_profit=s_net_profit,
+            outcome=outcome,
+        ))
+
+    _log.info(
+        "multi_strategy_attribution",
+        condition_id=condition_id,
+        strategies=list(breakdown.keys()),
+        slug=slug,
+    )
+
+
 async def _resolution_loop(
     state_manager: StateManager,
     spot_buffer: SpotBuffer | None = None,
@@ -1442,20 +1532,7 @@ async def _resolution_loop(
             if resolved:
                 if trade_db is not None:
                     for report in resolved:
-                        trade_db.save_trade_result(TradeResult(
-                            timestamp=time.time(),
-                            condition_id=report["condition_id"],
-                            market_slug=report.get("slug", ""),
-                            asset=report.get("asset", ""),
-                            strategy=report.get("strategy", ""),
-                            was_hedged=report.get("was_hedged", False),
-                            yes_shares=report.get("yes_shares", 0.0),
-                            no_shares=report.get("no_shares", 0.0),
-                            investment=report.get("investment", 0.0),
-                            gross_payout=report.get("gross_payout", 0.0),
-                            net_profit=report.get("net_profit", 0.0),
-                            outcome=report.get("outcome", ""),
-                        ))
+                        _save_attributed_results(trade_db, report)
                 # Persist Kelly inputs after each resolution batch
                 _update_kelly_state(trade_db, state_manager)
 

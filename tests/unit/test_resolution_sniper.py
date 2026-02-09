@@ -212,6 +212,7 @@ def settings() -> Settings:
         sniper_exit_confidence_floor=0.0,
         sniper_min_vol_data_points=10,
         sniper_vol_floor=0.0001,
+        sniper_vol_multiplier=1.0,  # disable calibration for unit tests
     )
 
 
@@ -728,6 +729,79 @@ class TestWinProbability:
     def test_zero_gives_half(self) -> None:
         """Zero z-score → 0.5 exactly."""
         assert _normal_cdf(0.0) == pytest.approx(0.5, abs=1e-6)
+
+
+# ---------------------------------------------------------------------------
+# Vol multiplier calibration
+# ---------------------------------------------------------------------------
+
+
+class TestVolMultiplier:
+    """Verify that sniper_vol_multiplier reduces overconfident probabilities."""
+
+    async def test_multiplier_reduces_confidence(
+        self,
+        spot_buffer: MockSpotBuffer,
+        book_manager: MockOrderBookManager,
+    ) -> None:
+        """Higher vol_multiplier should produce lower win_prob for same move."""
+        # Strategy with multiplier=1 (uncalibrated)
+        settings_raw = Settings(
+            private_key="0x" + "ab" * 32,  # type: ignore[arg-type]
+            sniper_order_size=150.0,
+            sniper_min_confidence=0.50,  # low threshold to allow both through
+            sniper_max_entry_price=0.97,
+            sniper_vol_multiplier=1.0,
+            sniper_min_vol_data_points=10,
+            sniper_vol_floor=0.0001,
+        )
+        strat_raw = ResolutionSniperStrategy(
+            settings=settings_raw,
+            book_manager=book_manager,  # type: ignore[arg-type]
+            spot_buffer=spot_buffer,  # type: ignore[arg-type]
+        )
+
+        # Strategy with multiplier=2 (calibrated)
+        settings_cal = Settings(
+            private_key="0x" + "ab" * 32,  # type: ignore[arg-type]
+            sniper_order_size=150.0,
+            sniper_min_confidence=0.50,
+            sniper_max_entry_price=0.97,
+            sniper_vol_multiplier=2.0,
+            sniper_min_vol_data_points=10,
+            sniper_vol_floor=0.0001,
+        )
+        strat_cal = ResolutionSniperStrategy(
+            settings=settings_cal,
+            book_manager=book_manager,  # type: ignore[arg-type]
+            spot_buffer=spot_buffer,  # type: ignore[arg-type]
+        )
+
+        market = _make_market(end_offset=100.0)
+        _setup_for_sniper(
+            spot_buffer, book_manager,
+            open_price=100000.0,
+            current_spot=103000.0,  # 3% move — strong enough for positive EV even calibrated
+            fill_vwap=0.85,
+            vol=0.0003,
+        )
+        strat_raw._opening_prices[market.condition_id] = (100000.0, time.time())
+        strat_cal._opening_prices[market.condition_id] = (100000.0, time.time())
+
+        result_raw = await strat_raw.evaluate(market)
+        result_cal = await strat_cal.evaluate(market)
+
+        assert result_raw is not None
+        assert result_cal is not None
+        # Calibrated model should report lower confidence
+        assert result_cal.confidence < result_raw.confidence
+
+    async def test_default_multiplier_is_2(self) -> None:
+        """Production default vol_multiplier should be 2.0."""
+        settings = Settings(
+            private_key="0x" + "ab" * 32,  # type: ignore[arg-type]
+        )
+        assert settings.sniper_vol_multiplier == pytest.approx(2.0)
 
 
 # ---------------------------------------------------------------------------

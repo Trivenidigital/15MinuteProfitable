@@ -405,6 +405,75 @@ class TestGetTradeResults:
         assert len(set(all_cids)) == 7
 
 
+class TestPositionStrategyBreakdown:
+    """Tests for get_position_strategy_breakdown — per-condition per-strategy splits."""
+
+    def test_empty(self, db: TradeDatabase) -> None:
+        result = db.get_position_strategy_breakdown("nonexistent")
+        assert result == {}
+
+    def test_single_strategy(self, db: TradeDatabase) -> None:
+        db.save_trade(_make_trade(
+            condition_id="cond_A", strategy="fade_panic",
+            side="BUY", token_side="NO", size=700.0, cost=103.0,
+        ))
+        breakdown = db.get_position_strategy_breakdown("cond_A")
+        assert len(breakdown) == 1
+        assert "fade_panic" in breakdown
+        assert breakdown["fade_panic"]["no_shares"] == pytest.approx(700.0)
+        assert breakdown["fade_panic"]["no_cost"] == pytest.approx(103.0)
+        assert breakdown["fade_panic"]["yes_shares"] == pytest.approx(0.0)
+
+    def test_multi_strategy(self, db: TradeDatabase) -> None:
+        """Reproduce the fade_panic + sniper collision."""
+        db.save_trade(_make_trade(
+            condition_id="cond_B", strategy="fade_panic",
+            side="BUY", token_side="NO", size=700.0, cost=103.0,
+            order_id="fp_1",
+        ))
+        db.save_trade(_make_trade(
+            condition_id="cond_B", strategy="resolution_sniper",
+            side="BUY", token_side="YES", size=20.0, cost=3.40,
+            order_id="sn_1",
+        ))
+        breakdown = db.get_position_strategy_breakdown("cond_B")
+        assert len(breakdown) == 2
+        # fade_panic: 700 NO shares, $103
+        assert breakdown["fade_panic"]["no_shares"] == pytest.approx(700.0)
+        assert breakdown["fade_panic"]["no_cost"] == pytest.approx(103.0)
+        assert breakdown["fade_panic"]["yes_shares"] == pytest.approx(0.0)
+        # sniper: 20 YES shares, $3.40
+        assert breakdown["resolution_sniper"]["yes_shares"] == pytest.approx(20.0)
+        assert breakdown["resolution_sniper"]["yes_cost"] == pytest.approx(3.40)
+        assert breakdown["resolution_sniper"]["no_shares"] == pytest.approx(0.0)
+
+    def test_sell_reduces_position(self, db: TradeDatabase) -> None:
+        db.save_trade(_make_trade(
+            condition_id="cond_C", strategy="price_lag",
+            side="BUY", token_side="YES", size=100.0, cost=50.0,
+            order_id="buy_1",
+        ))
+        db.save_trade(_make_trade(
+            condition_id="cond_C", strategy="price_lag",
+            side="SELL", token_side="YES", size=30.0, cost=18.0,
+            order_id="sell_1",
+        ))
+        breakdown = db.get_position_strategy_breakdown("cond_C")
+        assert breakdown["price_lag"]["yes_shares"] == pytest.approx(70.0)
+        assert breakdown["price_lag"]["yes_cost"] == pytest.approx(32.0)
+
+    def test_ignores_other_conditions(self, db: TradeDatabase) -> None:
+        db.save_trade(_make_trade(
+            condition_id="cond_X", strategy="arb", order_id="x1",
+        ))
+        db.save_trade(_make_trade(
+            condition_id="cond_Y", strategy="lag", order_id="y1",
+        ))
+        breakdown = db.get_position_strategy_breakdown("cond_X")
+        assert len(breakdown) == 1
+        assert "arb" in breakdown
+
+
 class TestGetTradeResultCount:
     def test_empty(self, db: TradeDatabase) -> None:
         assert db.get_trade_result_count() == 0
@@ -439,3 +508,163 @@ class TestDatabaseLifecycle:
         db.save_trade(_make_trade())
         assert db.get_trade_count() == 1
         db.close()
+
+
+# ---------------------------------------------------------------------------
+# Multi-strategy trade result attribution
+# ---------------------------------------------------------------------------
+
+
+class TestSaveAttributedResults:
+    """Test _save_attributed_results from main.py for multi-strategy positions."""
+
+    def test_single_strategy_fallback(self, db: TradeDatabase) -> None:
+        """Single-strategy position produces one trade_result."""
+        from src.main import _save_attributed_results
+
+        db.save_trade(_make_trade(
+            condition_id="cond_S", strategy="fade_panic",
+            side="BUY", token_side="NO", size=500.0, cost=80.0,
+        ))
+        report = {
+            "condition_id": "cond_S",
+            "slug": "btc-up-15m",
+            "asset": "BTC",
+            "strategy": "fade_panic",
+            "was_hedged": False,
+            "yes_shares": 0.0,
+            "no_shares": 500.0,
+            "investment": 80.0,
+            "gross_payout": 500.0,
+            "net_profit": 411.6,  # after 2% winner fee
+            "outcome": "NO",
+        }
+        _save_attributed_results(db, report)
+        results = db.get_trade_results()
+        assert len(results) == 1
+        assert results[0].strategy == "fade_panic"
+        assert results[0].investment == pytest.approx(80.0)
+
+    def test_multi_strategy_split(self, db: TradeDatabase) -> None:
+        """Multi-strategy position splits into per-strategy trade_results."""
+        from src.main import _save_attributed_results
+
+        # fade_panic bought 700 NO shares for $103
+        db.save_trade(_make_trade(
+            condition_id="cond_M", strategy="fade_panic",
+            side="BUY", token_side="NO", size=700.0, cost=103.0,
+            order_id="fp1",
+        ))
+        # sniper bought 20 YES shares for $3.40
+        db.save_trade(_make_trade(
+            condition_id="cond_M", strategy="resolution_sniper",
+            side="BUY", token_side="YES", size=20.0, cost=3.40,
+            order_id="sn1",
+        ))
+
+        # Market resolved: NO won
+        report = {
+            "condition_id": "cond_M",
+            "slug": "eth-up-15m",
+            "asset": "ETH",
+            "strategy": "fade_panic",  # wrong — Position strategy
+            "was_hedged": True,  # combined position looks hedged
+            "yes_shares": 20.0,
+            "no_shares": 700.0,
+            "investment": 106.4,
+            "gross_payout": 700.0,
+            "net_profit": 581.73,
+            "outcome": "NO",
+        }
+        _save_attributed_results(db, report)
+        results = db.get_trade_results()
+        assert len(results) == 2
+
+        by_strat = {r.strategy: r for r in results}
+
+        # fade_panic: 700 NO shares won → $700 payout - $103 investment
+        fp = by_strat["fade_panic"]
+        assert fp.no_shares == pytest.approx(700.0)
+        assert fp.yes_shares == pytest.approx(0.0)
+        assert fp.investment == pytest.approx(103.0)
+        assert fp.gross_payout == pytest.approx(700.0)
+        assert fp.was_hedged is False
+        assert fp.net_profit > 0  # profitable
+
+        # sniper: 20 YES shares lost → $0 payout - $3.40 investment
+        sn = by_strat["resolution_sniper"]
+        assert sn.yes_shares == pytest.approx(20.0)
+        assert sn.no_shares == pytest.approx(0.0)
+        assert sn.investment == pytest.approx(3.40)
+        assert sn.gross_payout == pytest.approx(0.0)
+        assert sn.was_hedged is False
+        assert sn.net_profit == pytest.approx(-3.40)
+
+    def test_multi_strategy_yes_wins(self, db: TradeDatabase) -> None:
+        """When YES wins, strategy with YES shares gets paid."""
+        from src.main import _save_attributed_results
+
+        db.save_trade(_make_trade(
+            condition_id="cond_Y", strategy="fade_panic",
+            side="BUY", token_side="NO", size=100.0, cost=15.0,
+            order_id="fp2",
+        ))
+        db.save_trade(_make_trade(
+            condition_id="cond_Y", strategy="resolution_sniper",
+            side="BUY", token_side="YES", size=50.0, cost=45.0,
+            order_id="sn2",
+        ))
+
+        report = {
+            "condition_id": "cond_Y",
+            "slug": "btc-up-15m",
+            "asset": "BTC",
+            "strategy": "resolution_sniper",
+            "was_hedged": True,
+            "yes_shares": 50.0,
+            "no_shares": 100.0,
+            "investment": 60.0,
+            "gross_payout": 50.0,
+            "net_profit": -10.0,
+            "outcome": "YES",
+        }
+        _save_attributed_results(db, report)
+        results = db.get_trade_results()
+        assert len(results) == 2
+
+        by_strat = {r.strategy: r for r in results}
+
+        # sniper had YES shares, YES won → payout $50
+        sn = by_strat["resolution_sniper"]
+        assert sn.gross_payout == pytest.approx(50.0)
+        assert sn.investment == pytest.approx(45.0)
+        assert sn.net_profit > 0  # small profit after winner fee
+
+        # fade_panic had NO shares, YES won → payout $0
+        fp = by_strat["fade_panic"]
+        assert fp.gross_payout == pytest.approx(0.0)
+        assert fp.investment == pytest.approx(15.0)
+        assert fp.net_profit == pytest.approx(-15.0)
+
+    def test_no_trades_in_db_falls_back(self, db: TradeDatabase) -> None:
+        """If no trades in DB for condition, saves report as-is."""
+        from src.main import _save_attributed_results
+
+        report = {
+            "condition_id": "cond_old",
+            "slug": "btc-up-15m",
+            "asset": "BTC",
+            "strategy": "arbitrage",
+            "was_hedged": True,
+            "yes_shares": 100.0,
+            "no_shares": 100.0,
+            "investment": 95.0,
+            "gross_payout": 100.0,
+            "net_profit": 5.0,
+            "outcome": "",
+        }
+        _save_attributed_results(db, report)
+        results = db.get_trade_results()
+        assert len(results) == 1
+        assert results[0].strategy == "arbitrage"
+        assert results[0].net_profit == pytest.approx(5.0)
