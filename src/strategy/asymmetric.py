@@ -361,7 +361,11 @@ class AsymmetricStrategy(BaseStrategy):
         if acc.completed:
             return False
 
-        # If market expires soon and we have unhedged accumulation, always exit
+        # If market expires soon and we have unhedged accumulation, exit —
+        # UNLESS require_hedge is False (intentional one-sided bets held to resolution).
+        if not self._settings.asymmetric_require_hedge:
+            return False
+
         remaining = time_remaining_seconds(market.end_time.timestamp())
         if remaining < self._settings.time_exit_seconds:
             if acc.yes_shares > 0 or acc.no_shares > 0:
