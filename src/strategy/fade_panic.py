@@ -58,6 +58,14 @@ class FadePanicStrategy(BaseStrategy):
     def strategy_type(self) -> StrategyType:
         return StrategyType.FADE_PANIC
 
+    def _maybe_invert(
+        self, direction: str, market: Market,
+    ) -> tuple[str, str]:
+        """Fade panic always trades original direction (no inversion)."""
+        if direction == "UP":
+            return direction, market.yes_token_id
+        return direction, market.no_token_id
+
     async def evaluate(self, market: Market) -> Opportunity | None:
         """Evaluate market for a panic-fading opportunity.
 

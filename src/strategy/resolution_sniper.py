@@ -112,6 +112,14 @@ class ResolutionSniperStrategy(BaseStrategy):
     def strategy_type(self) -> StrategyType:
         return StrategyType.RESOLUTION_SNIPER
 
+    def _maybe_invert(
+        self, direction: str, market: Market,
+    ) -> tuple[str, str]:
+        """Sniper always trades original direction (no inversion)."""
+        if direction == "UP":
+            return direction, market.yes_token_id
+        return direction, market.no_token_id
+
     # ------------------------------------------------------------------
     # evaluate
     # ------------------------------------------------------------------
