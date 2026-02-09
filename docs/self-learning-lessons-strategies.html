@@ -265,7 +265,7 @@
 <h2>3. Current Configuration State</h2>
 
 <p>
-    Current parameter values on the server. Updated 2026-02-09 17:35 UTC.
+    Current parameter values on the server. Updated 2026-02-09 18:27 UTC.
     <span class="badge badge-active">PERFORMANCE-BASED ALLOCATION</span> = sizes flipped to favor winners.
 </p>
 
@@ -376,6 +376,26 @@
 <h2>4. Experiment Timeline</h2>
 
 <p>Chronological record of every parameter change. Newest entries at the top.</p>
+
+<!-- Experiment #28 -->
+<div class="timeline-entry kept">
+    <div class="timeline-date">2026-02-09 ~18:27 UTC &mdash; Experiment #28</div>
+    <div class="timeline-title">
+        Fade Panic Hard Stop: 15s &rarr; 10s (More Aggressive Late-Game)
+        <span class="badge badge-kept">PARAM CHANGE</span>
+    </div>
+    <p><strong>Hypothesis:</strong> Lowering the hard stop from T-15s to T-10s lets fade_panic trade 5 more seconds at the most information-rich moment. Resolution uncertainty decreases exponentially in the final seconds &mdash; panic signals at T-12s are higher quality than at T-60s.</p>
+    <p><strong>Change:</strong> <code>fade_panic_hard_stop_seconds</code>: 15.0 &rarr; 10.0. Active window stays at 120s (T-120s to T-10s instead of T-120s to T-15s).</p>
+    <p><strong>Alternatives evaluated (documented in tasks/lessons.md):</strong></p>
+    <ul style="margin: 0.5rem 0 0.75rem 1.5rem; color: var(--text-muted); font-size: 0.9rem;">
+        <li><strong>Option 1 (90s window):</strong> Reduces false positives from early signals but loses 25% of opportunities. Not chosen &mdash; false positive source is odds quality, not timing.</li>
+        <li><strong>Option 2 (this change):</strong> Keeps full 120s odds history for signal quality + extends trading into the highest-conviction zone.</li>
+        <li><strong>Option 3 (60s window):</strong> Rejected &mdash; odds history starvation. At T-45s would only have 15s of recorded data, missing most panic buildups.</li>
+    </ul>
+    <p><strong>Risk:</strong> Slightly higher execution risk (less time for FOK fill before expiry). Mitigated by the 2s cooldown between cycles.</p>
+    <p><strong>Observable:</strong> Watch for fade_panic trades with <code>time_remaining &lt; 15.0</code> in metadata &mdash; these are the new entries enabled by this change.</p>
+    <p><strong>Status:</strong> Deployed 18:27 UTC.</p>
+</div>
 
 <!-- Experiment #27 -->
 <div class="timeline-entry kept">
@@ -1442,7 +1462,7 @@
 
 <hr class="separator">
 <p class="muted" style="text-align: center; font-size: 0.8rem;">
-    This document is auto-maintained by the Claude analysis agent. Last updated: 2026-02-09 17:35 UTC.
+    This document is auto-maintained by the Claude analysis agent. Last updated: 2026-02-09 18:27 UTC.
 </p>
 
 </body>
