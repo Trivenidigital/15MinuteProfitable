@@ -175,11 +175,11 @@
 
 <div class="grid-3">
     <div class="stat">
-        <div class="stat-value accent">21</div>
+        <div class="stat-value accent">22</div>
         <div class="stat-label">Experiments Run</div>
     </div>
     <div class="stat">
-        <div class="stat-value green">14</div>
+        <div class="stat-value green">15</div>
         <div class="stat-label">Changes Kept</div>
     </div>
     <div class="stat">
@@ -190,12 +190,12 @@
 
 <div class="grid">
     <div class="stat">
-        <div class="stat-value red">-$892</div>
-        <div class="stat-label">All-Time Sim P&amp;L (225 resolved)</div>
+        <div class="stat-value red">-$897</div>
+        <div class="stat-label">All-Time Sim P&amp;L (226 resolved)</div>
     </div>
     <div class="stat">
-        <div class="stat-value red">-$85</div>
-        <div class="stat-label">Fade Panic P&amp;L (tightened: 15% threshold, $25 size)</div>
+        <div class="stat-value red">31%</div>
+        <div class="stat-label">All-Time Win Rate (symmetric payoffs = structurally unprofitable)</div>
     </div>
 </div>
 
@@ -360,6 +360,38 @@
 <h2>4. Experiment Timeline</h2>
 
 <p>Chronological record of every parameter change. Newest entries at the top.</p>
+
+<!-- Experiment #22 -->
+<div class="timeline-entry kept">
+    <div class="timeline-date">2026-02-09 ~07:20 UTC &mdash; Experiment #22</div>
+    <div class="timeline-title">
+        Overnight Monitoring Final Analysis (5h20m observation)
+        <span class="badge badge-kept">ANALYSIS</span>
+    </div>
+    <h4>Overnight Session: 02:00&ndash;07:20 UTC (Feb 9)</h4>
+    <table>
+        <tr><th>Window</th><th>Trades</th><th>P&amp;L</th><th>Strategies</th><th>Notes</th></tr>
+        <tr><td>02:00</td><td>4</td><td class="red">-$35</td><td>asymmetric</td><td>Pre-deploy, hedged</td></tr>
+        <tr><td>02:15</td><td>3</td><td class="green">+$358</td><td>fade_panic</td><td>Pre-deploy win</td></tr>
+        <tr><td>02:30</td><td>1</td><td class="red">-$23</td><td>fade_panic</td><td></td></tr>
+        <tr><td>03:15</td><td>2</td><td class="red">-$139</td><td>fade_panic, sniper</td><td></td></tr>
+        <tr><td>03:30</td><td>3</td><td class="red">-$209</td><td>fade_panic, sniper</td><td>Pre-vol-fix sniper loss</td></tr>
+        <tr><td>04:00</td><td>3</td><td class="red">-$197</td><td>fade_panic, maker_arb</td><td></td></tr>
+        <tr><td>05:00</td><td>2</td><td class="red">-$291</td><td>fade_panic, sniper</td><td>sigma=0.000126 (6x underestimate)</td></tr>
+        <tr><td>05:15</td><td>2</td><td class="red">-$11</td><td>fade_panic, maker_arb</td><td>Vol fix deployed</td></tr>
+        <tr><td>05:45</td><td>3</td><td class="green">+$329</td><td>fade_panic, sniper, maker_arb</td><td>ETH DOWN WIN! Vol floor working</td></tr>
+        <tr><td>06:00</td><td>4</td><td class="red">-$227</td><td>fade_panic, maker_arb, sniper</td><td>SOL DOWN lost</td></tr>
+        <tr><td>06:15&ndash;07:00</td><td>0</td><td>$0</td><td>&mdash;</td><td>15% threshold filtering correctly</td></tr>
+        <tr><td>07:15</td><td>1</td><td class="red">-$5</td><td>sniper</td><td>SOL UP, calibrated sigma=0.000869</td></tr>
+    </table>
+    <h4>Key Findings</h4>
+    <ul>
+        <li><strong>Vol calibration works:</strong> Post-fix sniper probabilities (76.5%, 86.3%) are far more realistic than pre-fix (99.95%). The vol floor prevents overconfident CDF in quiet markets.</li>
+        <li><strong>Entry cap critical:</strong> Without max_entries cap, fade_panic accumulated $290+ unhedged in a single window. Capped at 5 * $25 = $125 max.</li>
+        <li><strong>15% threshold correctly filters:</strong> 5 consecutive quiet windows (06:15&ndash;07:00) with zero trades = no false signals.</li>
+        <li><strong>Structural issue:</strong> 31% WR with symmetric payoffs is unprofitable regardless of tuning. The bot needs either (a) WR &gt; 50% or (b) asymmetric payoffs (wins &gt; losses).</li>
+    </ul>
+</div>
 
 <!-- Experiment #21 -->
 <div class="timeline-entry kept">
@@ -1114,10 +1146,18 @@
         <td>arb, asym, price_lag, maker_arb, dip_buyer, fade_panic, sniper (7 active)</td>
     </tr>
     <tr>
-        <td>2</td><td>2026-02-09</td><td>#11&ndash;#19</td><td>8 kept / 0 reverted</td>
-        <td>216 resolved</td><td>~33%</td>
-        <td class="red">-$981 (all-time)</td>
-        <td>Overnight session (02:00&ndash;05:15 UTC): 5 bug fixes, 3 calibration changes. Dead zone bypass for late-game strategies (critical). Vol calibration 2x&rarr;3x + floor 5x. Attribution bug fixed. logger.warning NameError fixed. All strategies now losing.</td>
+        <td>2</td><td>2026-02-09</td><td>#11&ndash;#22</td><td>11 kept / 0 reverted</td>
+        <td>226 resolved (29 overnight)</td><td>31% all-time</td>
+        <td class="red">-$897 (all-time), -$451 overnight</td>
+        <td>
+            <strong>Overnight monitoring (02:00&ndash;07:20 UTC, 5h20m):</strong><br>
+            6 bug fixes deployed, 4 parameter calibrations.<br>
+            <strong>Key fixes:</strong> Dead zone bypass for late-game strategies. Vol calibration 2x&rarr;3x + floor 5x. logger.warning NameError. max_entries 50&rarr;5. fade_panic threshold 8%&rarr;15%, size $50&rarr;$25.<br>
+            <strong>Best window:</strong> 05:45 ETH DOWN +$329 (fade_panic + sniper).<br>
+            <strong>Worst window:</strong> 05:00 BTC UP -$291 (pre-vol-fix, sigma=0.000126).<br>
+            <strong>Strategy results overnight:</strong> fade_panic 14T/3W (-$301), sniper 6T/1W (-$111), maker_arb 5T/0W (-$4), asym 4T/3W (-$35).<br>
+            <strong>Structural finding:</strong> 31% WR with symmetric payoffs ($64 avg win/$64 avg loss) is unprofitable regardless of parameter tuning. Need either higher WR or asymmetric payoff structure.
+        </td>
     </tr>
 </table>
 
@@ -1305,7 +1345,7 @@
 
 <hr class="separator">
 <p class="muted" style="text-align: center; font-size: 0.8rem;">
-    This document is auto-maintained by the Claude analysis agent. Last updated: 2026-02-09 06:48 UTC.
+    This document is auto-maintained by the Claude analysis agent. Last updated: 2026-02-09 07:25 UTC.
 </p>
 
 </body>
