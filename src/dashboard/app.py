@@ -338,15 +338,16 @@ def create_app() -> FastAPI:
                 filtered = [t for t in strategy_trades if t.timestamp >= cutoff]
                 strategies[name][window_key] = compute_metrics(filtered)
 
-        # Group by asset
+        # Group by asset (label empty asset as "Unknown")
         assets: dict[str, dict] = {}
         asset_names = sorted({r.asset for r in results})
         for name in asset_names:
             asset_trades = [r for r in results if r.asset == name]
-            assets[name] = {}
+            display_name = name if name else "Unknown"
+            assets[display_name] = {}
             for window_key, cutoff in windows.items():
                 filtered = [t for t in asset_trades if t.timestamp >= cutoff]
-                assets[name][window_key] = compute_metrics(filtered)
+                assets[display_name][window_key] = compute_metrics(filtered)
 
         return JSONResponse({"strategies": strategies, "assets": assets})
 
