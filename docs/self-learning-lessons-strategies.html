@@ -190,12 +190,12 @@
 
 <div class="grid">
     <div class="stat">
-        <div class="stat-value red">-$981</div>
-        <div class="stat-label">All-Time Sim P&amp;L (216 resolved)</div>
+        <div class="stat-value red">-$892</div>
+        <div class="stat-label">All-Time Sim P&amp;L (225 resolved)</div>
     </div>
     <div class="stat">
-        <div class="stat-value red">-$172</div>
-        <div class="stat-label">Fade Panic P&amp;L (was +$216, crashed on XRP)</div>
+        <div class="stat-value red">-$85</div>
+        <div class="stat-label">Fade Panic P&amp;L (tightened: 15% threshold, $25 size)</div>
     </div>
 </div>
 
@@ -217,8 +217,8 @@
         <tr><th>Strategy</th><th>Type</th><th>Enabled</th><th>Base Size</th><th>Resolved Trades</th><th>P&amp;L</th><th>Notes</th></tr>
         <tr>
             <td><strong>Fade Panic</strong></td><td>Directional</td>
-            <td class="green">true</td><td class="green"><strong>$50</strong></td><td>15</td><td class="red">-$172</td>
-            <td>WAS profitable (+$216) but crashed overnight on XRP NO bets. 5W/10L. Dead zone fix now allows late-game execution.</td>
+            <td class="green">true</td><td class="red"><strong>$25</strong></td><td>19</td><td class="red">-$85</td>
+            <td>Tightened: threshold 8%&rarr;15%, size $50&rarr;$25, max entries 5. Still losing (31% WR) but smaller positions. 3 consecutive quiet windows after tightening.</td>
         </tr>
         <tr>
             <td><strong>Asymmetric</strong></td><td>Hedged-only</td>
@@ -227,8 +227,8 @@
         </tr>
         <tr>
             <td><strong>Resolution Sniper</strong></td><td>Directional</td>
-            <td class="green">true</td><td class="green"><strong>$30</strong></td><td>18</td><td class="red">-$119</td>
-            <td>6W/12L (33% WR). Vol calibration: multiplier raised 2.0&rarr;3.0, floor 0.0001&rarr;0.0005. Entry floor $0.20. Dead zone bypass added.</td>
+            <td class="green">true</td><td class="green"><strong>$30</strong></td><td>20</td><td class="red">-$113</td>
+            <td>7W/13L (35% WR). Vol calibration working: 76.5% confidence on ETH win (was 99.95%). Small positions keep losses manageable.</td>
         </tr>
         <tr>
             <td><strong>Price Lag</strong></td><td>Directional</td>
@@ -1305,7 +1305,7 @@
 
 <hr class="separator">
 <p class="muted" style="text-align: center; font-size: 0.8rem;">
-    This document is auto-maintained by the Claude analysis agent. Last updated: 2026-02-09 06:10 UTC.
+    This document is auto-maintained by the Claude analysis agent. Last updated: 2026-02-09 06:48 UTC.
 </p>
 
 </body>
