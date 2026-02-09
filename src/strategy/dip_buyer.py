@@ -299,14 +299,16 @@ class DipBuyerStrategy(BaseStrategy):
             )
             return True
 
-        # 2. Stop-loss
-        if pnl_pct <= -self._settings.dip_stop_loss_pct:
-            self._log.info(
-                "dip_stop_loss",
-                market=market.slug,
-                pnl_pct=round(pnl_pct * 100, 2),
-            )
-            return True
+        # 2. Stop-loss — skip for cheap tokens (single tick = huge % swing)
+        avg_price = cost_basis / max(position.yes_shares + position.no_shares, 1.0)
+        if avg_price >= self._settings.stop_loss_cheap_threshold:
+            if pnl_pct <= -self._settings.dip_stop_loss_pct:
+                self._log.info(
+                    "dip_stop_loss",
+                    market=market.slug,
+                    pnl_pct=round(pnl_pct * 100, 2),
+                )
+                return True
 
         # 3. Take-profit
         if pnl_pct >= self._settings.dip_take_profit_pct:
