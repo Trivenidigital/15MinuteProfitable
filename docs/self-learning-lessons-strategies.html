@@ -361,6 +361,47 @@
 
 <p>Chronological record of every parameter change. Newest entries at the top.</p>
 
+<!-- Experiment #25 -->
+<div class="timeline-entry kept">
+    <div class="timeline-date">2026-02-09 ~14:51 UTC &mdash; Experiment #25</div>
+    <div class="timeline-title">
+        Chainlink Oracle Price Filter for Fade Panic
+        <span class="badge badge-new">NEW CODE</span>
+    </div>
+    <p><strong>Hypothesis:</strong> Cross-validating Binance spot with Chainlink on-chain oracle will reject trades when spot data is stale/manipulated, improving fade_panic signal quality.</p>
+    <p><strong>Implementation:</strong> Lightweight Chainlink reader using raw JSON-RPC to Polygon (no web3 dependency). Queries BTC/USD, ETH/USD, XRP/USD aggregator contracts. SOL has no Chainlink feed on Polygon &mdash; filter passes gracefully.</p>
+    <p><strong>Config:</strong> <code>enable_chainlink_filter=True</code>, <code>chainlink_max_divergence_pct=0.003</code> (0.3%).</p>
+    <p><strong>Observable:</strong> Logs <code>oracle_price</code>, <code>oracle_divergence_pct</code> in trade metadata for post-hoc analysis.</p>
+    <p><strong>Before:</strong> No spot price validation beyond Binance &mdash; single source of truth.</p>
+    <p><strong>After:</strong> Dual-source validation. If Binance &gt;0.3% from Chainlink, trade rejected with <code>fade_panic_oracle_rejected</code>.</p>
+    <p><strong>Status:</strong> Deployed, awaiting first triggering window for validation.</p>
+</div>
+
+<!-- Experiment #24 -->
+<div class="timeline-entry kept">
+    <div class="timeline-date">2026-02-09 ~14:40 UTC &mdash; Experiment #24</div>
+    <div class="timeline-title">
+        Fix Zero-PnL Attribution Bug
+        <span class="badge badge-kept">BUG FIX</span>
+    </div>
+    <p><strong>Bug:</strong> When multiple strategies (fade_panic + sniper) traded the same condition_id, the combined position was hedged but individual strategy splits were unhedged. The hedged branch in <code>state.py</code> never set <code>report["outcome"]</code>, so the attribution code defaulted to <code>s_payout = s_investment</code> (fake breakeven). 10 trades affected with $0 P&amp;L and blank outcomes.</p>
+    <p><strong>Fix:</strong> (1) Always call <code>outcome_resolver</code> in the hedged branch and set <code>report["outcome"]</code>. (2) Changed fallback from fake breakeven to total loss (conservative). (3) Added warning log for unknown-outcome attribution.</p>
+    <p><strong>Verification:</strong> First post-fix window (14:45-15:00) shows correct outcomes: BTC fade_panic -$58.76 (outcome=YES), XRP fade_panic -$6.50 (outcome=YES). Zero zero-pnl bugs.</p>
+    <p><strong>Impact:</strong> P&amp;L is now accurately attributed per-strategy. The 10 historical zero-pnl trades likely contained real wins that were masked.</p>
+</div>
+
+<!-- Experiment #23 -->
+<div class="timeline-entry kept">
+    <div class="timeline-date">2026-02-09 ~13:30 UTC &mdash; Experiment #23</div>
+    <div class="timeline-title">
+        Tighten Asymmetric + Enable Divergence Scoring
+        <span class="badge badge-kept">KEPT</span>
+    </div>
+    <p><strong>Changes:</strong> (1) Asymmetric thresholds: yes_cheap &amp; no_cheap 0.42 &rarr; 0.35 (only enter on <em>very</em> cheap contracts). (2) Enabled KL divergence scoring for all strategies.</p>
+    <p><strong>Rationale:</strong> Asymmetric at 0.42 was losing. 0.35 restricts to deeper value entries. KL divergence adds information-theoretic signal to opportunity ranking.</p>
+    <p><strong>Test fix:</strong> 4 unit tests changed from exact metadata key match (<code>==</code>) to subset check (<code>&lt;=</code>) to accommodate new <code>kl_*</code> keys.</p>
+</div>
+
 <!-- Experiment #22 -->
 <div class="timeline-entry kept">
     <div class="timeline-date">2026-02-09 ~07:20 UTC &mdash; Experiment #22</div>
@@ -1310,42 +1351,42 @@
 <div class="card">
     <h4>Immediate (next 24h)</h4>
     <ul>
-        <li><strong>Verify sniper executes at $30 size</strong> &mdash; check for <code>executing_parallel_strategy strategy=resolution_sniper</code> in logs after next window</li>
-        <li>Monitor dynamic allocation in action &mdash; check <code>allocation_changed</code> log events after 2+ hours of trading</li>
-        <li>Verify hedged-only asymmetric reduces wipeout frequency &mdash; compare unhedged resolution losses before/after</li>
-        <li>Monitor fade_panic performance at $50 size &mdash; ensure higher size doesn't degrade fill quality</li>
-        <li>Watch for edge cases in dynamic allocation (e.g., one strategy scoring infinity, cold-start behavior)</li>
+        <li><strong>Validate Chainlink filter in production</strong> &mdash; check for <code>fade_panic_oracle_rejected</code> and <code>oracle_divergence_pct</code> in logs/metadata</li>
+        <li><strong>Verify zero-pnl attribution fix</strong> &mdash; <span class="badge badge-kept">DONE</span> first post-fix window (14:45-15:00) confirmed correct attribution</li>
+        <li>Monitor fade_panic at $50 size with oracle validation &mdash; does Chainlink filter improve WR?</li>
+        <li>Observe divergence scoring in trade metadata &mdash; do KL scores correlate with outcomes?</li>
+        <li>Watch for Chainlink RPC latency impact on evaluation cycle timing</li>
     </ul>
 </div>
 
 <div class="card">
     <h4>Short-term (this week)</h4>
     <ul>
-        <li>Accumulate 24h of data under new allocation regime for meaningful comparison</li>
-        <li>Enable <code>enable_cross_asset_strategy</code> &mdash; 4-asset wipeout risk confirms correlation is real and exploitable</li>
-        <li>Enable <code>enable_divergence_scoring</code> and observe KL scores in metadata</li>
+        <li><strong>Per-asset allocation:</strong> AllocationManager groups by strategy only; TradeResult has asset field that's unused. High-value enhancement.</li>
+        <li><strong>Kalshi cross-platform arb:</strong> Scan Kalshi for equivalent BTC up/down markets, arb between Kalshi and Polymarket</li>
+        <li><strong>CEX perp hedging:</strong> Hedge fade_panic directional risk with Binance futures short. Requires Binance Futures API integration.</li>
+        <li>Accumulate 48h of data under Chainlink filter + divergence scoring for meaningful comparison</li>
         <li>Consider per-asset filtering for asymmetric &mdash; BTC/ETH outperform SOL/XRP significantly</li>
-        <li>Investigate whether dip_buyer's trigger conditions are too strict (still 0 trades after 2 days)</li>
-        <li>If fade_panic continues to dominate, consider increasing its max_entry_price (currently $0.92)</li>
+        <li>If fade_panic WR improves with Chainlink, consider loosening <code>max_entry_price</code> from $0.92</li>
     </ul>
 </div>
 
 <div class="card">
     <h4>Open Questions</h4>
     <ul>
-        <li>Is sniper now unblocked at $30 size, or is there a second silent rejection path?</li>
-        <li>Will hedged-only mode kill asymmetric's trade volume? Both sides cheap simultaneously may be rare.</li>
-        <li>Is fade_panic's edge sustainable at $50 size? 5 resolved trades is still too small for statistical confidence.</li>
-        <li>Does dynamic allocation converge or oscillate? Need to observe multiplier stability over multiple recalculations.</li>
-        <li>Should price_lag be permanently removed or just kept disabled with low allocation?</li>
-        <li>Can early-exit logic be improved to capture more of the +$1,400 in early exit profits while avoiding resolution wipeouts?</li>
-        <li>Why do BTC/ETH asymmetric picks outperform SOL/XRP? Is it lower volatility = more predictable?</li>
+        <li>Does Chainlink oracle validation materially improve fade_panic WR? (Need 50+ trades to measure)</li>
+        <li>Is the 0.3% divergence threshold too tight or loose? (Observe rejection rate)</li>
+        <li>SOL has no Chainlink feed on Polygon &mdash; should we add CoinGecko/alternative as fallback?</li>
+        <li>The 10 historical zero-pnl trades: were any of them actually winners? (Lost data, can't recover)</li>
+        <li>Does dynamic allocation converge or oscillate? Need to observe multiplier stability.</li>
+        <li>Should price_lag be permanently disabled or kept with minimal allocation?</li>
+        <li>Will Kalshi integration be worthwhile? Need to check if they have equivalent 15-min markets.</li>
     </ul>
 </div>
 
 <hr class="separator">
 <p class="muted" style="text-align: center; font-size: 0.8rem;">
-    This document is auto-maintained by the Claude analysis agent. Last updated: 2026-02-09 07:25 UTC.
+    This document is auto-maintained by the Claude analysis agent. Last updated: 2026-02-09 15:05 UTC.
 </p>
 
 </body>

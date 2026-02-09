@@ -151,6 +151,14 @@
 - **Vol floor validation: post-fix probabilities are realistic.** After raising floor to 0.0005 and multiplier to 3.0: sniper reported 76.5% on ETH (won), 86.3% on SOL (lost). These are much more calibrated than 99.95% pre-fix. The floor prevents overconfident CDF in quiet markets.
 - **ETH is the only profitable asset overnight.** ETH: 2 trades, 100% WR, +$329. All other assets negative. This suggests potential asset-specific strategy filtering.
 
+## Afternoon Session Lessons (Feb 9 14:00-15:05 UTC)
+
+- **Zero-pnl attribution bug root cause.** When multi-strategy positions (e.g., fade_panic + sniper on same condition_id) are resolved, the combined position is `is_hedged=True` (both yes_shares > 0 and no_shares > 0). The hedged branch in `state.py` NEVER set `report["outcome"]`, only the unhedged branch did. When `_save_attributed_results()` split per-strategy with empty outcome, unhedged sub-positions got `s_payout = s_investment` (fake breakeven). Fix: Always call `outcome_resolver` in hedged branch and set outcome. Changed fallback from breakeven to total loss.
+- **Chainlink price feeds on Polygon: SOL is missing.** Only BTC/USD, ETH/USD, XRP/USD are available on Polygon mainnet. SOL/USD exists on Ethereum mainnet and Base but not Polygon. Design oracle filters to be permissive when feed is unavailable.
+- **Raw JSON-RPC for Chainlink saves a dependency.** Instead of adding web3.py (~30MB), a simple `eth_call` with ABI encoding reads `latestRoundData()` in 3 lines. Chainlink price feeds always use 8 decimals. The function selector for `latestRoundData()` is `0xfeaf968c`.
+- **Aggressive sizing amplifies losses.** $50/entry with 10 max entries produced -$67.88 in a single window (14:45-15:00). The 3.6:1 win/loss ratio observed at $25 may not hold at $50 if fill quality degrades at larger sizes.
+- **Attribution accuracy matters for learning.** 10 fake-breakeven trades masked real P&L data. When computing strategy performance metrics, any systematic attribution error compounds through allocation multipliers, leading to suboptimal capital allocation.
+
 ## Common Mistakes
 
 - **Heredoc in SSH:** Copy-pasting heredocs (`cat << 'EOF'`) over SSH often fails. Use multiple `printf` or `echo` commands instead.
