@@ -159,6 +159,37 @@
 - **Aggressive sizing amplifies losses.** $50/entry with 10 max entries produced -$67.88 in a single window (14:45-15:00). The 3.6:1 win/loss ratio observed at $25 may not hold at $50 if fill quality degrades at larger sizes.
 - **Attribution accuracy matters for learning.** 10 fake-breakeven trades masked real P&L data. When computing strategy performance metrics, any systematic attribution error compounds through allocation multipliers, leading to suboptimal capital allocation.
 
+## Fade Panic Window Tuning Options
+
+Three options were evaluated for making fade_panic more aggressive. Option #2 was chosen.
+
+### Option 1: Shrink window to 90s (compromise)
+- Change `fade_panic_window_seconds` from 120 to 90
+- **Pro:** Filters out noisier early signals (T-120 to T-90 often has weak panic signals)
+- **Pro:** Still 30s of odds history at the midpoint for shift detection
+- **Con:** Loses ~25% of opportunities from the first 30s of the current window
+- **When to use:** If false positives in the T-120 to T-90 range are the dominant loss pattern
+
+### Option 2: Keep 120s window + shrink hard stop to 10s (CHOSEN)
+- Change `fade_panic_hard_stop_seconds` from 15 to 10
+- **Pro:** Keeps full 120s odds history for signal quality
+- **Pro:** Buys 5 more seconds at the most information-rich moment (closer to resolution = higher conviction)
+- **Pro:** Resolution uncertainty decreases exponentially in the final seconds
+- **Con:** Slightly higher execution risk (less time for order to fill before expiry)
+- **When to use:** When signal detection is good but we're leaving money on the table by stopping too early
+
+### Option 3: Shrink window to 60s (aggressive filtering)
+- Change `fade_panic_window_seconds` from 120 to 60
+- **CRITICAL PROBLEM:** Odds history is only recorded when inside the active window. With 60s window + 60s odds_window, at T-45s you'd only have 15s of odds data — most panics build over 30-60s and would be missed
+- **Pro:** Only trades very late-game (higher probability of true panic)
+- **Pro:** Less time exposed before resolution
+- **Con:** Dramatically fewer opportunities due to odds history starvation
+- **Con:** Would need to also shrink `fade_panic_odds_window_seconds` to match
+- **When to use:** Only if you also restructure odds recording to happen outside the window (e.g., record always, gate execution only)
+
+### Key insight
+The window controls BOTH when the strategy activates AND when it records odds data. Shrinking the window doesn't just reduce the trading window — it starves the signal detector of historical data. The hard stop is a pure execution parameter with no signal-detection side effects.
+
 ## Common Mistakes
 
 - **Heredoc in SSH:** Copy-pasting heredocs (`cat << 'EOF'`) over SSH often fails. Use multiple `printf` or `echo` commands instead.
