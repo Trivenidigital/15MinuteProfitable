@@ -29,6 +29,8 @@ _VAULT_SECRET_FIELDS: dict[str, str] = {
     "discord_webhook_url": "discord_webhook_url",
     "dashboard_password": "dashboard_password",
     "funder": "funder",
+    "binance_futures_api_key": "binance_futures_api_key",
+    "binance_futures_api_secret": "binance_futures_api_secret",
 }
 
 
@@ -248,6 +250,15 @@ class Settings(BaseSettings):
     cross_asset_correlation_window: int = 3600
     cross_asset_min_divergence: float = 0.01
     cross_asset_order_size: float = 25.0
+
+    # CEX Perp Hedging (Binance Futures)
+    enable_cex_hedging: bool = False  # disabled by default, opt-in
+    binance_futures_api_key: SecretStr = SecretStr("")
+    binance_futures_api_secret: SecretStr = SecretStr("")
+    binance_futures_testnet: bool = True  # use testnet by default for safety
+    cex_hedge_ratio: float = 0.5  # hedge 50% of Polymarket notional
+    cex_hedge_leverage: int = 1  # no leverage amplification
+    cex_hedgeable_strategies: str = "fade_panic,resolution_sniper"  # comma-separated
 
     # Dynamic allocation
     enable_dynamic_allocation: bool = False

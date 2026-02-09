@@ -81,6 +81,7 @@ async def _strategy_loop(
     strategies: list[BaseStrategy] | None = None,
     decision_logger: DecisionLogger | None = None,
     allocation_manager: AllocationManager | None = None,
+    hedge_manager: object | None = None,
 ) -> None:
     """Continuously scan all active markets for opportunities.
 
@@ -116,6 +117,7 @@ async def _strategy_loop(
                 decision_logger=decision_logger,
                 cycle_id=cycle_id,
                 allocation_manager=allocation_manager,
+                hedge_manager=hedge_manager,
             )
         else:
             # Normal mode: scan all, log, then pick best
@@ -170,6 +172,7 @@ async def _strategy_loop(
                         rate_limiter=rate_limiter,
                         settings=settings,
                         strategies=strategies or [],
+                        hedge_manager=hedge_manager,
                     )
                     if decision_logger:
                         decision_logger.log_execution(
@@ -205,6 +208,7 @@ async def _execute_parallel_strategies(
     decision_logger: DecisionLogger | None = None,
     cycle_id: int = 0,
     allocation_manager: AllocationManager | None = None,
+    hedge_manager: object | None = None,
 ) -> None:
     """Execute the best opportunity from each strategy type (A/B test mode).
 
@@ -277,6 +281,7 @@ async def _execute_parallel_strategies(
                 rate_limiter=rate_limiter,
                 settings=settings,
                 strategies=strategies,
+                hedge_manager=hedge_manager,
             )
             if decision_logger:
                 decision_logger.log_execution(cycle_id, opp, success=True)
@@ -295,6 +300,7 @@ async def _execute_opportunity(
     rate_limiter: RateLimiter,
     settings: Settings,
     strategies: list[BaseStrategy] | None = None,
+    hedge_manager: object | None = None,
 ) -> None:
     """Build orders, acquire rate limit tokens, and execute.
 
@@ -324,6 +330,7 @@ async def _execute_opportunity(
         await _execute_directional_trade(
             opp, adjusted_size, executor, state_manager,
             risk_manager, rate_limiter, settings,
+            hedge_manager=hedge_manager,
         )
 
 
@@ -583,6 +590,7 @@ async def _execute_directional_trade(
     risk_manager: RiskManager,
     rate_limiter: RateLimiter,
     settings: Settings,
+    hedge_manager: object | None = None,
 ) -> None:
     """Execute a single-leg directional trade (price-lag, etc.)."""
     market = opp.market
@@ -626,6 +634,21 @@ async def _execute_directional_trade(
         await state_manager.record_trade(opp, [result])
         if result.status in (OrderStatus.FILLED, OrderStatus.PARTIALLY_FILLED):
             risk_manager.record_execution_success(market.condition_id)
+            # Open CEX perp hedge if configured
+            if hedge_manager is not None and result.status == OrderStatus.FILLED:
+                try:
+                    hedge_result = await hedge_manager.hedge_trade(opp, result)
+                    if hedge_result:
+                        _log.info(
+                            "cex_hedge_opened",
+                            symbol=hedge_result.symbol,
+                            side=hedge_result.side,
+                            qty=hedge_result.quantity,
+                            avg_price=hedge_result.avg_price,
+                        )
+                except Exception as hedge_exc:
+                    _log.error("cex_hedge_failed", error=str(hedge_exc))
+                    # Hedge failure is non-fatal — Polymarket trade already executed
         else:
             risk_manager.record_execution_failure()
         _log.info(
@@ -1033,6 +1056,7 @@ async def _exit_check_loop(
     book_manager: OrderBookManager,
     trade_db: TradeDatabase | None = None,
     interval: float = 2.0,
+    hedge_manager: object | None = None,
 ) -> None:
     """Fast loop to check if directional positions should be exited.
 
@@ -1066,6 +1090,7 @@ async def _exit_check_loop(
                     await _execute_exit(
                         position, market, executor, state_manager,
                         rate_limiter, settings, book_manager, trade_db,
+                        hedge_manager=hedge_manager,
                     )
         except Exception as exc:
             _log.error("exit_check_error", error=str(exc))
@@ -1085,6 +1110,7 @@ async def _execute_exit(
     settings: Settings,
     book_manager: OrderBookManager,
     trade_db: TradeDatabase | None = None,
+    hedge_manager: object | None = None,
 ) -> None:
     """Sell all shares in a directional position."""
     orders = []
@@ -1151,6 +1177,26 @@ async def _execute_exit(
             state_manager.close_position(market.condition_id, payout_per_share)
         except KeyError:
             pass  # Already closed by resolution loop
+
+        # Close CEX hedge if one exists for this position
+        if hedge_manager is not None:
+            try:
+                close_result = await hedge_manager.close_hedge_for_position(
+                    market.condition_id,
+                )
+                if close_result:
+                    _log.info(
+                        "cex_hedge_closed_on_exit",
+                        condition_id=market.condition_id,
+                        symbol=close_result.symbol,
+                        status=close_result.status,
+                    )
+            except Exception as hedge_exc:
+                _log.error(
+                    "cex_hedge_close_failed",
+                    condition_id=market.condition_id,
+                    error=str(hedge_exc),
+                )
 
         # Persist early exit as a trade_result so it appears on the dashboard
         if trade_db is not None:
@@ -1524,6 +1570,7 @@ async def _resolution_loop(
     spot_buffer: SpotBuffer | None = None,
     trade_db: TradeDatabase | None = None,
     interval: float = 15.0,
+    hedge_manager: object | None = None,
 ) -> None:
     """Periodically check for and resolve expired positions.
 
@@ -1546,6 +1593,25 @@ async def _resolution_loop(
                 if trade_db is not None:
                     for report in resolved:
                         _save_attributed_results(trade_db, report)
+                # Close CEX hedges for resolved positions
+                if hedge_manager is not None:
+                    for report in resolved:
+                        cid = str(report["condition_id"])
+                        try:
+                            close_result = await hedge_manager.close_hedge_for_position(cid)
+                            if close_result:
+                                _log.info(
+                                    "cex_hedge_closed_on_resolution",
+                                    condition_id=cid,
+                                    symbol=close_result.symbol,
+                                    status=close_result.status,
+                                )
+                        except Exception as hedge_exc:
+                            _log.error(
+                                "cex_hedge_close_failed",
+                                condition_id=cid,
+                                error=str(hedge_exc),
+                            )
                 # Persist Kelly inputs after each resolution batch
                 _update_kelly_state(trade_db, state_manager)
 
@@ -2012,6 +2078,29 @@ async def _run_bot(settings: Settings, pid_lock: PidLock) -> None:
         allocation_manager = AllocationManager(settings, trade_db)
         _log.info("dynamic_allocation_enabled")
 
+    # CEX perp hedging (Binance Futures)
+    hedge_manager: HedgeManager | None = None
+    if settings.enable_cex_hedging:
+        from src.execution.binance_futures import BinanceFuturesClient
+        from src.execution.hedge_manager import HedgeManager
+
+        binance_futures_client = BinanceFuturesClient(
+            api_key=settings.binance_futures_api_key.get_secret_value(),
+            api_secret=settings.binance_futures_api_secret.get_secret_value(),
+            testnet=settings.binance_futures_testnet,
+        )
+        await binance_futures_client.set_leverage(
+            "BTCUSDT", settings.cex_hedge_leverage,
+        )
+        hedge_manager = HedgeManager(
+            settings, binance_futures_client, state_manager, spot_buffer,
+        )
+        _log.info(
+            "cex_hedging_enabled",
+            testnet=settings.binance_futures_testnet,
+            hedge_ratio=settings.cex_hedge_ratio,
+        )
+
     strategy_task = asyncio.create_task(
         _strategy_loop(
             market_manager=market_manager,
@@ -2024,6 +2113,7 @@ async def _run_bot(settings: Settings, pid_lock: PidLock) -> None:
             strategies=strategies,
             decision_logger=decision_logger,
             allocation_manager=allocation_manager,
+            hedge_manager=hedge_manager,
         ),
     )
 
@@ -2063,6 +2153,7 @@ async def _run_bot(settings: Settings, pid_lock: PidLock) -> None:
             book_manager=book_manager,
             trade_db=trade_db,
             interval=2.0,
+            hedge_manager=hedge_manager,
         ),
     )
 
@@ -2083,6 +2174,7 @@ async def _run_bot(settings: Settings, pid_lock: PidLock) -> None:
             spot_buffer=spot_buffer,
             trade_db=trade_db,
             interval=15.0,  # Check every 15 seconds
+            hedge_manager=hedge_manager,
         ),
     )
 
@@ -2197,8 +2289,10 @@ async def _run_bot(settings: Settings, pid_lock: PidLock) -> None:
         except asyncio.TimeoutError:
             ws.cancel()
 
-    # Close HTTP clients and trade database
+    # Close HTTP clients, Binance Futures, and trade database
     await discovery.close()
+    if hedge_manager is not None and hasattr(hedge_manager, '_client'):
+        await hedge_manager._client.close()
     if trade_db is not None:
         trade_db.close()
 
