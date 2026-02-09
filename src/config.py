@@ -169,6 +169,7 @@ class Settings(BaseSettings):
     fade_panic_order_size: float = 50.0        # Doubled back — 35% WR at 15% threshold with 3.6:1 win/loss ratio is profitable
     fade_panic_max_entry_price: float = 0.92   # Don't buy above this price
     fade_panic_spot_vs_open_max_change: float = 0.003  # 0.3% max spot move from window open
+    fade_panic_max_per_market: float = 10.0  # Max $ per market (anti-spam)
 
     # Resolution Sniper Strategy Parameters
     enable_resolution_sniper: bool = True

@@ -199,16 +199,19 @@ async def _strategy_loop(
 def _resolve_strategy_conflicts(
     best_per_strategy: dict[StrategyType, object],
 ) -> dict[StrategyType, object]:
-    """Remove conflicting opportunities where strategies bet opposite sides of the same market.
+    """Allow only one directional strategy per market (highest confidence wins).
 
-    Groups opportunities by condition_id, detects opposite 'direction' metadata,
-    and keeps only the highest-confidence one.  Strategies without 'direction'
-    metadata (arbitrage, asymmetric, maker_arb) are never suppressed.
+    When multiple strategies target the same condition_id, keeps only the
+    highest-confidence one — regardless of whether they agree or disagree on
+    direction.  This prevents both same-direction pileups (compounding losses)
+    and opposite-direction fee drains.
+
+    Strategies without 'direction' metadata (arbitrage, asymmetric, maker_arb)
+    are never suppressed.
     """
     from collections import defaultdict
 
     # Group directional opportunities by condition_id
-    # key: condition_id -> list of (strategy_type, opportunity)
     by_market: dict[str, list[tuple[StrategyType, object]]] = defaultdict(list)
 
     for strat_type, opp in best_per_strategy.items():
@@ -223,20 +226,11 @@ def _resolve_strategy_conflicts(
         if len(entries) < 2:
             continue
 
-        # Check for opposite directions
-        directions: dict[str, list[tuple[StrategyType, object]]] = defaultdict(list)
-        for strat_type, opp in entries:
-            directions[opp.metadata["direction"]].append((strat_type, opp))
+        # Multiple strategies on same market — keep only highest confidence
+        entries.sort(key=lambda x: x[1].confidence, reverse=True)
 
-        if len(directions) < 2:
-            continue  # all same direction — no conflict
-
-        # Conflict detected: keep only the highest-confidence opportunity
-        all_entries = [item for group in directions.values() for item in group]
-        all_entries.sort(key=lambda x: x[1].confidence, reverse=True)
-
-        winner_strat, winner_opp = all_entries[0]
-        for strat_type, opp in all_entries[1:]:
+        winner_strat, winner_opp = entries[0]
+        for strat_type, opp in entries[1:]:
             suppressed.add(strat_type)
             _log.warning(
                 "strategy_conflict_suppressed",

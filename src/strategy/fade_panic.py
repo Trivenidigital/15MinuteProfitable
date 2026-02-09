@@ -49,6 +49,8 @@ class FadePanicStrategy(BaseStrategy):
         self._odds_history: dict[str, deque[tuple[float, float]]] = {}
         # condition_id -> (open_price, capture_timestamp)
         self._window_open_prices: dict[str, tuple[float, float]] = {}
+        # condition_id -> total $ invested (prevents machine-gunning)
+        self._market_investment: dict[str, float] = {}
 
     @property
     def name(self) -> str:
@@ -87,6 +89,12 @@ class FadePanicStrategy(BaseStrategy):
         if time_remaining < self._settings.fade_panic_hard_stop_seconds:
             return None
 
+        # Per-market position cap — prevent machine-gunning
+        cid = market.condition_id
+        invested = self._market_investment.get(cid, 0.0)
+        if invested >= self._settings.fade_panic_max_per_market:
+            return None
+
         # Staleness check
         if self._is_book_stale(market.yes_token_id) or self._is_book_stale(
             market.no_token_id
@@ -99,7 +107,6 @@ class FadePanicStrategy(BaseStrategy):
             return None
 
         current_yes_ask = yes_book.best_ask
-        cid = market.condition_id
 
         if cid not in self._odds_history:
             self._odds_history[cid] = deque(maxlen=500)
@@ -323,6 +330,9 @@ class FadePanicStrategy(BaseStrategy):
             },
         )
 
+        # Track investment for per-market cap
+        self._market_investment[cid] = invested + fill.vwap * size
+
         self._log.info(
             "fade_panic_opportunity",
             market=market.slug,
@@ -332,6 +342,7 @@ class FadePanicStrategy(BaseStrategy):
             win_prob=round(win_prob, 4),
             expected_profit=round(expected_profit, 4),
             time_remaining=round(time_remaining, 1),
+            market_invested=round(invested + fill.vwap * size, 2),
         )
 
         return opp
@@ -347,6 +358,7 @@ class FadePanicStrategy(BaseStrategy):
         """Remove odds tracking state for an expired market."""
         self._odds_history.pop(condition_id, None)
         self._window_open_prices.pop(condition_id, None)
+        self._market_investment.pop(condition_id, None)
 
     # ------------------------------------------------------------------
     # Internal helpers
