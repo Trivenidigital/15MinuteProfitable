@@ -578,24 +578,32 @@ class StateManager:
                 unpaired_yes = pos.yes_shares - paired_shares
                 unpaired_no = pos.no_shares - paired_shares
 
-                # For unpaired shares, assume 50/50 for paper trading
-                if unpaired_yes > 0 or unpaired_no > 0:
-                    # Use resolver if available, else assume loss
-                    if outcome_resolver is not None:
-                        payout_rate = outcome_resolver(pos)
-                        if payout_rate is not None:
-                            if payout_rate > 0.5:  # YES won
-                                gross_payout += unpaired_yes * 1.0
-                            else:  # NO won
-                                gross_payout += unpaired_no * 1.0
-                    else:
-                        # Conservative: assume unpaired shares lost
+                # Always determine outcome for per-strategy attribution
+                # (multi-strategy positions need outcome to split P&L correctly)
+                if outcome_resolver is not None:
+                    payout_rate = outcome_resolver(pos)
+                    if payout_rate is not None:
+                        report["outcome"] = "YES" if payout_rate > 0.5 else "NO"
+                        # Add unpaired share payouts
+                        if unpaired_yes > 0 and payout_rate > 0.5:
+                            gross_payout += unpaired_yes * 1.0
+                        elif unpaired_no > 0 and payout_rate <= 0.5:
+                            gross_payout += unpaired_no * 1.0
+                    elif unpaired_yes > 0 or unpaired_no > 0:
                         logger.warning(
-                            "unpaired_shares_in_hedged_position",
+                            "unpaired_shares_no_outcome",
                             condition_id=cid,
                             unpaired_yes=unpaired_yes,
                             unpaired_no=unpaired_no,
                         )
+                elif unpaired_yes > 0 or unpaired_no > 0:
+                    # Conservative: assume unpaired shares lost
+                    logger.warning(
+                        "unpaired_shares_in_hedged_position",
+                        condition_id=cid,
+                        unpaired_yes=unpaired_yes,
+                        unpaired_no=unpaired_no,
+                    )
 
                 raw_profit = gross_payout - pos.total_investment
 

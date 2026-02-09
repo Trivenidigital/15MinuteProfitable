@@ -1476,8 +1476,17 @@ def _save_attributed_results(
             # Hedged: guaranteed payout = min(yes, no) pairs
             s_payout = min(s_yes, s_no) * 1.0
         else:
-            # Unknown outcome: assume breakeven
-            s_payout = s_investment
+            # Unknown outcome for unhedged strategy: assume total loss
+            # (better to show real losses than mask them with fake breakeven)
+            s_payout = 0.0
+            _log.warning(
+                "attribution_unknown_outcome",
+                strategy=strat_name,
+                condition_id=condition_id,
+                yes_shares=s_yes,
+                no_shares=s_no,
+                investment=s_investment,
+            )
 
         raw_profit = s_payout - s_investment
         winner_fee = WINNER_FEE_RATE * max(0.0, raw_profit)
