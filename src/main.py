@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import signal
 import time
+from datetime import datetime, timezone
 
 from src.config import Settings
 from src.core.models import OrderStatus, Position, Side, StrategyType, TradeOrder
@@ -67,6 +68,60 @@ _alerts: AlertDispatcher | None = None
 
 
 # ---------------------------------------------------------------------------
+# Time-based strategy schedule
+# ---------------------------------------------------------------------------
+
+_last_schedule_period: str | None = None  # track for transition logging
+
+
+def _filter_strategies_by_schedule(
+    strategies: list[BaseStrategy],
+    settings: Settings,
+) -> list[BaseStrategy]:
+    """Filter strategies based on time-of-day schedule.
+
+    When ``enable_strategy_schedule`` is True, only strategies whose name
+    appears in the current period's allowed list are returned.  Logs a
+    message on period transitions (day ↔ night).
+    """
+    global _last_schedule_period
+
+    if not settings.enable_strategy_schedule:
+        return strategies
+
+    now = datetime.now(tz=timezone.utc)
+    hour = now.hour
+
+    day_start = settings.schedule_day_start_utc
+    night_start = settings.schedule_night_start_utc
+
+    # Determine if current hour is in "day" period (handles midnight wrap)
+    if day_start < night_start:
+        is_day = day_start <= hour < night_start
+    else:
+        # Wraps around midnight: e.g., day=13, night=1
+        is_day = hour >= day_start or hour < night_start
+
+    if is_day:
+        period = "day"
+        allowed = {s.strip() for s in settings.schedule_day_strategies.split(",")}
+    else:
+        period = "night"
+        allowed = {s.strip() for s in settings.schedule_night_strategies.split(",")}
+
+    if period != _last_schedule_period:
+        _log.info(
+            "strategy_schedule_switch",
+            period=period,
+            allowed_strategies=sorted(allowed),
+            utc_hour=hour,
+        )
+        _last_schedule_period = period
+
+    return [s for s in strategies if s.name in allowed]
+
+
+# ---------------------------------------------------------------------------
 # Strategy evaluation loop (multi-market via MarketScanner)
 # ---------------------------------------------------------------------------
 
@@ -101,6 +156,12 @@ async def _strategy_loop(
     while _shutdown_event is not None and not _shutdown_event.is_set():
         markets = market_manager.active_markets
         cycle_id = decision_logger.next_cycle() if decision_logger else 0
+
+        # Apply time-based strategy schedule filter
+        active_strategies = _filter_strategies_by_schedule(
+            strategies or [], settings,
+        )
+        scanner._strategies = active_strategies
 
         if not markets:
             _log.debug("no_active_markets")

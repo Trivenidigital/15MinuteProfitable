@@ -220,6 +220,13 @@ class Settings(BaseSettings):
     # Signal Inversion (contrarian paper test)
     invert_signals: bool = False  # Flip all directional signals: YES→NO, NO→YES
 
+    # Time-Based Strategy Schedule (rotate strategies by time of day)
+    enable_strategy_schedule: bool = False
+    schedule_day_start_utc: int = 13     # 8 AM EST → 13:00 UTC
+    schedule_night_start_utc: int = 1    # 8 PM EST → 01:00 UTC
+    schedule_day_strategies: str = "price_lag"       # comma-separated strategy names
+    schedule_night_strategies: str = "fade_panic"    # comma-separated strategy names
+
     # Simulation
     dry_run: bool = False
     sim_balance: float = 1000.0
