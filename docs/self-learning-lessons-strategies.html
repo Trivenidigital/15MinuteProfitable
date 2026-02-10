@@ -285,7 +285,8 @@
         <tr><td><code>enable_dynamic_allocation</code></td><td class="green"><strong>true</strong></td><td>N/A (new)</td><td>Feb 9 01:14 (auto-rebalance)</td></tr>
         <tr><td><code>enable_cross_asset_strategy</code></td><td class="red">false</td><td>N/A (new)</td><td>Feb 8 (created)</td></tr>
         <tr><td><code>enable_divergence_scoring</code></td><td class="green"><strong>true</strong></td><td>N/A (new)</td><td>Feb 9 (enabled)</td></tr>
-        <tr><td><code>invert_signals</code></td><td class="green"><strong>true</strong></td><td>N/A (new)</td><td>Feb 9 18:44 (contrarian paper test)</td></tr>
+        <tr><td><code>invert_signals</code></td><td class="red"><strong>false</strong></td><td>true</td><td>Feb 10 17:03 (disabled global, replaced by per-strategy)</td></tr>
+        <tr><td><code>invert_sniper</code></td><td class="green"><strong>true</strong></td><td>N/A (new)</td><td>Feb 10 17:03 (per-strategy contrarian for resolution_sniper)</td></tr>
         <tr><td><code>enable_alpha_signals</code></td><td class="green"><strong>true</strong></td><td>N/A (new)</td><td>Feb 10 04:55 (funding rate, OI, vol regime)</td></tr>
     </table>
 </div>
@@ -381,6 +382,23 @@
 <h2>4. Experiment Timeline</h2>
 
 <p>Chronological record of every parameter change. Newest entries at the top.</p>
+
+<!-- Experiment #37 -->
+<div class="timeline-entry kept">
+    <div class="timeline-date">2026-02-10 17:03 UTC &mdash; Experiment #37</div>
+    <div class="timeline-title">
+        Per-Strategy Inversion: Resolution Sniper Contrarian Mode
+    </div>
+    <p><strong>Hypothesis:</strong> Resolution sniper has a 30.1% win rate and -$185.97 lifetime P&L. If its signal detection is consistently wrong, inverting it (buying NO when signal says UP) should flip it to ~70% win rate and become profitable.</p>
+    <p><strong>Changes:</strong></p>
+    <ul>
+        <li><strong>Code:</strong> Added <code>invert_sniper: bool</code> config flag. Resolution sniper's <code>_maybe_invert()</code> now checks this per-strategy flag instead of always following original direction.</li>
+        <li><strong>Config:</strong> <code>BOT_INVERT_SNIPER=true</code> (new), <code>BOT_INVERT_SIGNALS=false</code> (disabled global — no other strategy was using it anyway since all override <code>_maybe_invert</code>)</li>
+    </ul>
+    <p><strong>Rationale:</strong> The global <code>invert_signals</code> flag was set to <code>true</code> but ALL strategies (dip_buyer, fade_panic, price_lag, resolution_sniper) override <code>_maybe_invert()</code> to ignore it. It was effectively dead code. Per-strategy inversion is cleaner and only affects the target strategy.</p>
+    <p><strong>Monitoring:</strong> Watch sniper trades over next 2-4 hours. If inverted sniper win rate is significantly above 50%, the signal detection is valid but was pointing the wrong way.</p>
+    <p><strong>Verdict:</strong> <span class="muted">Pending &mdash; collecting data</span></p>
+</div>
 
 <!-- Experiment #36 -->
 <div class="timeline-entry kept">
@@ -1632,7 +1650,7 @@
 
 <hr class="separator">
 <p class="muted" style="text-align: center; font-size: 0.8rem;">
-    This document is auto-maintained by the Claude analysis agent. Last updated: 2026-02-10 16:42 UTC.
+    This document is auto-maintained by the Claude analysis agent. Last updated: 2026-02-10 17:03 UTC.
 </p>
 
 </body>
