@@ -271,6 +271,10 @@ class DipBuyerStrategy(BaseStrategy):
         if cost_basis <= 0:
             return False
 
+        # Skip early exit for small positions — hold to resolution
+        if cost_basis < 10.0:
+            return False
+
         # Compute current value
         current_value = 0.0
         if position.yes_shares > 0:
