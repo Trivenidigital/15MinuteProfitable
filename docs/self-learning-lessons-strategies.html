@@ -273,14 +273,14 @@
     <h4>Strategy Enables &amp; Modes</h4>
     <table>
         <tr><th>Parameter</th><th>Current Value</th><th>Pre-Sprint Baseline</th><th>Last Changed</th></tr>
-        <tr><td><code>enable_arbitrage</code></td><td class="green">true</td><td>true</td><td>&mdash;</td></tr>
-        <tr><td><code>enable_price_lag</code></td><td class="green"><strong>true</strong></td><td>false</td><td>Feb 9 18:44 (re-enabled for inversion test)</td></tr>
+        <tr><td><code>enable_arbitrage</code></td><td class="red"><strong>false</strong></td><td>true</td><td>Feb 10 17:56 (Exp #40: radical simplification)</td></tr>
+        <tr><td><code>enable_price_lag</code></td><td class="green"><strong>true</strong></td><td>false</td><td>Feb 9 18:44 (ONLY strategy remaining)</td></tr>
         <tr><td><code>enable_asymmetric</code></td><td class="red"><strong>false</strong></td><td>true</td><td>Feb 10 16:40 (disabled: -$972 lifetime)</td></tr>
         <tr><td><code>asymmetric_require_hedge</code></td><td class="green"><strong>true</strong></td><td>N/A (new)</td><td>Feb 9 01:00 (forced hedging)</td></tr>
-        <tr><td><code>enable_maker_arbitrage</code></td><td class="green">true</td><td>false</td><td>Feb 7</td></tr>
-        <tr><td><code>enable_dip_buyer</code></td><td class="green">true</td><td>N/A (new)</td><td>Feb 8 ~18:00</td></tr>
-        <tr><td><code>enable_fade_panic</code></td><td class="green">true</td><td>N/A (new)</td><td>Feb 8 ~18:00</td></tr>
-        <tr><td><code>enable_resolution_sniper</code></td><td class="green">true</td><td>false</td><td>Feb 8 21:20</td></tr>
+        <tr><td><code>enable_maker_arbitrage</code></td><td class="red"><strong>false</strong></td><td>false</td><td>Feb 10 17:56 (Exp #40: disabled)</td></tr>
+        <tr><td><code>enable_dip_buyer</code></td><td class="red"><strong>false</strong></td><td>N/A (new)</td><td>Feb 10 17:56 (Exp #40: disabled)</td></tr>
+        <tr><td><code>enable_fade_panic</code></td><td class="red"><strong>false</strong></td><td>N/A (new)</td><td>Feb 10 17:56 (Exp #40: -$1,433 lifetime)</td></tr>
+        <tr><td><code>enable_resolution_sniper</code></td><td class="red"><strong>false</strong></td><td>false</td><td>Feb 10 17:56 (Exp #40: -$540 lifetime)</td></tr>
         <tr><td><code>enable_parallel_strategies</code></td><td class="green">true</td><td>false</td><td>Feb 8 ~18:00</td></tr>
         <tr><td><code>enable_dynamic_allocation</code></td><td class="green"><strong>true</strong></td><td>N/A (new)</td><td>Feb 9 01:14 (auto-rebalance)</td></tr>
         <tr><td><code>enable_cross_asset_strategy</code></td><td class="red">false</td><td>N/A (new)</td><td>Feb 8 (created)</td></tr>
@@ -383,6 +383,25 @@
 <h2>4. Experiment Timeline</h2>
 
 <p>Chronological record of every parameter change. Newest entries at the top.</p>
+
+<!-- Experiment #40 -->
+<div class="timeline-entry kept" style="border-left-color: #ef4444;">
+    <div class="timeline-date">2026-02-10 17:56 UTC &mdash; Experiment #40</div>
+    <div class="timeline-title">
+        RADICAL SIMPLIFICATION: Price-Lag Only, BTC+ETH Only
+    </div>
+    <p><strong>Context:</strong> Full 8-day audit of 654 resolved positions: <strong>-$2,549.94 total P&L</strong>. Taker fees account for 58.5% of losses ($1,492.67). No strategy is consistently profitable. SOL (-$1,571) and XRP (-$1,015) bleed across ALL strategies.</p>
+    <p><strong>Key finding:</strong> <code>price_lag</code> is the only strategy that would be profitable as a maker (+$174.61 hypothetical). It has the best risk-adjusted WR (40.5%) and BTC+price_lag alone was +$255.</p>
+    <p><strong>Changes:</strong></p>
+    <ul>
+        <li><strong>Disabled:</strong> arbitrage, maker_arbitrage, dip_buyer, fade_panic (-$1,433!), resolution_sniper (-$540)</li>
+        <li><strong>Kept:</strong> price_lag only</li>
+        <li><strong>Markets:</strong> <code>["BTC","ETH"]</code> &mdash; dropped SOL (-$1,571 all-time) and XRP (-$1,015 all-time)</li>
+    </ul>
+    <p><strong>Goal:</strong> Stop the bleeding immediately. Reduce from 6 strategies &times; 4 assets = 24 attack surfaces down to 1 &times; 2 = 2. Then evaluate if maker orders (Option B) can unlock real profitability.</p>
+    <p><strong>Next step:</strong> If price_lag on BTC+ETH stabilizes near breakeven as taker, begin implementing maker order support to capture the +$174 maker edge.</p>
+    <p><strong>Verdict:</strong> <span class="muted">Pending &mdash; collecting data</span></p>
+</div>
 
 <!-- Experiment #39 -->
 <div class="timeline-entry kept">
@@ -1679,7 +1698,7 @@
 
 <hr class="separator">
 <p class="muted" style="text-align: center; font-size: 0.8rem;">
-    This document is auto-maintained by the Claude analysis agent. Last updated: 2026-02-10 17:40 UTC.
+    This document is auto-maintained by the Claude analysis agent. Last updated: 2026-02-10 17:56 UTC.
 </p>
 
 </body>
