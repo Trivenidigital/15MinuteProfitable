@@ -915,12 +915,12 @@ class TestSmartStopLoss:
         for _ in range(5):
             assert strategy.should_exit(position, market) is False
 
-    def test_time_decay_last_third_disables_stop_loss(
+    def test_time_decay_last_third_immediate_stop_loss(
         self,
         strategy: PriceLagStrategy,
         book_manager: MockOrderBookManager,
     ) -> None:
-        """In last third of market, stop-loss is disabled entirely."""
+        """In last third of market, stop-loss uses 2x threshold with no confirmation."""
         # progress ~= 700/900 = 0.778 (last third)
         market = _make_market(start_offset=-700.0, end_offset=200.0)
         position = Position(
@@ -929,11 +929,27 @@ class TestSmartStopLoss:
             yes_cost_basis=23.0,
             strategy=StrategyType.PRICE_LAG,
         )
-        # pnl_pct = -30% — huge loss but we're in last third
+        # pnl_pct = -30% — exceeds 16% (2x 8%) threshold → immediate exit
         book_manager.yes_book = _make_orderbook("YES_TOKEN", best_bid=0.322)
+        assert strategy.should_exit(position, market) is True
 
-        for _ in range(5):
-            assert strategy.should_exit(position, market) is False
+    def test_time_decay_last_third_within_threshold_no_exit(
+        self,
+        strategy: PriceLagStrategy,
+        book_manager: MockOrderBookManager,
+    ) -> None:
+        """In last third, loss within 2x threshold does not trigger exit."""
+        # progress ~= 700/900 = 0.778 (last third)
+        market = _make_market(start_offset=-700.0, end_offset=200.0)
+        position = Position(
+            market=market,
+            yes_shares=50.0,
+            yes_cost_basis=23.0,
+            strategy=StrategyType.PRICE_LAG,
+        )
+        # pnl_pct = (50*0.42 - 23)/23 = (21 - 23)/23 = -8.7% — within 16% threshold
+        book_manager.yes_book = _make_orderbook("YES_TOKEN", best_bid=0.42)
+        assert strategy.should_exit(position, market) is False
 
     def test_time_decay_disabled_uses_flat_threshold(
         self,

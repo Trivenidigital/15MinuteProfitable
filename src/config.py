@@ -123,6 +123,11 @@ class Settings(BaseSettings):
     stop_loss_cheap_threshold: float = 0.10  # no stop-loss for contracts < $0.10 avg price
     stop_loss_confirmations: int = 3  # consecutive triggers before exit (6s at 2s interval)
 
+    # Trailing take-profit
+    trailing_tp_enabled: bool = True
+    trailing_tp_pct: float = 0.05            # Exit when P&L drops 5% from peak
+    trailing_tp_activation_pct: float = 0.03  # Only activate after 3% unrealized gain
+
     # TA Momentum Filter (for price-lag)
     lag_enable_ta_filter: bool = True        # Master toggle for TA filter
     lag_ema_short_periods: int = 10          # Fast EMA periods

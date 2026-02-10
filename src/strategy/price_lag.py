@@ -65,6 +65,7 @@ class PriceLagStrategy(BaseStrategy):
         self._consecutive_signals: dict[str, int] = {}  # condition_id -> count
         self._last_signal_direction: dict[str, str] = {}  # condition_id -> "UP"/"DOWN"
         self._stop_loss_counts: dict[str, int] = {}  # condition_id -> consecutive trigger count
+        self._peak_pnl: dict[str, float] = {}  # condition_id -> highest pnl_pct seen
         # Divergence exit tracking
         self._entry_kl: dict[str, float] = {}  # condition_id -> entry KL divergence
         self._entry_direction: dict[str, str] = {}  # condition_id -> "UP"/"DOWN"
@@ -415,6 +416,27 @@ class PriceLagStrategy(BaseStrategy):
             self._stop_loss_counts.pop(cid, None)
             return True
 
+        # 2b. Trailing take-profit (active in ALL phases including last third)
+        if self._settings.trailing_tp_enabled:
+            peak = self._peak_pnl.get(cid, 0.0)
+            if pnl_pct > peak:
+                self._peak_pnl[cid] = pnl_pct
+                peak = pnl_pct
+
+            if peak >= self._settings.trailing_tp_activation_pct:
+                drawdown_from_peak = peak - pnl_pct
+                if drawdown_from_peak >= self._settings.trailing_tp_pct:
+                    self._log.info(
+                        "trailing_tp_triggered",
+                        market=market.slug,
+                        peak_pnl_pct=round(peak * 100, 2),
+                        current_pnl_pct=round(pnl_pct * 100, 2),
+                        drawdown_from_peak=round(drawdown_from_peak * 100, 2),
+                    )
+                    self._stop_loss_counts.pop(cid, None)
+                    self._peak_pnl.pop(cid, None)
+                    return True
+
         # 3. Dynamic take-profit
         # Time-based curve: early → take profit quickly, late → let it ride to resolution
         duration = end_ts - start_ts
@@ -511,16 +533,13 @@ class PriceLagStrategy(BaseStrategy):
         else:
             progress = 1.0
 
+        skip_confirmation = False
         if self._settings.stop_loss_time_decay:
             if progress >= 2 / 3:
-                # Last third: disable stop-loss entirely
-                self._log.info(
-                    "stop_loss_disabled_late_market",
-                    market=market.slug,
-                    progress=round(progress, 2),
-                )
-                self._stop_loss_counts.pop(cid, None)
-                return False
+                # Last third: keep SL active with doubled threshold, but skip
+                # confirmation (exit immediately since time is running out)
+                effective_threshold = self._settings.stop_loss_pct * 2
+                skip_confirmation = True
             elif progress >= 1 / 3:
                 # Middle third: double the threshold (wider)
                 effective_threshold = self._settings.stop_loss_pct * 2
@@ -532,6 +551,18 @@ class PriceLagStrategy(BaseStrategy):
 
         # Check if loss exceeds effective threshold
         if pnl_pct <= -effective_threshold:
+            if skip_confirmation:
+                # Last third: exit immediately, no confirmation wait
+                self._log.info(
+                    "stop_loss_triggered",
+                    market=market.slug,
+                    pnl_pct=round(pnl_pct * 100, 2),
+                    confirmations=1,
+                    effective_threshold=round(effective_threshold * 100, 2),
+                    skip_confirmation=True,
+                )
+                return True
+
             # Step C: Confirmation counter
             count = self._stop_loss_counts.get(cid, 0) + 1
             self._stop_loss_counts[cid] = count
@@ -564,6 +595,7 @@ class PriceLagStrategy(BaseStrategy):
         self._consecutive_signals.pop(condition_id, None)
         self._last_signal_direction.pop(condition_id, None)
         self._stop_loss_counts.pop(condition_id, None)
+        self._peak_pnl.pop(condition_id, None)
         self._entry_kl.pop(condition_id, None)
         self._entry_direction.pop(condition_id, None)
 
