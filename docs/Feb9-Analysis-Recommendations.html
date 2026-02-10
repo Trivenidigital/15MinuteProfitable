@@ -53,7 +53,7 @@
 <h1>Feb 9, 2026 - Bot Analysis &amp; Recommendations</h1>
 
 <div class="update-banner">
-  <strong>Monitoring Window:</strong> 17:00 UTC - 01:00 UTC (8 hours) | <strong>Last Updated:</strong> <span id="last-update">2026-02-10 16:42 UTC</span>
+  <strong>Monitoring Window:</strong> 17:00 UTC - 01:00 UTC (8 hours) | <strong>Last Updated:</strong> <span id="last-update">2026-02-10 ~18:15 UTC</span>
   <br><em>This document is updated progressively during the monitoring window.</em>
 </div>
 
@@ -458,16 +458,16 @@
 <!-- ============================================ -->
 
 <div class="update-banner" style="background: rgba(63,185,80,0.1); border-color: var(--green); margin-bottom: 20px;">
-  <strong class="green">STATUS UPDATE &mdash; Feb 10, 16:42 UTC</strong><br>
-  All-time data analysis (Feb 7-10, 1400+ trades) confirmed Feb 9 patterns held over 3 days. Actions taken in Experiment #36:
+  <strong class="green">STATUS UPDATE &mdash; Feb 10, ~18:15 UTC</strong><br>
+  Full 8-day audit (654 positions, $26,718 invested, -$2,550 P&amp;L) led to radical simplification in Experiment #40:
   <ul style="text-align:left; margin-top:8px; padding-left:20px;">
-    <li><strong class="green">R1:</strong> Entry cap implemented (Exp #8: 50&rarr;5, then #33: per-strategy caps, then #35: max_entries_per_strategy_per_market=5)</li>
-    <li><strong class="green">R3:</strong> Min entry price floor added at $0.10 (Exp #7), sniper raised to $0.30 (Exp #36)</li>
-    <li><strong class="green">R12:</strong> Asymmetric DISABLED &mdash; -$972 lifetime, 43.9% WR, no asset profitable (Exp #36)</li>
-    <li><strong class="green">R13:</strong> External alpha DEPLOYED &mdash; funding rate, OI delta, vol regime from Binance Futures (Exp #34)</li>
-    <li><strong class="green">R15:</strong> Kelly criterion integrated into risk manager (implemented Feb 8)</li>
-    <li><strong class="yellow">fade_panic:</strong> Tightened filters &mdash; odds shift 0.06&rarr;0.15, spot max change 0.002&rarr;0.0005 (Exp #36)</li>
-    <li><strong class="yellow">dip_buyer:</strong> Scaled up 100&rarr;250 shares &mdash; only profitable strategy at +$27.94 lifetime (Exp #36)</li>
+    <li><strong class="green">Exp #36:</strong> Initial tuning &mdash; asymmetric disabled, sniper/fade tightened, dip_buyer scaled</li>
+    <li><strong class="red">Exp #37:</strong> Sniper inversion tested &mdash; FAILED, reverted in Exp #38</li>
+    <li><strong class="green">Exp #39:</strong> Sniper overhaul &mdash; vol_floor 0.002, vol_mult 8.0, min_entry 0.60, max_tranches 1</li>
+    <li><strong class="green">Exp #40 (CURRENT):</strong> RADICAL SIMPLIFICATION &mdash; price_lag ONLY, BTC+ETH ONLY</li>
+    <li><strong>Key finding:</strong> Taker fees ($1,493) = 58.5% of total losses. price_lag +$174 hypothetical as maker.</li>
+    <li><strong>Key finding:</strong> SOL (-$1,571) + XRP (-$1,015) = 100%+ of all losses. Removed.</li>
+    <li><strong>All strategies except price_lag DISABLED.</strong> Next step: convert price_lag to maker orders.</li>
   </ul>
 </div>
 

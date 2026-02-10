@@ -595,8 +595,12 @@
   <h3>Immediate Actions (Parameter Changes Only)</h3>
 
   <div class="update-banner" style="background: rgba(63,185,80,0.1); border-color: #3fb950; margin-bottom: 15px;">
-    <strong class="green">ACTIONS DEPLOYED &mdash; Experiment #36, Feb 10 16:40 UTC</strong><br>
-    All-time analysis (1400+ trades, Feb 7-10) confirmed the 8-hour patterns held over 3 days. Approved recommendations #1, #3, #4 implemented. #2 kept as-is per user decision.
+    <strong class="green">ACTIONS DEPLOYED &mdash; Experiments #36-#40, Feb 10</strong><br>
+    All-time analysis (1400+ trades, Feb 7-10) confirmed the 8-hour patterns held over 3 days.<br>
+    <strong>Exp #36:</strong> Initial tuning (asymmetric disabled, sniper/fade tightened, dip_buyer scaled).<br>
+    <strong>Exp #37:</strong> Sniper inversion tested &mdash; FAILED (contrarian mode didn't help).<br>
+    <strong>Exp #39:</strong> Sniper overhaul (vol_floor 0.002, vol_mult 8.0, min_entry 0.60, max_tranches 1).<br>
+    <strong>Exp #40 (CURRENT):</strong> Radical simplification &mdash; price_lag ONLY, BTC+ETH ONLY. All other strategies disabled.
   </div>
 
   <div class="finding positive">
@@ -694,30 +698,37 @@ BOT_FADE_PANIC_SPOT_MAX_CHANGE=0.0005     # was 0.002 (Exp #29b)</div>
 <!-- ============================================================ -->
 
 <div class="card">
-  <h4>Active Configuration on Server (as of Exp #36, Feb 10 16:40 UTC)</h4>
+  <h4>Active Configuration on Server (as of Exp #40, Feb 10 ~18:15 UTC)</h4>
   <pre>
-# === Strategy Enables ===
-BOT_ENABLE_PRICE_LAG=true          # Kept (user decision, monitoring)
-BOT_ENABLE_RESOLUTION_SNIPER=true  # Kept but nerfed (min entry $0.30)
-BOT_ENABLE_FADE_PANIC=true         # Kept with tight filters (0.15 odds shift)
-BOT_ENABLE_DIP_BUYER=true          # Scaled up to 250 shares
-BOT_ENABLE_ARBITRAGE=true          # No trades (spreads too wide)
-BOT_ENABLE_ASYMMETRIC=false        # DISABLED (Exp #36: -$972 lifetime)
-BOT_ENABLE_MAKER_ARBITRAGE=true    # No fills (monitoring)
-BOT_INVERT_SIGNALS=true            # Contrarian mode
+# === Strategy Enables (RADICAL SIMPLIFICATION — Exp #40) ===
+BOT_ENABLE_PRICE_LAG=true          # ONLY active strategy
+BOT_ENABLE_RESOLUTION_SNIPER=false # DISABLED (Exp #40)
+BOT_ENABLE_FADE_PANIC=false        # DISABLED (Exp #40)
+BOT_ENABLE_DIP_BUYER=false         # DISABLED (Exp #40)
+BOT_ENABLE_ARBITRAGE=false         # DISABLED (Exp #40)
+BOT_ENABLE_ASYMMETRIC=false        # DISABLED (Exp #36)
+BOT_ENABLE_MAKER_ARBITRAGE=false   # DISABLED (Exp #40)
+BOT_INVERT_SIGNALS=false           # Original direction
+BOT_INVERT_SNIPER=false            # Original direction
 
-# === Sizing (Performance-Based) ===
+# === Markets (Reduced) ===
+BOT_MARKETS=["BTC","ETH"]          # SOL/XRP removed (100%+ of losses)
+
+# === Sizing ===
 BOT_ORDER_SIZE=25.0
 BOT_SNIPER_ORDER_SIZE=100.0
-BOT_DIP_ORDER_SIZE=250             # Scaled 2.5x (only profitable strategy)
+BOT_DIP_ORDER_SIZE=250
 BOT_FADE_PANIC_ORDER_SIZE=50
 BOT_MAX_ENTRIES_PER_MARKET=20
 BOT_MAX_ENTRIES_PER_STRATEGY_PER_MARKET=5
 
-# === Risk / Filters ===
-BOT_SNIPER_MIN_ENTRY_PRICE=0.30    # Raised from 0.05 (Exp #36)
-BOT_FADE_PANIC_ODDS_SHIFT_THRESHOLD=0.15  # Restored tight default
-BOT_FADE_PANIC_SPOT_MAX_CHANGE=0.0005     # Restored tight default
+# === Risk / Filters (Sniper params from Exp #39, inactive but preserved) ===
+BOT_SNIPER_MIN_ENTRY_PRICE=0.60    # Raised from 0.30 (Exp #39)
+BOT_SNIPER_VOL_FLOOR=0.002         # Raised from 0.0005 (Exp #39)
+BOT_SNIPER_VOL_MULTIPLIER=8.0      # Raised from 3.0 (Exp #39)
+BOT_SNIPER_MAX_TRANCHES=1          # Single entry only (Exp #39)
+BOT_FADE_PANIC_ODDS_SHIFT_THRESHOLD=0.15
+BOT_FADE_PANIC_SPOT_MAX_CHANGE=0.0005
 BOT_MAX_POSITION_PER_MARKET=600.0
 BOT_MAX_TOTAL_POSITION=2000.0
 BOT_MAX_UNHEDGED_EXPOSURE=5000.0
@@ -729,7 +740,7 @@ BOT_SIM_BALANCE=10000.0
 </div>
 
 <div style="text-align:center; color:#8b949e; margin-top:40px; padding:20px; border-top:1px solid var(--border);">
-  <p>Generated: Feb 10, 2026 ~13:30 UTC | Actions deployed: Feb 10, 16:40 UTC</p>
+  <p>Generated: Feb 10, 2026 ~13:30 UTC | Last updated: Feb 10, ~18:15 UTC | Exp #40 (radical simplification) deployed</p>
   <p>Data source: /opt/btc15minutebot/data/trades.db (trades, trade_results, strategy_decisions, market_outcomes tables)</p>
   <p>Analysis by: Claude Code forensic trading audit</p>
 </div>

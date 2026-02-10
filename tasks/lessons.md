@@ -230,6 +230,17 @@ The window controls BOTH when the strategy activates AND when it records odds da
 - **Scale winners, kill losers — don't allocate uniformly.** When you identify a strategy with proven edge (dip_buyer: +$27.94, 74% WR, 25:1 payoff), scale it up aggressively. When a strategy has no edge in any asset/timeframe/condition (asymmetric: -$972), disable it entirely. Don't split capital equally.
 - **All-time data > single-session data.** The Feb 10 8-hour analysis showed fade_panic at +$158 and dip_buyer at +$59. The all-time analysis (3 days) showed fade_panic at -$425 and dip_buyer at +$27.94. Single sessions can be misleading due to regime effects. Always check all-time performance before making parameter decisions.
 
+## 8-Day Full Audit & Radical Simplification (Feb 10)
+
+- **Taker fees are 58.5% of total losses.** Over 8 days, taker fees were $1,492 out of $2,550 total losses. The fee structure (MAX_RATE * 4 * price * (1-price), peaks at 3.15% at 50/50 odds) is the primary structural barrier to profitability. Any strategy taking FOK orders must overcome ~5.6% drag on invested capital. Maker orders (GTC limit) pay 0% fees — this is the path to profitability.
+- **price_lag would be profitable as maker.** The 8-day audit showed price_lag at -$795 with taker fees, but +$174 hypothetical without fees. Converting to maker (GTC limit) orders would flip it profitable. This is the strongest signal in the entire dataset.
+- **SOL and XRP are bleeding assets.** SOL (-$1,571) and XRP (-$1,015) account for 100%+ of total losses. BTC (-$111) and ETH (+$148) are near breakeven. Asset selection matters as much as strategy selection.
+- **CDF model is catastrophically overconfident.** Resolution sniper predicted 95%+ confidence but actual win rate was 20.7%. Root causes: vol floor too low (sigma < 0.0005 = 0% WR), vol multiplier insufficient (3.0x when reality needs 8.0x+), normal distribution doesn't model crypto mean-reversion and fat tails. Market price is a better probability estimator than the CDF model.
+- **Radical simplification beats incremental tuning.** After 8 days of tuning 6 strategies × 4 assets (24 combinations), the winning move was reducing to 1 strategy × 2 assets. Fewer moving parts = faster learning, easier attribution, lower fee drag.
+- **DRY_RUN saved real money.** All $2,550 in losses were simulated. The learning was free. Never go live until a strategy proves profitable in simulation for an extended period.
+- **Multi-tranche position accumulation compounds losses.** Sniper's 3-tranche system meant a losing market got 3x the exposure. Single-tranche (max_tranches=1) limits damage on wrong calls.
+- **Per-strategy signal inversion doesn't work for CDF-based strategies.** Experiment #37 (invert sniper) failed because the underlying model is miscalibrated — inverting a broken signal is still a broken signal. Fix the model first, then consider inversion.
+
 ## Common Mistakes
 
 - **Heredoc in SSH:** Copy-pasting heredocs (`cat << 'EOF'`) over SSH often fails. Use multiple `printf` or `echo` commands instead.
