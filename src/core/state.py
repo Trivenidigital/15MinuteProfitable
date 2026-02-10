@@ -364,9 +364,11 @@ class StateManager:
                         pos.no_shares -= order.fill_size
                         pos.no_cost_basis -= cost
 
-                # Debit sim balance for buys
+                # Debit sim balance for buys, credit for sells
                 if self._settings.dry_run and order.side == Side.BUY:
                     self._sim_balance_value -= cost
+                elif self._settings.dry_run and order.side == Side.SELL:
+                    self._sim_balance_value += cost
 
             # Persist to SQLite if trade_db is attached
             if self._trade_db is not None:

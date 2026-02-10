@@ -171,6 +171,19 @@ class Settings(BaseSettings):
     fade_panic_spot_vs_open_max_change: float = 0.003  # 0.3% max spot move from window open
     fade_panic_max_per_market: float = 10.0  # Max $ per market (anti-spam)
 
+    # Hedged Market Maker Strategy Parameters
+    enable_hedged_mm: bool = False
+    hmm_order_size: float = 25.0              # Shares per side (both YES and NO)
+    hmm_price_offset: float = 0.01            # Place limit below best ask
+    hmm_max_combined_cost: float = 0.98       # Max YES+NO combined ask price
+    hmm_entry_window_seconds: float = 180.0   # Only enter in first 3 min of window
+    hmm_scalp_min_profit_pct: float = 0.05    # 5% appreciation triggers scalp sell
+    hmm_max_pending_pairs: int = 4            # Max concurrent HMM pairs total
+    hmm_max_per_market: int = 1               # Max 1 pair per market per window
+    hmm_pair_fill_timeout: float = 120.0      # Cancel unfilled entries after 2 min
+    hmm_time_exit_seconds: float = 30.0       # Force-sell remaining side at T-30s
+    hmm_hold_to_resolution: bool = True       # Hold remaining (non-scalped) side to resolution
+
     # Resolution Sniper Strategy Parameters
     enable_resolution_sniper: bool = True
     sniper_order_size: float = 30.0           # Must be >= 3 * MIN_TRADE_SIZE (3 tranches)

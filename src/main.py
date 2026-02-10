@@ -36,6 +36,7 @@ from src.strategy.asymmetric import AsymmetricStrategy
 from src.strategy.base import BaseStrategy
 from src.strategy.dip_buyer import DipBuyerStrategy
 from src.strategy.fade_panic import FadePanicStrategy
+from src.strategy.hedged_mm import HedgedMMStrategy, HMMPair
 from src.strategy.maker_arbitrage import ArbPair, MakerArbitrageStrategy
 from src.strategy.price_lag import ASSET_TO_BINANCE_SYMBOL, PriceLagStrategy
 from src.strategy.resolution_sniper import ResolutionSniperStrategy
@@ -64,6 +65,7 @@ _shutdown_event: asyncio.Event | None = None
 _log = get_logger("main")
 _pending_gtc_orders: list[dict] = []
 _pending_maker_arb_pairs: list[dict] = []
+_pending_hmm_pairs: list[dict] = []
 _alerts: AlertDispatcher | None = None
 
 
@@ -428,6 +430,14 @@ async def _execute_opportunity(
     Handles arbitrage (two-leg YES+NO), asymmetric (GTC limit),
     maker arbitrage (paired GTC), and directional (single-leg FOK) strategies.
     """
+    is_hmm = opp.metadata.get("hmm", False)
+    if is_hmm:
+        await _execute_hedged_mm_trade(
+            opp, adjusted_size, executor, state_manager,
+            risk_manager, rate_limiter, settings, strategies or [],
+        )
+        return
+
     is_arb = opp.yes_fill is not None and opp.no_fill is not None
     is_maker_arb = opp.metadata.get("paired", False)
     is_asymmetric = opp.metadata.get("order_type") == "GTC" and not is_maker_arb
@@ -716,6 +726,290 @@ async def _execute_maker_arb_trade(
         _log.error("maker_arb_execution_error", market=market.slug, error=str(exc))
         if _alerts and settings.alert_on_error:
             await _alerts.send_error(f"Maker arb exec error {market.slug}: {exc}")
+
+
+async def _execute_hedged_mm_trade(
+    opp,
+    adjusted_size: float,
+    executor: OrderExecutor,
+    state_manager: StateManager,
+    risk_manager: RiskManager,
+    rate_limiter: RateLimiter,
+    settings: Settings,
+    strategies: list[BaseStrategy],
+) -> None:
+    """Execute a hedged market-maker trade (entry, scalp, or time_exit).
+
+    Routes on metadata["action"]:
+    - "entry": place GTC BUY for both YES and NO
+    - "scalp": FOK SELL the appreciated side
+    - "time_exit": FOK SELL the remaining side
+    """
+    action = opp.metadata.get("action", "")
+    market = opp.market
+
+    # Find the HedgedMMStrategy instance
+    hmm_strat: HedgedMMStrategy | None = None
+    for strat in strategies:
+        if isinstance(strat, HedgedMMStrategy):
+            hmm_strat = strat
+            break
+
+    if hmm_strat is None:
+        _log.error("hmm_strategy_not_found", market=market.slug)
+        return
+
+    if action == "entry":
+        await _execute_hmm_entry(
+            opp, adjusted_size, executor, state_manager,
+            risk_manager, rate_limiter, settings, hmm_strat,
+        )
+    elif action in ("scalp", "time_exit"):
+        await _execute_hmm_scalp(
+            opp, adjusted_size, executor, state_manager,
+            risk_manager, rate_limiter, settings, hmm_strat,
+            is_time_exit=(action == "time_exit"),
+        )
+    else:
+        _log.error("hmm_unknown_action", action=action, market=market.slug)
+
+
+async def _execute_hmm_entry(
+    opp,
+    adjusted_size: float,
+    executor: OrderExecutor,
+    state_manager: StateManager,
+    risk_manager: RiskManager,
+    rate_limiter: RateLimiter,
+    settings: Settings,
+    hmm_strat: HedgedMMStrategy,
+) -> None:
+    """Place GTC BUY orders for both YES and NO tokens."""
+    market = opp.market
+    yes_price = opp.metadata.get("yes_price", 0.0)
+    no_price = opp.metadata.get("no_price", 0.0)
+
+    if yes_price <= 0 or no_price <= 0:
+        _log.error("hmm_invalid_prices", market=market.slug)
+        return
+
+    # Create GTC BUY orders
+    yes_order = TradeOrder(
+        token_id=market.yes_token_id,
+        side=Side.BUY,
+        price=yes_price,
+        size=adjusted_size,
+        order_type="GTC",
+    )
+    no_order = TradeOrder(
+        token_id=market.no_token_id,
+        side=Side.BUY,
+        price=no_price,
+        size=adjusted_size,
+        order_type="GTC",
+    )
+
+    _log.info(
+        "executing_hmm_entry",
+        market=market.slug,
+        yes_price=yes_price,
+        no_price=no_price,
+        size=adjusted_size,
+        combined=round(yes_price + no_price, 4),
+        dry_run=settings.dry_run,
+    )
+
+    try:
+        await rate_limiter.acquire(4)
+
+        # Sign both orders in parallel
+        yes_order, no_order = await executor.sign_orders_parallel(
+            [yes_order, no_order]
+        )
+
+        if (
+            yes_order.status != OrderStatus.SIGNED
+            or no_order.status != OrderStatus.SIGNED
+        ):
+            _log.warning(
+                "hmm_sign_failed",
+                market=market.slug,
+                yes_status=yes_order.status.value,
+                no_status=no_order.status.value,
+            )
+            risk_manager.record_execution_failure()
+            return
+
+        # Submit YES
+        yes_result = await executor.submit_order(yes_order)
+        if yes_result.status == OrderStatus.REJECTED:
+            _log.warning("hmm_yes_rejected", market=market.slug)
+            risk_manager.record_execution_failure()
+            return
+
+        # Submit NO
+        no_result = await executor.submit_order(no_order)
+        if no_result.status == OrderStatus.REJECTED:
+            _log.warning("hmm_no_rejected_cancelling_yes", market=market.slug)
+            if yes_result.order_id:
+                await executor.cancel_order(yes_result.order_id)
+            risk_manager.record_execution_failure()
+            return
+
+        # Create HMM pair in strategy
+        pair = hmm_strat.create_pair(
+            condition_id=market.condition_id,
+            market_slug=market.slug,
+            yes_price=yes_price,
+            no_price=no_price,
+            size=adjusted_size,
+        )
+        pair.yes_order_id = yes_result.order_id
+        pair.no_order_id = no_result.order_id
+
+        # Dry-run: GTC fills immediately
+        if settings.dry_run:
+            pair.yes_filled = True
+            pair.no_filled = True
+            pair.yes_fill_size = adjusted_size
+            pair.no_fill_size = adjusted_size
+            hmm_strat.mark_entry_complete(pair.pair_id)
+            await state_manager.record_trade(opp, [yes_result, no_result])
+            risk_manager.record_execution_success(market.condition_id)
+            _log.info(
+                "hmm_entry_complete_dry",
+                market=market.slug,
+                pair_id=pair.pair_id,
+                combined=round(yes_price + no_price, 4),
+            )
+            if _alerts and settings.alert_on_trade:
+                await _alerts.send_trade(
+                    f"HMM entry: {market.slug} YES@{yes_price:.2f}+NO@{no_price:.2f} "
+                    f"x{adjusted_size:.0f}"
+                )
+            return
+
+        # Live mode: track for monitoring
+        _pending_hmm_pairs.append({
+            "pair": pair,
+            "yes_order": yes_result,
+            "no_order": no_result,
+            "opportunity": opp,
+            "market": market,
+        })
+        _log.info(
+            "hmm_entry_submitted",
+            market=market.slug,
+            pair_id=pair.pair_id,
+            yes_order_id=yes_result.order_id,
+            no_order_id=no_result.order_id,
+        )
+
+    except asyncio.TimeoutError:
+        _log.warning("rate_limit_timeout", market=market.slug)
+    except Exception as exc:
+        risk_manager.record_execution_failure()
+        _log.error("hmm_entry_error", market=market.slug, error=str(exc))
+        if _alerts and settings.alert_on_error:
+            await _alerts.send_error(f"HMM entry error {market.slug}: {exc}")
+
+
+async def _execute_hmm_scalp(
+    opp,
+    adjusted_size: float,
+    executor: OrderExecutor,
+    state_manager: StateManager,
+    risk_manager: RiskManager,
+    rate_limiter: RateLimiter,
+    settings: Settings,
+    hmm_strat: HedgedMMStrategy,
+    is_time_exit: bool = False,
+) -> None:
+    """SELL the appreciated (or remaining) side via FOK order."""
+    market = opp.market
+    scalp_side = opp.metadata.get("scalp_side", "")
+    scalp_token_id = opp.metadata.get("scalp_token_id", "")
+    scalp_price = opp.metadata.get("scalp_price", 0.0)
+    pair_id = opp.metadata.get("pair_id", "")
+    entry_price = opp.metadata.get("entry_price", 0.0)
+
+    if not scalp_token_id or not pair_id:
+        _log.error("hmm_scalp_missing_metadata", market=market.slug)
+        return
+
+    action_name = "time_exit" if is_time_exit else "scalp"
+
+    # Create FOK SELL order (sell at market — price 0.01 for FOK means sell at best bid)
+    sell_order = TradeOrder(
+        token_id=scalp_token_id,
+        side=Side.SELL,
+        price=0.01,  # FOK SELL: floor price, fills at best bid
+        size=adjusted_size,
+        order_type="FOK",
+    )
+
+    _log.info(
+        f"executing_hmm_{action_name}",
+        market=market.slug,
+        pair_id=pair_id,
+        side=scalp_side,
+        entry_price=round(entry_price, 4),
+        target_price=round(scalp_price, 4),
+        size=adjusted_size,
+        dry_run=settings.dry_run,
+    )
+
+    try:
+        await rate_limiter.acquire(2)
+
+        sell_result = await executor.execute_order(sell_order)
+
+        if sell_result.status not in (OrderStatus.FILLED, OrderStatus.PARTIALLY_FILLED):
+            _log.warning(
+                f"hmm_{action_name}_not_filled",
+                market=market.slug,
+                pair_id=pair_id,
+                status=sell_result.status.value,
+            )
+            return
+
+        # Record the sell in state (decrements shares/cost for that side)
+        await state_manager.record_trade(opp, [sell_result])
+
+        actual_price = sell_result.fill_price or scalp_price
+        profit = (actual_price - entry_price) * (sell_result.fill_size or adjusted_size)
+
+        if is_time_exit:
+            hmm_strat.mark_closed(pair_id)
+        else:
+            hmm_strat.mark_scalped(pair_id, scalp_side, actual_price)
+
+        risk_manager.record_execution_success(market.condition_id)
+
+        _log.info(
+            f"hmm_{action_name}_complete",
+            market=market.slug,
+            pair_id=pair_id,
+            side=scalp_side,
+            entry_price=round(entry_price, 4),
+            sell_price=round(actual_price, 4),
+            profit=round(profit, 4),
+            daily_pnl=round(state_manager.daily_pnl().net_profit, 4),
+        )
+
+        if _alerts and settings.alert_on_trade:
+            await _alerts.send_trade(
+                f"HMM {action_name}: {market.slug} SELL {scalp_side}@{actual_price:.2f} "
+                f"(entry@{entry_price:.2f}) profit={profit:.4f}"
+            )
+
+    except asyncio.TimeoutError:
+        _log.warning("rate_limit_timeout", market=market.slug)
+    except Exception as exc:
+        risk_manager.record_execution_failure()
+        _log.error(f"hmm_{action_name}_error", market=market.slug, error=str(exc))
+        if _alerts and settings.alert_on_error:
+            await _alerts.send_error(f"HMM {action_name} error {market.slug}: {exc}")
 
 
 async def _execute_directional_trade(
@@ -1191,6 +1485,193 @@ async def _handle_maker_arb_timeout(
         )
 
     maker_strat.cancel_pair(pair.pair_id, status="unwound")
+    risk_manager.record_execution_failure()
+
+
+# ---------------------------------------------------------------------------
+# HMM monitor loop (hedged market-maker GTC fill tracking)
+# ---------------------------------------------------------------------------
+
+
+async def _hmm_monitor_loop(
+    executor: OrderExecutor,
+    state_manager: StateManager,
+    risk_manager: RiskManager,
+    strategies: list[BaseStrategy],
+    settings: Settings,
+    interval: float = 5.0,
+) -> None:
+    """Monitor pending HMM pairs for GTC fills and handle timeouts.
+
+    In DRY_RUN mode this loop is mostly idle (GTC fills immediately).
+    In live mode, it checks each pending pair every interval seconds:
+    - If both legs filled: transition to hedged, record trade
+    - If timeout with partial fill: cancel unfilled, unwind filled
+    - If timeout with no fills: cancel both orders
+    """
+    hmm_strat: HedgedMMStrategy | None = None
+    for strat in strategies:
+        if isinstance(strat, HedgedMMStrategy):
+            hmm_strat = strat
+            break
+
+    if hmm_strat is None:
+        _log.debug("hmm_monitor_no_strategy")
+        return
+
+    while _shutdown_event is not None and not _shutdown_event.is_set():
+        try:
+            to_remove: list[dict] = []
+
+            for entry in _pending_hmm_pairs:
+                pair: HMMPair = entry["pair"]
+                yes_order: TradeOrder = entry["yes_order"]
+                no_order: TradeOrder = entry["no_order"]
+                opp = entry["opportunity"]
+                market = entry["market"]
+
+                # Check YES fill
+                if not pair.yes_filled and yes_order.order_id:
+                    checked = await executor.verify_fill(
+                        yes_order, timeout=1.0, poll_interval=0.5
+                    )
+                    if checked.status == OrderStatus.FILLED:
+                        pair.yes_filled = True
+                        pair.yes_fill_size = checked.fill_size or pair.size
+                        yes_order.status = OrderStatus.FILLED
+                        yes_order.fill_size = checked.fill_size or pair.size
+                        yes_order.fill_price = checked.fill_price or pair.yes_entry_price
+
+                # Check NO fill
+                if not pair.no_filled and no_order.order_id:
+                    checked = await executor.verify_fill(
+                        no_order, timeout=1.0, poll_interval=0.5
+                    )
+                    if checked.status == OrderStatus.FILLED:
+                        pair.no_filled = True
+                        pair.no_fill_size = checked.fill_size or pair.size
+                        no_order.status = OrderStatus.FILLED
+                        no_order.fill_size = checked.fill_size or pair.size
+                        no_order.fill_price = checked.fill_price or pair.no_entry_price
+
+                # Both filled: transition to hedged
+                if pair.is_entry_complete and pair.status == "pending_entry":
+                    to_remove.append(entry)
+                    hmm_strat.mark_entry_complete(pair.pair_id)
+                    await state_manager.record_trade(opp, [yes_order, no_order])
+                    risk_manager.record_execution_success(market.condition_id)
+                    _log.info(
+                        "hmm_entry_complete_live",
+                        market=market.slug,
+                        pair_id=pair.pair_id,
+                    )
+                    if _alerts and settings.alert_on_trade:
+                        await _alerts.send_trade(
+                            f"HMM entry filled: {market.slug} "
+                            f"YES@{pair.yes_entry_price:.2f}+NO@{pair.no_entry_price:.2f} "
+                            f"x{pair.size:.0f}"
+                        )
+                    continue
+
+                # Check for timeout
+                if pair.age_seconds > settings.hmm_pair_fill_timeout:
+                    to_remove.append(entry)
+                    await _handle_hmm_entry_timeout(
+                        pair, yes_order, no_order, executor,
+                        hmm_strat, state_manager, risk_manager, market,
+                    )
+
+            # Clean up processed entries
+            for entry in to_remove:
+                if entry in _pending_hmm_pairs:
+                    _pending_hmm_pairs.remove(entry)
+
+        except Exception as exc:
+            _log.error("hmm_monitor_error", error=str(exc))
+
+        try:
+            await asyncio.wait_for(_shutdown_event.wait(), timeout=interval)
+        except asyncio.TimeoutError:
+            pass
+
+
+async def _handle_hmm_entry_timeout(
+    pair: HMMPair,
+    yes_order: TradeOrder,
+    no_order: TradeOrder,
+    executor: OrderExecutor,
+    hmm_strat: HedgedMMStrategy,
+    state_manager: StateManager,
+    risk_manager: RiskManager,
+    market,
+) -> None:
+    """Handle a timed-out HMM entry pair.
+
+    - Neither filled: cancel both
+    - One filled: cancel unfilled, sell filled to unwind
+    """
+    _log.warning(
+        "hmm_entry_timeout",
+        pair_id=pair.pair_id,
+        market=market.slug,
+        yes_filled=pair.yes_filled,
+        no_filled=pair.no_filled,
+        age=round(pair.age_seconds, 1),
+    )
+
+    if not pair.yes_filled and not pair.no_filled:
+        if yes_order.order_id:
+            await executor.cancel_order(yes_order.order_id)
+        if no_order.order_id:
+            await executor.cancel_order(no_order.order_id)
+        hmm_strat.cancel_pair(pair.pair_id)
+        _log.info("hmm_cancelled_no_fills", pair_id=pair.pair_id)
+        return
+
+    # Partial fill — unwind the filled side
+    if pair.yes_filled and not pair.no_filled:
+        if no_order.order_id:
+            await executor.cancel_order(no_order.order_id)
+        filled_token_id = market.yes_token_id
+        filled_size = pair.yes_fill_size or pair.size
+        filled_side = "YES"
+    else:
+        if yes_order.order_id:
+            await executor.cancel_order(yes_order.order_id)
+        filled_token_id = market.no_token_id
+        filled_size = pair.no_fill_size or pair.size
+        filled_side = "NO"
+
+    _log.warning(
+        "hmm_partial_unwind",
+        pair_id=pair.pair_id,
+        market=market.slug,
+        filled_side=filled_side,
+    )
+
+    sell_order = TradeOrder(
+        token_id=filled_token_id,
+        side=Side.SELL,
+        price=0.01,
+        size=filled_size,
+        order_type="FOK",
+    )
+
+    try:
+        await executor.sign_order(sell_order)
+        if sell_order.status == OrderStatus.SIGNED:
+            result = await executor.submit_order(sell_order)
+            result = await executor.verify_fill(result)
+            if result.status == OrderStatus.FILLED:
+                _log.info("hmm_unwind_complete", pair_id=pair.pair_id, side=filled_side)
+            else:
+                _log.error("hmm_unwind_failed", pair_id=pair.pair_id, status=result.status.value)
+                if _alerts:
+                    await _alerts.send_error(f"HMM unwind failed: {market.slug} {filled_side}")
+    except Exception as exc:
+        _log.error("hmm_unwind_error", pair_id=pair.pair_id, error=str(exc))
+
+    hmm_strat.cancel_pair(pair.pair_id)
     risk_manager.record_execution_failure()
 
 
@@ -2002,6 +2483,9 @@ def _build_strategies(
             spot_buffer=spot_buffer, trade_db=trade_db,
         ))
 
+    if settings.enable_hedged_mm:
+        strategies.append(HedgedMMStrategy(settings=settings, book_manager=book_manager))
+
     return strategies
 
 
@@ -2327,6 +2811,18 @@ async def _run_bot(settings: Settings, pid_lock: PidLock) -> None:
         ),
     )
 
+    # Hedged market-maker monitoring (HMM GTC fill tracking)
+    hmm_task = asyncio.create_task(
+        _hmm_monitor_loop(
+            executor=executor,
+            state_manager=state_manager,
+            risk_manager=risk_manager,
+            strategies=strategies,
+            settings=settings,
+            interval=5.0,
+        ),
+    )
+
     # Exit-check loop for directional positions (price-lag, etc.)
     exit_task = asyncio.create_task(
         _exit_check_loop(
@@ -2430,6 +2926,21 @@ async def _run_bot(settings: Settings, pid_lock: PidLock) -> None:
         except Exception as exc:
             _log.warning("maker_arb_cancel_error", error=str(exc))
     _pending_maker_arb_pairs.clear()
+
+    # Cancel all pending HMM pairs
+    for entry in _pending_hmm_pairs:
+        try:
+            hmm_pair: HMMPair = entry["pair"]
+            yes_order = entry["yes_order"]
+            no_order = entry["no_order"]
+            if yes_order.order_id:
+                await executor.cancel_order(yes_order.order_id)
+            if no_order.order_id:
+                await executor.cancel_order(no_order.order_id)
+            _log.info("hmm_shutdown_cancel", pair_id=hmm_pair.pair_id)
+        except Exception as exc:
+            _log.warning("hmm_cancel_error", error=str(exc))
+    _pending_hmm_pairs.clear()
 
     # Flatten unhedged directional positions on shutdown
     unhedged = [p for p in state_manager.get_all_positions() if not p.is_hedged]

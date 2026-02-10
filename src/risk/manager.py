@@ -40,7 +40,10 @@ class StateProvider(Protocol):
 # Constants
 # ---------------------------------------------------------------------------
 
-_HEDGED_STRATEGIES: frozenset[StrategyType] = frozenset({StrategyType.ARBITRAGE})
+_HEDGED_STRATEGIES: frozenset[StrategyType] = frozenset({
+    StrategyType.ARBITRAGE,
+    StrategyType.HEDGED_MM,
+})
 
 # Late-game strategies that deliberately trade near market close.
 # They have their own hard-stop logic, so skip dead-zone and
