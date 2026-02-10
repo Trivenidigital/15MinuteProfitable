@@ -659,7 +659,7 @@ class TestSnapshotPersistence:
         assert "positions" in data
         assert "daily_pnl" in data
         assert "sim_balance" in data
-        assert "cond_btc" in data["positions"]
+        assert "cond_btc:arbitrage" in data["positions"]
 
     def test_round_trip_empty_state(self, state: StateManager, tmp_path: Path) -> None:
         """Empty state should round-trip cleanly."""
@@ -1253,3 +1253,199 @@ class TestPositionEntryCount:
         # Position should still be tracked
         assert state.get_position("cond_active_nr") is not None
         assert state.get_position("cond_active_nr").yes_shares == 100
+
+
+# ---------------------------------------------------------------------------
+# Per-strategy-per-market position tracking
+# ---------------------------------------------------------------------------
+
+
+class TestPerStrategyPositions:
+    """Tests for compound key (condition_id:strategy) position tracking."""
+
+    def test_two_strategies_same_market(
+        self, state: StateManager, market_btc: Market
+    ) -> None:
+        """Two strategies on the same market should create separate positions."""
+        pos_lag = _make_position(
+            market=market_btc,
+            yes_shares=50,
+            yes_cost_basis=25.0,
+            strategy=StrategyType.PRICE_LAG,
+        )
+        pos_arb = _make_position(
+            market=market_btc,
+            yes_shares=100,
+            no_shares=100,
+            yes_cost_basis=45.0,
+            no_cost_basis=47.0,
+            strategy=StrategyType.ARBITRAGE,
+        )
+        state.add_position(pos_lag)
+        state.add_position(pos_arb)
+
+        assert len(state.get_all_positions()) == 2
+
+    def test_get_position_returns_first_match(
+        self, state: StateManager, market_btc: Market
+    ) -> None:
+        """get_position returns first match by condition_id."""
+        pos = _make_position(
+            market=market_btc,
+            yes_shares=50,
+            yes_cost_basis=25.0,
+            strategy=StrategyType.PRICE_LAG,
+        )
+        state.add_position(pos)
+        result = state.get_position("cond_btc")
+        assert result is pos
+
+    def test_get_position_by_key(
+        self, state: StateManager, market_btc: Market
+    ) -> None:
+        """get_position_by_key returns the exact strategy position."""
+        pos_lag = _make_position(
+            market=market_btc,
+            yes_shares=50,
+            yes_cost_basis=25.0,
+            strategy=StrategyType.PRICE_LAG,
+        )
+        pos_arb = _make_position(
+            market=market_btc,
+            yes_shares=100,
+            no_shares=100,
+            yes_cost_basis=45.0,
+            no_cost_basis=47.0,
+            strategy=StrategyType.ARBITRAGE,
+        )
+        state.add_position(pos_lag)
+        state.add_position(pos_arb)
+
+        assert state.get_position_by_key("cond_btc", StrategyType.PRICE_LAG) is pos_lag
+        assert state.get_position_by_key("cond_btc", StrategyType.ARBITRAGE) is pos_arb
+        assert state.get_position_by_key("cond_btc", StrategyType.ASYMMETRIC) is None
+
+    def test_get_positions_for_market(
+        self, state: StateManager, market_btc: Market
+    ) -> None:
+        """get_positions_for_market returns all strategies for a market."""
+        pos_lag = _make_position(
+            market=market_btc,
+            yes_shares=50,
+            yes_cost_basis=25.0,
+            strategy=StrategyType.PRICE_LAG,
+        )
+        pos_arb = _make_position(
+            market=market_btc,
+            yes_shares=100,
+            no_shares=100,
+            yes_cost_basis=45.0,
+            no_cost_basis=47.0,
+            strategy=StrategyType.ARBITRAGE,
+        )
+        state.add_position(pos_lag)
+        state.add_position(pos_arb)
+
+        market_positions = state.get_positions_for_market("cond_btc")
+        assert len(market_positions) == 2
+        strategies = {p.strategy for p in market_positions}
+        assert strategies == {StrategyType.PRICE_LAG, StrategyType.ARBITRAGE}
+
+        assert state.get_positions_for_market("nonexistent") == []
+
+    def test_market_exposure_sums_across_strategies(
+        self, state: StateManager, market_btc: Market
+    ) -> None:
+        """market_exposure should sum total_investment across strategies."""
+        pos_lag = _make_position(
+            market=market_btc,
+            yes_shares=50,
+            yes_cost_basis=25.0,
+            strategy=StrategyType.PRICE_LAG,
+        )
+        pos_arb = _make_position(
+            market=market_btc,
+            yes_shares=100,
+            no_shares=100,
+            yes_cost_basis=45.0,
+            no_cost_basis=47.0,
+            strategy=StrategyType.ARBITRAGE,
+        )
+        state.add_position(pos_lag)
+        state.add_position(pos_arb)
+
+        # 25.0 + 92.0 = 117.0
+        assert state.market_exposure("cond_btc") == pytest.approx(117.0)
+
+    def test_close_one_strategy_keeps_other(
+        self, state: StateManager, market_btc: Market
+    ) -> None:
+        """Closing one strategy should not affect the other."""
+        pos_lag = _make_position(
+            market=market_btc,
+            yes_shares=50,
+            yes_cost_basis=25.0,
+            strategy=StrategyType.PRICE_LAG,
+        )
+        pos_arb = _make_position(
+            market=market_btc,
+            yes_shares=100,
+            no_shares=100,
+            yes_cost_basis=45.0,
+            no_cost_basis=47.0,
+            strategy=StrategyType.ARBITRAGE,
+        )
+        state.add_position(pos_lag)
+        state.add_position(pos_arb)
+
+        state.close_position("cond_btc", payout_per_share=0.5, strategy=StrategyType.PRICE_LAG)
+
+        assert len(state.get_all_positions()) == 1
+        remaining = state.get_position("cond_btc")
+        assert remaining.strategy == StrategyType.ARBITRAGE
+
+    def test_snapshot_backward_compat(
+        self, state: StateManager, tmp_path: Path
+    ) -> None:
+        """Old-format snapshots (plain condition_id keys) should load correctly."""
+        # Write an old-format snapshot manually
+        old_snapshot = {
+            "positions": {
+                "cond_old_fmt": {
+                    "market": {
+                        "condition_id": "cond_old_fmt",
+                        "slug": "old-format",
+                        "question": "Old?",
+                        "yes_token_id": "yes_old",
+                        "no_token_id": "no_old",
+                        "start_time": "2026-02-10T12:00:00",
+                        "end_time": "2026-02-10T12:15:00",
+                        "asset": "BTC",
+                        "neg_risk": True,
+                    },
+                    "yes_shares": 100,
+                    "no_shares": 0,
+                    "yes_cost_basis": 45.0,
+                    "no_cost_basis": 0.0,
+                    "strategy": "price_lag",
+                    "opened_at": "2026-02-10T12:00:00",
+                }
+            },
+            "daily_pnl": {},
+            "sim_balance": 1000.0,
+        }
+        snapshot_path = str(tmp_path / "old_format.json")
+        Path(snapshot_path).write_text(json.dumps(old_snapshot))
+
+        new_state = StateManager(Settings(
+            private_key="0x" + "ab" * 32,
+            dry_run=True,
+        ))
+        assert new_state.load_snapshot(snapshot_path) is True
+        # Should be loadable via get_position (value search)
+        restored = new_state.get_position("cond_old_fmt")
+        assert restored is not None
+        assert restored.strategy == StrategyType.PRICE_LAG
+        assert restored.yes_shares == 100
+        # Should also be findable via get_position_by_key
+        assert new_state.get_position_by_key("cond_old_fmt", StrategyType.PRICE_LAG) is restored

@@ -28,6 +28,12 @@ from src.utils.fees import WINNER_FEE_RATE
 logger = get_logger(__name__)
 
 
+def _pos_key(condition_id: str, strategy: StrategyType | str) -> str:
+    """Build a compound position key: ``condition_id:strategy_value``."""
+    val = strategy.value if isinstance(strategy, StrategyType) else strategy
+    return f"{condition_id}:{val}"
+
+
 def _market_to_dict(market: Market) -> dict[str, Any]:
     """Serialize a Market dataclass to a plain dictionary."""
     return {
@@ -82,13 +88,13 @@ class StateManager:
 
     def add_position(self, position: Position) -> None:
         """Add a new position. Raises ValueError if position already exists."""
-        cid = position.market.condition_id
-        if cid in self._positions:
-            raise ValueError(f"Position already exists for market {cid}")
-        self._positions[cid] = position
+        key = _pos_key(position.market.condition_id, position.strategy)
+        if key in self._positions:
+            raise ValueError(f"Position already exists for {key}")
+        self._positions[key] = position
         logger.info(
             "position_added",
-            condition_id=cid,
+            condition_id=position.market.condition_id,
             strategy=position.strategy.value,
             yes_shares=position.yes_shares,
             no_shares=position.no_shares,
@@ -101,9 +107,19 @@ class StateManager:
         no_shares_delta: float = 0,
         yes_cost_delta: float = 0,
         no_cost_delta: float = 0,
+        strategy: StrategyType | str | None = None,
     ) -> None:
-        """Update an existing position with share/cost deltas."""
-        pos = self._positions.get(condition_id)
+        """Update an existing position with share/cost deltas.
+
+        If *strategy* is provided, uses the compound key directly.
+        Otherwise falls back to searching by condition_id (first match).
+        """
+        if strategy is not None:
+            key = _pos_key(condition_id, strategy)
+            pos = self._positions.get(key)
+        else:
+            # Backward-compat: find first position matching condition_id
+            pos = self._find_position_by_cid(condition_id)
         if pos is None:
             raise KeyError(f"No position found for market {condition_id}")
 
@@ -121,14 +137,43 @@ class StateManager:
         )
 
     def get_position(self, condition_id: str) -> Position | None:
-        """Return the position for a market, or None if not tracked."""
-        return self._positions.get(condition_id)
+        """Return the first position matching *condition_id*, or None.
+
+        With compound keys this returns the first match across strategies.
+        Use ``get_position_by_key`` for precise lookup.
+        """
+        return self._find_position_by_cid(condition_id)
+
+    def get_position_by_key(
+        self, condition_id: str, strategy: StrategyType | str
+    ) -> Position | None:
+        """Return the position for a specific market + strategy, or None."""
+        return self._positions.get(_pos_key(condition_id, strategy))
+
+    def get_positions_for_market(self, condition_id: str) -> list[Position]:
+        """Return all positions for a given condition_id (across strategies)."""
+        return [
+            pos for pos in self._positions.values()
+            if pos.market.condition_id == condition_id
+        ]
 
     def get_all_positions(self) -> list[Position]:
         """Return all tracked positions."""
         return list(self._positions.values())
 
-    def close_position(self, condition_id: str, payout_per_share: float) -> float:
+    def _find_position_by_cid(self, condition_id: str) -> Position | None:
+        """Find the first position whose market.condition_id matches."""
+        for pos in self._positions.values():
+            if pos.market.condition_id == condition_id:
+                return pos
+        return None
+
+    def close_position(
+        self,
+        condition_id: str,
+        payout_per_share: float,
+        strategy: StrategyType | str | None = None,
+    ) -> float:
         """Close a position, calculate net profit, update daily P&L.
 
         The payout is applied to ALL shares (yes + no) at the given rate.
@@ -136,10 +181,22 @@ class StateManager:
         pays out at 1.0 and the losing side at 0.0 -- the caller should
         pass 1.0 as ``payout_per_share`` because one side always wins.
 
+        Args:
+            condition_id: Market condition ID.
+            payout_per_share: Payout rate per share.
+            strategy: Strategy to identify the exact position. If None,
+                falls back to first match by condition_id.
+
         Returns:
             The net profit (payout - total_investment).
         """
-        pos = self._positions.get(condition_id)
+        if strategy is not None:
+            key = _pos_key(condition_id, strategy)
+            pos = self._positions.get(key)
+        else:
+            # Backward-compat fallback
+            pos = self._find_position_by_cid(condition_id)
+            key = _pos_key(condition_id, pos.strategy) if pos else condition_id
         if pos is None:
             raise KeyError(f"No position found for market {condition_id}")
 
@@ -169,13 +226,17 @@ class StateManager:
         if self._settings.dry_run:
             self._sim_balance_value += gross_payout - actual_winner_fee
 
-        del self._positions[condition_id]
-        self._entry_counts.pop(condition_id, None)
-        self._clear_strategy_entry_counts(condition_id)
+        del self._positions[key]
+
+        # Only clear market-level entry counts when no positions remain
+        if not self.get_positions_for_market(condition_id):
+            self._entry_counts.pop(condition_id, None)
+            self._clear_strategy_entry_counts(condition_id)
 
         logger.info(
             "position_closed",
             condition_id=condition_id,
+            strategy=pos.strategy.value,
             net_profit=net_profit,
             raw_profit=raw_profit,
             actual_winner_fee=actual_winner_fee,
@@ -193,9 +254,12 @@ class StateManager:
         return sum(p.total_investment for p in self._positions.values())
 
     def market_exposure(self, condition_id: str) -> float:
-        """total_investment for a specific market. Returns 0.0 if no position."""
-        pos = self._positions.get(condition_id)
-        return pos.total_investment if pos else 0.0
+        """Sum of total_investment across all strategies for a market."""
+        return sum(
+            pos.total_investment
+            for pos in self._positions.values()
+            if pos.market.condition_id == condition_id
+        )
 
     def position_entry_count(self, condition_id: str) -> int:
         """Number of trade entries recorded for a market. Returns 0 if none."""
@@ -263,14 +327,15 @@ class StateManager:
 
             # Update or create position
             cid = opportunity.market.condition_id
-            pos = self._positions.get(cid)
+            key = _pos_key(cid, opportunity.strategy)
+            pos = self._positions.get(key)
             if pos is None:
                 pos = Position(
                     market=opportunity.market,
                     strategy=opportunity.strategy,
                     opened_at=opportunity.timestamp,
                 )
-                self._positions[cid] = pos
+                self._positions[key] = pos
 
             # Track entry count for stacking prevention
             self._entry_counts[cid] = self._entry_counts.get(cid, 0) + 1
@@ -460,10 +525,13 @@ class StateManager:
             return False
 
     def _to_dict(self) -> dict[str, Any]:
-        """Serialize state to a dictionary."""
+        """Serialize state to a dictionary.
+
+        Keys are compound ``condition_id:strategy`` strings.
+        """
         positions = {}
-        for cid, pos in self._positions.items():
-            positions[cid] = {
+        for key, pos in self._positions.items():
+            positions[key] = {
                 "market": _market_to_dict(pos.market),
                 "yes_shares": pos.yes_shares,
                 "no_shares": pos.no_shares,
@@ -484,11 +552,15 @@ class StateManager:
         }
 
     def _from_dict(self, data: dict[str, Any]) -> None:
-        """Deserialize state from a dictionary."""
+        """Deserialize state from a dictionary.
+
+        Handles both old-format (plain condition_id) and new-format
+        (compound ``condition_id:strategy``) snapshot keys.
+        """
         self._sim_balance_value = data["sim_balance"]
 
         self._positions = {}
-        for cid, pdata in data.get("positions", {}).items():
+        for raw_key, pdata in data.get("positions", {}).items():
             mdata = pdata["market"]
             market = Market(
                 condition_id=mdata["condition_id"],
@@ -501,16 +573,24 @@ class StateManager:
                 asset=mdata["asset"],
                 neg_risk=mdata.get("neg_risk", True),
             )
+            strategy = StrategyType(pdata["strategy"])
             opened = pdata.get("opened_at")
-            self._positions[cid] = Position(
+            pos = Position(
                 market=market,
                 yes_shares=pdata["yes_shares"],
                 no_shares=pdata["no_shares"],
                 yes_cost_basis=pdata["yes_cost_basis"],
                 no_cost_basis=pdata["no_cost_basis"],
-                strategy=StrategyType(pdata["strategy"]),
+                strategy=strategy,
                 opened_at=datetime.fromisoformat(opened) if opened else None,
             )
+            # Backward compat: old snapshots use plain condition_id as key;
+            # convert to compound format.
+            if ":" not in raw_key:
+                key = _pos_key(mdata["condition_id"], strategy)
+            else:
+                key = raw_key
+            self._positions[key] = pos
 
         self._daily_pnl = {}
         for d, pnl_data in data.get("daily_pnl", {}).items():
@@ -566,14 +646,15 @@ class StateManager:
                 end_time = end_time.replace(tzinfo=timezone.utc)
             return end_time <= now
 
-        # Find expired positions
-        expired_cids = [
-            cid for cid, pos in self._positions.items()
+        # Find expired positions (keys are compound: "cid:strategy")
+        expired_keys = [
+            key for key, pos in self._positions.items()
             if _is_expired(pos)
         ]
 
-        for cid in expired_cids:
-            pos = self._positions[cid]
+        for key in expired_keys:
+            pos = self._positions[key]
+            cid = pos.market.condition_id
             report: dict[str, Any] = {
                 "condition_id": cid,
                 "slug": pos.market.slug,
@@ -648,12 +729,14 @@ class StateManager:
                 if self._settings.dry_run:
                     self._sim_balance_value += gross_payout - actual_winner_fee
 
-                del self._positions[cid]
-                self._entry_counts.pop(cid, None)
-                self._clear_strategy_entry_counts(cid)
+                del self._positions[key]
+                if not self.get_positions_for_market(cid):
+                    self._entry_counts.pop(cid, None)
+                    self._clear_strategy_entry_counts(cid)
                 logger.info(
                     "position_resolved_hedged",
                     condition_id=cid,
+                    strategy=pos.strategy.value,
                     slug=pos.market.slug,
                     paired_shares=paired_shares,
                     gross_payout=round(gross_payout, 4),
@@ -720,12 +803,14 @@ class StateManager:
                 if self._settings.dry_run:
                     self._sim_balance_value += gross_payout - actual_winner_fee
 
-                del self._positions[cid]
-                self._entry_counts.pop(cid, None)
-                self._clear_strategy_entry_counts(cid)
+                del self._positions[key]
+                if not self.get_positions_for_market(cid):
+                    self._entry_counts.pop(cid, None)
+                    self._clear_strategy_entry_counts(cid)
                 logger.info(
                     "position_resolved_unhedged",
                     condition_id=cid,
+                    strategy=pos.strategy.value,
                     slug=pos.market.slug,
                     yes_shares=pos.yes_shares,
                     no_shares=pos.no_shares,
@@ -770,28 +855,36 @@ class StateManager:
 
         # Detect orphaned positions whose markets have already expired
         now = datetime.now(timezone.utc)
-        orphaned: list[str] = []
-        for cid, pos in list(self._positions.items()):
+        orphaned_keys: list[str] = []
+        orphaned_cids: list[str] = []
+        for key, pos in list(self._positions.items()):
             # Handle both naive and aware datetimes
             end_time = pos.market.end_time
             if end_time.tzinfo is None:
                 end_time = end_time.replace(tzinfo=timezone.utc)
             if end_time < now:
-                orphaned.append(cid)
+                orphaned_keys.append(key)
+                cid = pos.market.condition_id
+                if cid not in orphaned_cids:
+                    orphaned_cids.append(cid)
 
-        for cid in orphaned:
-            del self._positions[cid]
-            self._entry_counts.pop(cid, None)
-            self._clear_strategy_entry_counts(cid)
-            logger.warning("orphaned_position_removed", condition_id=cid)
+        for key in orphaned_keys:
+            del self._positions[key]
+            logger.warning("orphaned_position_removed", key=key)
 
-        report["orphaned_removed"] = orphaned
+        # Clean up entry counts for markets with no remaining positions
+        for cid in orphaned_cids:
+            if not self.get_positions_for_market(cid):
+                self._entry_counts.pop(cid, None)
+                self._clear_strategy_entry_counts(cid)
+
+        report["orphaned_removed"] = orphaned_cids
         report["positions_restored"] = len(self._positions)
 
         logger.info(
             "startup_recovery_complete",
             loaded=True,
-            orphaned=len(orphaned),
+            orphaned=len(orphaned_keys),
             restored=report["positions_restored"],
         )
         return report

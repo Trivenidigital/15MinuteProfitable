@@ -272,8 +272,8 @@ class TestFlattenAllMultiple:
 
         results = await unwind.flatten_all()
         assert len(results) == 2
-        assert results["cond_a"] is True
-        assert results["cond_b"] is True
+        assert results["cond_a:arbitrage"] is True
+        assert results["cond_b:arbitrage"] is True
 
     async def test_three_positions_all_succeed(
         self, unwind: EmergencyUnwind, state: StateManager
@@ -360,8 +360,8 @@ class TestFlattenAllMixed:
         results = await uw.flatten_all()
 
         assert len(results) == 2
-        assert results["cond_a"] is True
-        assert results["cond_b"] is False
+        assert results["cond_a:arbitrage"] is True
+        assert results["cond_b:arbitrage"] is False
 
 
 # ---------------------------------------------------------------------------

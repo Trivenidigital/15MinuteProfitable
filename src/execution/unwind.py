@@ -104,9 +104,9 @@ class EmergencyUnwind:
 
         results: dict[str, bool] = {}
         for position in positions:
-            cid = position.market.condition_id
+            key = f"{position.market.condition_id}:{position.strategy.value}"
             success = await self.unwind_position(position)
-            results[cid] = success
+            results[key] = success
 
         successes = sum(1 for v in results.values() if v)
         failures = sum(1 for v in results.values() if not v)

@@ -1266,7 +1266,7 @@ async def _execute_exit(
         net_profit -= actual_winner_fee
 
         try:
-            state_manager.close_position(market.condition_id, payout_per_share)
+            state_manager.close_position(market.condition_id, payout_per_share, position.strategy)
         except KeyError:
             pass  # Already closed by resolution loop
 
