@@ -187,6 +187,7 @@ class Settings(BaseSettings):
     sniper_momentum_window_seconds: int = 30  # Seconds of recent prices for momentum check
     sniper_high_confidence_threshold: float = 0.90  # Win prob above this gets boosted size
     sniper_high_confidence_multiplier: float = 3.0  # Tranche size multiplier for high confidence
+    invert_sniper: bool = False  # Contrarian mode: flip sniper signals (buy NO when signal says UP)
 
     # Chainlink Oracle Validation
     enable_chainlink_filter: bool = True

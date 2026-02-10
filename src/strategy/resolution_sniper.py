@@ -117,7 +117,11 @@ class ResolutionSniperStrategy(BaseStrategy):
     def _maybe_invert(
         self, direction: str, market: Market,
     ) -> tuple[str, str]:
-        """Sniper trades original direction (follow signal)."""
+        """Flip sniper direction when ``invert_sniper`` is enabled."""
+        if self._settings.invert_sniper:
+            if direction == "UP":
+                return "DOWN", market.no_token_id
+            return "UP", market.yes_token_id
         if direction == "UP":
             return direction, market.yes_token_id
         return direction, market.no_token_id
