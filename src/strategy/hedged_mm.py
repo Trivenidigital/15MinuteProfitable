@@ -19,6 +19,8 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
+from typing import Protocol
+
 from src.config import Settings
 from src.core.models import (
     Market,
@@ -30,6 +32,12 @@ from src.data.orderbook import OrderBookManager
 from src.monitoring.logger import get_logger
 from src.strategy.base import BaseStrategy
 from src.utils.time_utils import time_remaining_seconds
+
+
+class _StateProvider(Protocol):
+    """Minimal interface to check existing positions."""
+
+    def strategy_entry_count(self, condition_id: str, strategy: str) -> int: ...
 
 
 # ---------------------------------------------------------------------------
@@ -115,8 +123,10 @@ class HedgedMMStrategy(BaseStrategy):
         self,
         settings: Settings,
         book_manager: OrderBookManager,
+        state_provider: _StateProvider | None = None,
     ) -> None:
         super().__init__(settings, book_manager)
+        self._state = state_provider
         self._active_pairs: dict[str, HMMPair] = {}
         self._market_pair_count: dict[str, int] = {}  # condition_id -> active count
 
@@ -156,11 +166,25 @@ class HedgedMMStrategy(BaseStrategy):
             self._log.debug("hmm_skip_max_pending", market=market.slug, pending=pending_count)
             return None
 
-        # Check per-market limit
+        # Check per-market limit (in-memory tracking)
         market_count = self._market_pair_count.get(market.condition_id, 0)
         if market_count >= settings.hmm_max_per_market:
             self._log.debug("hmm_skip_market_limit", market=market.slug, count=market_count)
             return None
+
+        # Check persisted state for existing HMM entries on this market
+        # (survives restarts, unlike _market_pair_count which is in-memory only)
+        if self._state is not None:
+            persisted_count = self._state.strategy_entry_count(
+                market.condition_id, self.strategy_type.value,
+            )
+            if persisted_count > 0:
+                self._log.debug(
+                    "hmm_skip_existing_position",
+                    market=market.slug,
+                    persisted_entries=persisted_count,
+                )
+                return None
 
         # Check entry window (only in first N seconds of window)
         # NOTE: market.start_time is Gamma API's startDate (~24h before window).

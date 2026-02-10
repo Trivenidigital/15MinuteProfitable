@@ -2439,6 +2439,7 @@ def _build_strategies(
     spot_buffer: SpotBuffer | None = None,
     trade_db: object | None = None,
     alpha_signals: object | None = None,
+    state_manager: StateManager | None = None,
 ) -> list[BaseStrategy]:
     """Build the list of enabled strategies based on settings."""
     alpha: AlphaSignalProvider | None = (
@@ -2486,7 +2487,10 @@ def _build_strategies(
         ))
 
     if settings.enable_hedged_mm:
-        strategies.append(HedgedMMStrategy(settings=settings, book_manager=book_manager))
+        strategies.append(HedgedMMStrategy(
+            settings=settings, book_manager=book_manager,
+            state_provider=state_manager,
+        ))
 
     return strategies
 
@@ -2678,6 +2682,7 @@ async def _run_bot(settings: Settings, pid_lock: PidLock) -> None:
     # Build enabled strategies and scanner
     strategies = _build_strategies(
         settings, book_manager, spot_buffer, trade_db, alpha_signals,
+        state_manager=state_manager,
     )
     if not strategies:
         _log.warning("no_strategies_enabled", msg="Enable at least one strategy.")
