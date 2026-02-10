@@ -153,11 +153,13 @@ class HedgedMMStrategy(BaseStrategy):
         # Check pending pairs limit
         pending_count = len(self.get_pending_pairs())
         if pending_count >= settings.hmm_max_pending_pairs:
+            self._log.debug("hmm_skip_max_pending", market=market.slug, pending=pending_count)
             return None
 
         # Check per-market limit
         market_count = self._market_pair_count.get(market.condition_id, 0)
         if market_count >= settings.hmm_max_per_market:
+            self._log.debug("hmm_skip_market_limit", market=market.slug, count=market_count)
             return None
 
         # Check entry window (only in first N seconds of window)
@@ -166,26 +168,36 @@ class HedgedMMStrategy(BaseStrategy):
         now = time.time()
         elapsed = now - start_ts
         if elapsed > settings.hmm_entry_window_seconds:
+            self._log.debug(
+                "hmm_skip_entry_window",
+                market=market.slug,
+                elapsed_s=round(elapsed, 0),
+                window_s=settings.hmm_entry_window_seconds,
+            )
             return None
 
         # Must have enough time remaining
         remaining = time_remaining_seconds(end_ts)
         if remaining < 60.0:
+            self._log.debug("hmm_skip_time_remaining", market=market.slug, remaining_s=round(remaining, 1))
             return None
 
         # Staleness check
         if self._is_book_stale(market.yes_token_id) or self._is_book_stale(market.no_token_id):
+            self._log.debug("hmm_skip_stale_book", market=market.slug)
             return None
 
         # Get orderbooks
         yes_book = self._book_manager.get_book(market.yes_token_id)
         no_book = self._book_manager.get_book(market.no_token_id)
         if yes_book is None or no_book is None:
+            self._log.debug("hmm_skip_no_book", market=market.slug)
             return None
 
         yes_best_ask = yes_book.best_ask
         no_best_ask = no_book.best_ask
         if yes_best_ask is None or no_best_ask is None:
+            self._log.debug("hmm_skip_no_ask", market=market.slug)
             return None
 
         # Apply price offset (place limit below best ask for maker status)
