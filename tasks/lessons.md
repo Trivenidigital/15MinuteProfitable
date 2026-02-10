@@ -216,6 +216,11 @@ The window controls BOTH when the strategy activates AND when it records odds da
 - **`sniper_min_confidence=0.50` is too low** — sniper traded at 0.567 (XRP) and 0.615 (ETH), lost $32 on ETH. Raised to 0.70. First post-fix trade: SOL at 94.96% confidence, won +$54.23.
 - **The 3x high-confidence multiplier works well** — SOL trade used $93 instead of $10, turned a $0.68 profit into $6.86.
 
+## Testing Patterns
+
+- **AsyncMock `.closed` attribute is truthy by default.** When mocking `aiohttp.ClientSession`, `AsyncMock().closed` returns a `MagicMock` object (truthy), causing guards like `if self._session.closed` to trigger early return. Always set `mock_session.closed = False` explicitly. This bug silently skipped 9 tests without any assertion error — the mock just never reached the HTTP call.
+- **Mock context managers need both `__aenter__` and `__aexit__`.** For `async with session.get(url) as resp:`, the mock needs: `mock_response.__aenter__ = AsyncMock(return_value=mock_response)` and `mock_response.__aexit__ = AsyncMock(return_value=False)`, plus `mock_session.get = MagicMock(return_value=mock_response)`.
+
 ## Common Mistakes
 
 - **Heredoc in SSH:** Copy-pasting heredocs (`cat << 'EOF'`) over SSH often fails. Use multiple `printf` or `echo` commands instead.
