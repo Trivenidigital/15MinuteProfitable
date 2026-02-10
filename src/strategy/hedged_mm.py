@@ -163,11 +163,13 @@ class HedgedMMStrategy(BaseStrategy):
             return None
 
         # Check entry window (only in first N seconds of window)
-        start_ts = market.start_time.timestamp()
+        # NOTE: market.start_time is Gamma API's startDate (~24h before window).
+        # The actual 15-min window starts at end_time - 900s.
         end_ts = market.end_time.timestamp()
+        window_start_ts = end_ts - 900.0  # actual 15-min window start
         now = time.time()
-        elapsed = now - start_ts
-        if elapsed > settings.hmm_entry_window_seconds:
+        elapsed = now - window_start_ts
+        if elapsed < 0 or elapsed > settings.hmm_entry_window_seconds:
             self._log.debug(
                 "hmm_skip_entry_window",
                 market=market.slug,
