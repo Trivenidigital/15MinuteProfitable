@@ -544,6 +544,8 @@ class ResolutionSniperStrategy(BaseStrategy):
     ) -> int | None:
         """Return the tranche index eligible at this time, or None."""
         taken = self._tranches_taken.get(condition_id, set())
+        if len(taken) >= self._settings.sniper_max_tranches:
+            return None
         for idx, (min_t, max_t) in enumerate(_TRANCHE_WINDOWS):
             if min_t < time_remaining <= max_t and idx not in taken:
                 return idx
