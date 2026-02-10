@@ -15,6 +15,7 @@ import time
 from src.config import Settings
 from src.core.models import OrderStatus, Position, Side, StrategyType, TradeOrder
 from src.core.state import StateManager
+from src.data.alpha_signals import AlphaSignalProvider
 from src.data.binance_ws import BinanceWebSocket
 from src.data.clob_ws import ClobWebSocket
 from src.data.market_discovery import MarketDiscovery
@@ -1893,8 +1894,12 @@ def _build_strategies(
     book_manager: OrderBookManager,
     spot_buffer: SpotBuffer | None = None,
     trade_db: object | None = None,
+    alpha_signals: object | None = None,
 ) -> list[BaseStrategy]:
     """Build the list of enabled strategies based on settings."""
+    alpha: AlphaSignalProvider | None = (
+        alpha_signals if isinstance(alpha_signals, AlphaSignalProvider) else None
+    )
     strategies: list[BaseStrategy] = []
 
     if settings.enable_arbitrage:
@@ -1903,6 +1908,7 @@ def _build_strategies(
     if settings.enable_price_lag and spot_buffer is not None:
         strategies.append(PriceLagStrategy(
             settings=settings, book_manager=book_manager, spot_buffer=spot_buffer,
+            alpha_signals=alpha,
         ))
 
     if settings.enable_asymmetric:
@@ -1914,16 +1920,19 @@ def _build_strategies(
     if settings.enable_dip_buyer and spot_buffer is not None:
         strategies.append(DipBuyerStrategy(
             settings=settings, book_manager=book_manager, spot_buffer=spot_buffer,
+            alpha_signals=alpha,
         ))
 
     if settings.enable_fade_panic and spot_buffer is not None:
         strategies.append(FadePanicStrategy(
             settings=settings, book_manager=book_manager, spot_buffer=spot_buffer,
+            alpha_signals=alpha,
         ))
 
     if settings.enable_resolution_sniper and spot_buffer is not None:
         strategies.append(ResolutionSniperStrategy(
             settings=settings, book_manager=book_manager, spot_buffer=spot_buffer,
+            alpha_signals=alpha,
         ))
 
     if settings.enable_cross_asset_strategy and spot_buffer is not None:
@@ -2100,8 +2109,29 @@ async def _run_bot(settings: Settings, pid_lock: PidLock) -> None:
         _log.warning("no_tokens_to_track", msg="Exiting - no active markets found.")
         return
 
+    # Alpha signals (Binance Futures public API: funding rate, OI, vol regime)
+    alpha_signals: AlphaSignalProvider | None = None
+    if settings.enable_alpha_signals and spot_buffer is not None:
+        alpha_signals = AlphaSignalProvider(
+            symbols=binance_symbols,
+            spot_buffer=spot_buffer,
+            funding_poll_seconds=settings.alpha_funding_poll_seconds,
+            oi_poll_seconds=settings.alpha_oi_poll_seconds,
+            vol_window_seconds=settings.alpha_vol_window_seconds,
+            vol_min_data_points=settings.alpha_vol_min_data_points,
+            vol_low_threshold=settings.alpha_vol_low_threshold,
+            vol_high_threshold=settings.alpha_vol_high_threshold,
+            funding_bullish_threshold=settings.alpha_funding_bullish_threshold,
+            funding_bearish_threshold=settings.alpha_funding_bearish_threshold,
+            oi_rising_threshold=settings.alpha_oi_rising_threshold,
+            oi_falling_threshold=settings.alpha_oi_falling_threshold,
+        )
+        _log.info("alpha_signals_configured", symbols=binance_symbols)
+
     # Build enabled strategies and scanner
-    strategies = _build_strategies(settings, book_manager, spot_buffer, trade_db)
+    strategies = _build_strategies(
+        settings, book_manager, spot_buffer, trade_db, alpha_signals,
+    )
     if not strategies:
         _log.warning("no_strategies_enabled", msg="Enable at least one strategy.")
         return
@@ -2144,6 +2174,10 @@ async def _run_bot(settings: Settings, pid_lock: PidLock) -> None:
     # Start concurrent tasks
     ws_task = asyncio.create_task(clob_ws.run())
     binance_task = asyncio.create_task(binance_ws.run())
+
+    alpha_signals_task = None
+    if alpha_signals is not None:
+        alpha_signals_task = asyncio.create_task(alpha_signals.run())
 
     rollover_task = asyncio.create_task(
         _rollover_loop(market_manager, interval=30.0),
@@ -2361,6 +2395,7 @@ async def _run_bot(settings: Settings, pid_lock: PidLock) -> None:
         exit_task, gtc_task, maker_arb_task, summary_task,
         dashboard_task, snapshot_task, resolution_task,
         spot_snapshot_task, market_outcome_task,
+        alpha_signals_task,
     ]
     for task in all_tasks:
         if task is not None:
@@ -2380,8 +2415,10 @@ async def _run_bot(settings: Settings, pid_lock: PidLock) -> None:
         except asyncio.TimeoutError:
             ws.cancel()
 
-    # Close HTTP clients, Binance Futures, and trade database
+    # Close HTTP clients, alpha signals, Binance Futures, and trade database
     await discovery.close()
+    if alpha_signals is not None:
+        await alpha_signals.close()
     if hedge_manager is not None and hasattr(hedge_manager, '_client'):
         await hedge_manager._client.close()
     if trade_db is not None:

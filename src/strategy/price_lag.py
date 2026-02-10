@@ -57,9 +57,11 @@ class PriceLagStrategy(BaseStrategy):
         settings: Settings,
         book_manager: OrderBookManager,
         spot_buffer: SpotBuffer,
+        alpha_signals: object | None = None,
     ) -> None:
         super().__init__(settings, book_manager)
         self._spot_buffer = spot_buffer
+        self._alpha_signals = alpha_signals
         self._consecutive_signals: dict[str, int] = {}  # condition_id -> count
         self._last_signal_direction: dict[str, str] = {}  # condition_id -> "UP"/"DOWN"
         self._stop_loss_counts: dict[str, int] = {}  # condition_id -> consecutive trigger count
@@ -268,6 +270,24 @@ class PriceLagStrategy(BaseStrategy):
             yes_fill = None
             no_fill = fill
 
+        # Alpha signal metadata (observe-only in Phase 1)
+        alpha_meta: dict[str, object] = {}
+        if self._alpha_signals is not None:
+            from src.data.alpha_signals import AlphaSignalProvider
+
+            if isinstance(self._alpha_signals, AlphaSignalProvider):
+                snap = self._alpha_signals.get_snapshot(binance_symbol)
+                if snap.funding is not None:
+                    alpha_meta["alpha_funding_bias"] = snap.funding.bias.value
+                    alpha_meta["alpha_funding_rate"] = snap.funding.rate
+                if snap.oi is not None:
+                    alpha_meta["alpha_oi_trend"] = snap.oi.trend.value
+                    alpha_meta["alpha_oi_delta_pct"] = round(snap.oi.delta_pct, 4)
+                    alpha_meta["alpha_oi_diverging"] = snap.oi.price_diverging
+                if snap.vol is not None:
+                    alpha_meta["alpha_vol_regime"] = snap.vol.regime.value
+                    alpha_meta["alpha_vol_sigma"] = round(snap.vol.realized_vol, 8)
+
         # KL divergence scoring (optional)
         kl_meta: dict[str, float] = {}
         if self._settings.enable_divergence_scoring:
@@ -296,6 +316,7 @@ class PriceLagStrategy(BaseStrategy):
                 "confirmations": confirmations,
                 "binance_symbol": binance_symbol,
                 **kl_meta,
+                **alpha_meta,
             },
         )
 

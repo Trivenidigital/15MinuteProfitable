@@ -42,9 +42,11 @@ class DipBuyerStrategy(BaseStrategy):
         settings: Settings,
         book_manager: OrderBookManager,
         spot_buffer: SpotBuffer,
+        alpha_signals: object | None = None,
     ) -> None:
         super().__init__(settings, book_manager)
         self._spot_buffer = spot_buffer
+        self._alpha_signals = alpha_signals
         # Divergence exit tracking
         self._entry_kl: dict[str, float] = {}  # condition_id -> entry KL divergence
         self._entry_direction: dict[str, str] = {}  # condition_id -> "UP"/"DOWN"
@@ -96,6 +98,32 @@ class DipBuyerStrategy(BaseStrategy):
 
         if not self._spot_buffer.has_data(binance_symbol):
             return None
+
+        # 2b. Vol regime gate — block dip_buyer in HIGH vol (mean reversion fails in trends)
+        alpha_meta: dict[str, object] = {}
+        if self._alpha_signals is not None:
+            from src.data.alpha_signals import AlphaSignalProvider, VolRegime
+
+            if isinstance(self._alpha_signals, AlphaSignalProvider):
+                snap = self._alpha_signals.get_snapshot(binance_symbol)
+                if snap.vol is not None:
+                    alpha_meta["alpha_vol_regime"] = snap.vol.regime.value
+                    alpha_meta["alpha_vol_sigma"] = round(snap.vol.realized_vol, 8)
+                    if snap.vol.regime == VolRegime.HIGH:
+                        self._log.info(
+                            "dip_buyer_vol_too_high",
+                            market=market.slug,
+                            vol_regime=snap.vol.regime.value,
+                            sigma=round(snap.vol.realized_vol, 6),
+                        )
+                        return None
+                if snap.funding is not None:
+                    alpha_meta["alpha_funding_bias"] = snap.funding.bias.value
+                    alpha_meta["alpha_funding_rate"] = snap.funding.rate
+                if snap.oi is not None:
+                    alpha_meta["alpha_oi_trend"] = snap.oi.trend.value
+                    alpha_meta["alpha_oi_delta_pct"] = round(snap.oi.delta_pct, 4)
+                    alpha_meta["alpha_oi_diverging"] = snap.oi.price_diverging
 
         # 3. Detect sharp move in short window
         short_movement = self._spot_buffer.detect_movement(
@@ -232,6 +260,7 @@ class DipBuyerStrategy(BaseStrategy):
                 "outlier_ratio": round(outlier_ratio, 2),
                 "binance_symbol": binance_symbol,
                 **kl_meta,
+                **alpha_meta,
             },
         )
 

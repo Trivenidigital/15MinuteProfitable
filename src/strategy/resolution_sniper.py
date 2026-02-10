@@ -96,9 +96,11 @@ class ResolutionSniperStrategy(BaseStrategy):
         settings: Settings,
         book_manager: OrderBookManager,
         spot_buffer: SpotBuffer,
+        alpha_signals: object | None = None,
     ) -> None:
         super().__init__(settings, book_manager)
         self._spot_buffer = spot_buffer
+        self._alpha_signals = alpha_signals
         # condition_id -> (open_price, capture_timestamp)
         self._opening_prices: dict[str, tuple[float, float]] = {}
         # condition_id -> set of tranche indices already taken
@@ -317,6 +319,24 @@ class ResolutionSniperStrategy(BaseStrategy):
 
         distance_pct = distance * 100.0
 
+        # Alpha signal metadata (observe-only in Phase 1)
+        alpha_meta: dict[str, object] = {}
+        if self._alpha_signals is not None:
+            from src.data.alpha_signals import AlphaSignalProvider
+
+            if isinstance(self._alpha_signals, AlphaSignalProvider):
+                snap = self._alpha_signals.get_snapshot(binance_symbol)
+                if snap.funding is not None:
+                    alpha_meta["alpha_funding_bias"] = snap.funding.bias.value
+                    alpha_meta["alpha_funding_rate"] = snap.funding.rate
+                if snap.oi is not None:
+                    alpha_meta["alpha_oi_trend"] = snap.oi.trend.value
+                    alpha_meta["alpha_oi_delta_pct"] = round(snap.oi.delta_pct, 4)
+                    alpha_meta["alpha_oi_diverging"] = snap.oi.price_diverging
+                if snap.vol is not None:
+                    alpha_meta["alpha_vol_regime"] = snap.vol.regime.value
+                    alpha_meta["alpha_vol_sigma"] = round(snap.vol.realized_vol, 8)
+
         # KL divergence scoring (optional)
         kl_meta: dict[str, float] = {}
         if self._settings.enable_divergence_scoring:
@@ -355,6 +375,7 @@ class ResolutionSniperStrategy(BaseStrategy):
                 "tranche_size": tranche_size,
                 "time_remaining": round(time_remaining, 1),
                 **kl_meta,
+                **alpha_meta,
             },
         )
 

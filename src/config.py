@@ -275,6 +275,19 @@ class Settings(BaseSettings):
     enable_decision_logging: bool = True
     spot_snapshot_interval: float = 5.0  # seconds between spot price snapshots
 
+    # Alpha Signals (Binance Futures public API)
+    enable_alpha_signals: bool = True
+    alpha_funding_poll_seconds: float = 28800.0   # 8h
+    alpha_oi_poll_seconds: float = 60.0           # 1 min
+    alpha_vol_window_seconds: int = 600           # 10 min
+    alpha_vol_min_data_points: int = 10
+    alpha_vol_low_threshold: float = 0.0005
+    alpha_vol_high_threshold: float = 0.0020
+    alpha_funding_bullish_threshold: float = -0.0001
+    alpha_funding_bearish_threshold: float = 0.0001
+    alpha_oi_rising_threshold: float = 0.02
+    alpha_oi_falling_threshold: float = -0.02
+
     # Daily Summary
     daily_summary_hour: int = 0  # UTC hour to send daily summary
 
