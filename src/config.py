@@ -122,6 +122,8 @@ class Settings(BaseSettings):
     take_profit_time_decay: bool = True  # widen take-profit as market nears expiry
     stop_loss_cheap_threshold: float = 0.10  # no stop-loss for contracts < $0.10 avg price
     stop_loss_confirmations: int = 3  # consecutive triggers before exit (6s at 2s interval)
+    trailing_tp_pct: float = 0.05        # 5% trail below peak P&L to trigger exit
+    trailing_tp_activation: float = 0.05  # Only activate trailing TP after 5% gain
 
     # Trailing take-profit
     trailing_tp_enabled: bool = True
