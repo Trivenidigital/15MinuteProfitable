@@ -51,6 +51,7 @@ class StateManager:
         self._positions: dict[str, Position] = {}
         self._daily_pnl: dict[str, DailyPnL] = {}
         self._entry_counts: dict[str, int] = {}  # condition_id -> trade entry count
+        self._strategy_entry_counts: dict[str, int] = {}  # "condition_id:strategy" -> count
         self._sim_balance_value: float = settings.sim_balance
         self._trade_db: TradeDatabase | None = None
         self._lock = asyncio.Lock()
@@ -170,6 +171,7 @@ class StateManager:
 
         del self._positions[condition_id]
         self._entry_counts.pop(condition_id, None)
+        self._clear_strategy_entry_counts(condition_id)
 
         logger.info(
             "position_closed",
@@ -198,6 +200,18 @@ class StateManager:
     def position_entry_count(self, condition_id: str) -> int:
         """Number of trade entries recorded for a market. Returns 0 if none."""
         return self._entry_counts.get(condition_id, 0)
+
+    def strategy_entry_count(self, condition_id: str, strategy: str) -> int:
+        """Number of trade entries for a specific strategy on a market."""
+        key = f"{condition_id}:{strategy}"
+        return self._strategy_entry_counts.get(key, 0)
+
+    def _clear_strategy_entry_counts(self, condition_id: str) -> None:
+        """Remove all strategy-level entry counts for a condition_id."""
+        prefix = f"{condition_id}:"
+        keys_to_remove = [k for k in self._strategy_entry_counts if k.startswith(prefix)]
+        for k in keys_to_remove:
+            del self._strategy_entry_counts[k]
 
     def total_unhedged_exposure(self) -> float:
         """Sum of abs(net_directional_exposure * avg_price) across all positions.
@@ -260,6 +274,10 @@ class StateManager:
 
             # Track entry count for stacking prevention
             self._entry_counts[cid] = self._entry_counts.get(cid, 0) + 1
+            strat_key = f"{cid}:{opportunity.strategy.value}"
+            self._strategy_entry_counts[strat_key] = (
+                self._strategy_entry_counts.get(strat_key, 0) + 1
+            )
 
             for order in filled_orders:
                 is_yes = order.token_id == opportunity.market.yes_token_id
@@ -632,6 +650,7 @@ class StateManager:
 
                 del self._positions[cid]
                 self._entry_counts.pop(cid, None)
+                self._clear_strategy_entry_counts(cid)
                 logger.info(
                     "position_resolved_hedged",
                     condition_id=cid,
@@ -703,6 +722,7 @@ class StateManager:
 
                 del self._positions[cid]
                 self._entry_counts.pop(cid, None)
+                self._clear_strategy_entry_counts(cid)
                 logger.info(
                     "position_resolved_unhedged",
                     condition_id=cid,
@@ -762,6 +782,7 @@ class StateManager:
         for cid in orphaned:
             del self._positions[cid]
             self._entry_counts.pop(cid, None)
+            self._clear_strategy_entry_counts(cid)
             logger.warning("orphaned_position_removed", condition_id=cid)
 
         report["orphaned_removed"] = orphaned

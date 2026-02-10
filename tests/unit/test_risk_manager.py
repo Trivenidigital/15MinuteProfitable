@@ -60,6 +60,9 @@ class MockState:
     def position_entry_count(self, condition_id: str) -> int:
         return self._entry_count
 
+    def strategy_entry_count(self, condition_id: str, strategy: str) -> int:
+        return 0
+
 
 # ---------------------------------------------------------------------------
 # Fixtures

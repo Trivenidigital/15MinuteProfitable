@@ -204,7 +204,7 @@ class PriceLagStrategy(BaseStrategy):
             current_price = no_ask
             odds_lag = max(0, 0.5 + movement.change_pct * 10 - current_price)
 
-        # Apply signal inversion if enabled (swap direction + token)
+        # Price lag always trades momentum (original direction) — no inversion
         direction, target_token_id = self._maybe_invert(
             movement.direction, market,
         )
@@ -711,6 +711,12 @@ class PriceLagStrategy(BaseStrategy):
                 return False
 
         return True
+
+    def _maybe_invert(self, direction: str, market: Market) -> tuple[str, str]:
+        """Price lag trades original direction (momentum-following)."""
+        if direction == "UP":
+            return direction, market.yes_token_id
+        return direction, market.no_token_id
 
     def _time_aware_sizing(self, time_to_close: float) -> float:
         """Return sizing multiplier based on time remaining.

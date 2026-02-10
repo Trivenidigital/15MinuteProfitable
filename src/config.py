@@ -209,6 +209,7 @@ class Settings(BaseSettings):
     # Risk Limits (AGGRESSIVE MODE)
     disable_circuit_breaker: bool = False  # skip circuit breaker (useful in DRY_RUN)
     max_entries_per_market: int = 10  # limit accumulation; 10 * $50 = $500 max per market
+    max_entries_per_strategy_per_market: int = 5  # max entries per strategy per market window
     max_position_per_market: float = 1000.0  # aggressive for learning mode
     max_total_position: float = 4000.0  # paper money — let strategies play
     max_daily_loss: float = 250.0  # safety valve

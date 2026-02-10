@@ -33,6 +33,8 @@ class StateProvider(Protocol):
 
     def position_entry_count(self, condition_id: str) -> int: ...
 
+    def strategy_entry_count(self, condition_id: str, strategy: str) -> int: ...
+
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -158,6 +160,17 @@ class RiskManager:
                 f"{max_entries}"
             )
             self._log.warning("risk_rejected", check="max_entries", reason=reason)
+            return False, reason
+
+        # 3c. Max entries per strategy per market
+        max_per_strat = self._settings.max_entries_per_strategy_per_market
+        strat_count = self._state.strategy_entry_count(condition_id, opp.strategy.value)
+        if strat_count >= max_per_strat:
+            reason = (
+                f"max entries per strategy reached: {strat_count} >= "
+                f"{max_per_strat} ({opp.strategy.value})"
+            )
+            self._log.warning("risk_rejected", check="max_entries_per_strategy", reason=reason)
             return False, reason
 
         # 4. Total exposure
