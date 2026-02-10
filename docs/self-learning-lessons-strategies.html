@@ -317,10 +317,11 @@
         <tr><td><code>max_unhedged_exposure</code></td><td>$800</td><td>$500</td><td>Feb 9</td></tr>
         <tr><td><code>max_daily_loss</code></td><td>$250</td><td>$1,000</td><td>Feb 8</td></tr>
         <tr><td><code>min_entry_price</code></td><td><strong>$0.10</strong></td><td>N/A (new)</td><td>Feb 8 ~19:30</td></tr>
-        <tr><td><code>sniper_min_entry_price</code></td><td class="green"><strong>$0.30</strong></td><td>N/A (new)</td><td>Feb 10 16:40 (raised from 0.05, cheap sprays destroyed value)</td></tr>
+        <tr><td><code>sniper_min_entry_price</code></td><td class="green"><strong>$0.60</strong></td><td>$0.30</td><td>Feb 10 17:40 (raised — entries &lt;0.60 have &lt;34% WR)</td></tr>
         <tr><td><code>sniper_min_confidence</code></td><td class="green"><strong>0.65</strong></td><td>0.75</td><td>Feb 9 18:44 (aggressive)</td></tr>
-        <tr><td><code>sniper_vol_multiplier</code></td><td><strong>3.0</strong></td><td>2.0</td><td>Feb 9 05:03</td></tr>
-        <tr><td><code>sniper_vol_floor</code></td><td><strong>0.0005</strong></td><td>0.0001</td><td>Feb 9 05:03</td></tr>
+        <tr><td><code>sniper_vol_multiplier</code></td><td class="green"><strong>8.0</strong></td><td>3.0</td><td>Feb 10 17:40 (CDF was 75pp overconfident, need massive deflation)</td></tr>
+        <tr><td><code>sniper_vol_floor</code></td><td class="green"><strong>0.002</strong></td><td>0.0005</td><td>Feb 10 17:40 (low-vol floor caused 100% false confidence)</td></tr>
+        <tr><td><code>sniper_max_tranches</code></td><td class="green"><strong>1</strong></td><td>3 (default)</td><td>Feb 10 17:40 (single entry — multi-tranche compounds losses)</td></tr>
         <tr><td><code>sniper_high_confidence_threshold</code></td><td class="green"><strong>0.90</strong></td><td>N/A (new)</td><td>Feb 9 17:35</td></tr>
         <tr><td><code>sniper_high_confidence_multiplier</code></td><td class="green"><strong>3.0</strong></td><td>N/A (new)</td><td>Feb 9 17:35</td></tr>
         <tr><td><code>fade_panic_spot_vs_open_max_change</code></td><td class="green"><strong>0.003</strong></td><td>N/A (new)</td><td>Feb 9 17:35</td></tr>
@@ -382,6 +383,24 @@
 <h2>4. Experiment Timeline</h2>
 
 <p>Chronological record of every parameter change. Newest entries at the top.</p>
+
+<!-- Experiment #39 -->
+<div class="timeline-entry kept">
+    <div class="timeline-date">2026-02-10 17:40 UTC &mdash; Experiment #39</div>
+    <div class="timeline-title">
+        Sniper Overhaul: Fix Overconfident CDF, Raise Entry Floor, Single Entry
+    </div>
+    <p><strong>Hypothesis:</strong> Forensic analysis of 117 resolved sniper positions (25.6% WR, -$540.62) revealed 4 root causes: (1) CDF model is 50-75pp overconfident at every confidence level, (2) vol floor of 0.0005 creates false 100% confidence in low-vol, (3) entries below $0.60 market price have &lt;34% WR because the market is right, (4) multi-tranche compounds losses 2-3x.</p>
+    <p><strong>Changes:</strong></p>
+    <ul>
+        <li><code>sniper_vol_multiplier</code>: 3.0 &rarr; <strong>8.0</strong> &mdash; massively deflate overconfident normal CDF (predicted 95%+ had only 20.7% actual WR)</li>
+        <li><code>sniper_vol_floor</code>: 0.0005 &rarr; <strong>0.002</strong> &mdash; prevent low-vol overconfidence (sigma &lt; 0.0005 had 0% WR, -$217)</li>
+        <li><code>sniper_min_entry_price</code>: 0.30 &rarr; <strong>0.60</strong> &mdash; only enter when market agrees (&gt;60% implied prob). Below 0.60: &lt;34% WR</li>
+        <li><code>sniper_max_tranches</code>: 3 &rarr; <strong>1</strong> &mdash; single entry per market. Multi-tranche doubled/tripled losses on wrong calls</li>
+    </ul>
+    <p><strong>Evidence:</strong> Hypothetical backtest on 117 positions: sigma &gt; 0.001 + price &ge; 0.60 filter &rarr; 12 trades, 66.7% WR, -$13.58 (near breakeven vs -$540). With higher vol_mult deflating CDF further, expect fewer but higher-quality entries.</p>
+    <p><strong>Verdict:</strong> <span class="muted">Pending &mdash; collecting data</span></p>
+</div>
 
 <!-- Experiment #38 -->
 <div class="timeline-entry reverted">
@@ -1660,7 +1679,7 @@
 
 <hr class="separator">
 <p class="muted" style="text-align: center; font-size: 0.8rem;">
-    This document is auto-maintained by the Claude analysis agent. Last updated: 2026-02-10 17:25 UTC.
+    This document is auto-maintained by the Claude analysis agent. Last updated: 2026-02-10 17:40 UTC.
 </p>
 
 </body>
