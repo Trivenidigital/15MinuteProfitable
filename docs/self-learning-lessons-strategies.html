@@ -265,8 +265,8 @@
 <h2>3. Current Configuration State</h2>
 
 <p>
-    Current parameter values on the server. Updated 2026-02-10 14:20 UTC.
-    <span class="badge badge-active">PERFORMANCE-BASED ALLOCATION</span> = sizes flipped to favor winners.
+    Current parameter values on the server. Updated 2026-02-10 16:40 UTC.
+    <span class="badge badge-active">DATA-DRIVEN PRUNING</span> = disabled losers, tightened filters, scaled winners.
 </p>
 
 <div class="card">
@@ -275,7 +275,7 @@
         <tr><th>Parameter</th><th>Current Value</th><th>Pre-Sprint Baseline</th><th>Last Changed</th></tr>
         <tr><td><code>enable_arbitrage</code></td><td class="green">true</td><td>true</td><td>&mdash;</td></tr>
         <tr><td><code>enable_price_lag</code></td><td class="green"><strong>true</strong></td><td>false</td><td>Feb 9 18:44 (re-enabled for inversion test)</td></tr>
-        <tr><td><code>enable_asymmetric</code></td><td class="green">true</td><td>true</td><td>&mdash;</td></tr>
+        <tr><td><code>enable_asymmetric</code></td><td class="red"><strong>false</strong></td><td>true</td><td>Feb 10 16:40 (disabled: -$972 lifetime)</td></tr>
         <tr><td><code>asymmetric_require_hedge</code></td><td class="green"><strong>true</strong></td><td>N/A (new)</td><td>Feb 9 01:00 (forced hedging)</td></tr>
         <tr><td><code>enable_maker_arbitrage</code></td><td class="green">true</td><td>false</td><td>Feb 7</td></tr>
         <tr><td><code>enable_dip_buyer</code></td><td class="green">true</td><td>N/A (new)</td><td>Feb 8 ~18:00</td></tr>
@@ -296,7 +296,7 @@
         <tr><th>Parameter</th><th>Current Value</th><th>Previous Value</th><th>Change</th><th>Last Changed</th></tr>
         <tr><td><code>fade_panic_order_size</code></td><td class="green"><strong>$50</strong></td><td>$25</td><td class="green">+100%</td><td>Feb 10 14:20 (2x winner)</td></tr>
         <tr><td><code>order_size</code> (price_lag)</td><td class="green"><strong>$100</strong></td><td>$50</td><td class="green">+100%</td><td>Feb 9 18:44 (aggressive)</td></tr>
-        <tr><td><code>dip_order_size</code></td><td class="green"><strong>$100</strong></td><td>$50</td><td class="green">+100%</td><td>Feb 10 14:20 (2x winner)</td></tr>
+        <tr><td><code>dip_order_size</code></td><td class="green"><strong>$250</strong></td><td>$50</td><td class="green">+400%</td><td>Feb 10 16:40 (2.5x scale-up, only profitable strategy)</td></tr>
         <tr><td><code>accumulation_size</code></td><td class="red"><strong>$10</strong></td><td>$20</td><td class="red">-50%</td><td>Feb 9 01:00</td></tr>
         <tr><td><code>max_accumulation_per_side</code></td><td class="red"><strong>$50</strong></td><td>$200</td><td class="red">-75%</td><td>Feb 9 01:00</td></tr>
         <tr><td><code>sniper_order_size</code></td><td class="green"><strong>$60</strong></td><td>$30</td><td class="green">+100%</td><td>Feb 9 18:44 (aggressive)</td></tr>
@@ -316,13 +316,15 @@
         <tr><td><code>max_unhedged_exposure</code></td><td>$800</td><td>$500</td><td>Feb 9</td></tr>
         <tr><td><code>max_daily_loss</code></td><td>$250</td><td>$1,000</td><td>Feb 8</td></tr>
         <tr><td><code>min_entry_price</code></td><td><strong>$0.10</strong></td><td>N/A (new)</td><td>Feb 8 ~19:30</td></tr>
-        <tr><td><code>sniper_min_entry_price</code></td><td><strong>$0.20</strong></td><td>N/A (new)</td><td>Feb 9 03:45</td></tr>
+        <tr><td><code>sniper_min_entry_price</code></td><td class="green"><strong>$0.30</strong></td><td>N/A (new)</td><td>Feb 10 16:40 (raised from 0.05, cheap sprays destroyed value)</td></tr>
         <tr><td><code>sniper_min_confidence</code></td><td class="green"><strong>0.65</strong></td><td>0.75</td><td>Feb 9 18:44 (aggressive)</td></tr>
         <tr><td><code>sniper_vol_multiplier</code></td><td><strong>3.0</strong></td><td>2.0</td><td>Feb 9 05:03</td></tr>
         <tr><td><code>sniper_vol_floor</code></td><td><strong>0.0005</strong></td><td>0.0001</td><td>Feb 9 05:03</td></tr>
         <tr><td><code>sniper_high_confidence_threshold</code></td><td class="green"><strong>0.90</strong></td><td>N/A (new)</td><td>Feb 9 17:35</td></tr>
         <tr><td><code>sniper_high_confidence_multiplier</code></td><td class="green"><strong>3.0</strong></td><td>N/A (new)</td><td>Feb 9 17:35</td></tr>
         <tr><td><code>fade_panic_spot_vs_open_max_change</code></td><td class="green"><strong>0.003</strong></td><td>N/A (new)</td><td>Feb 9 17:35</td></tr>
+        <tr><td><code>fade_panic_odds_shift_threshold</code></td><td class="green"><strong>0.15</strong></td><td>0.15 (default)</td><td>Feb 10 16:40 (restored from 0.06, too loose)</td></tr>
+        <tr><td><code>fade_panic_spot_max_change</code></td><td class="green"><strong>0.0005</strong></td><td>0.0005 (default)</td><td>Feb 10 16:40 (restored from 0.002, too loose)</td></tr>
         <tr><td colspan="4" class="muted"><em>Sniper max_entries=3 override: REMOVED (was blocking fade_panic)</em></td></tr>
     </table>
 </div>
@@ -379,6 +381,32 @@
 <h2>4. Experiment Timeline</h2>
 
 <p>Chronological record of every parameter change. Newest entries at the top.</p>
+
+<!-- Experiment #36 -->
+<div class="timeline-entry kept">
+    <div class="timeline-date">2026-02-10 16:40 UTC &mdash; Experiment #36</div>
+    <div class="timeline-title">
+        Data-Driven Strategy Pruning: Disable Asymmetric, Tighten Sniper/Fade, Scale Dip Buyer
+        <span class="badge badge-deployed">DEPLOYED</span>
+    </div>
+    <p><strong>Hypothesis:</strong> All-time trade data analysis reveals only dip_buyer is profitable (+$27.94). asymmetric (-$972, 43.9% WR), resolution_sniper (-$186, 30.1% WR), and fade_panic (-$425, 31.5% WR) are all losing. Rather than further tuning asymmetric (no asset shows edge), disable it. Sniper&rsquo;s cheap spray entries (avg losing entry $0.21 vs avg winning entry $0.53) are net negative &mdash; raise floor. fade_panic was loosened in Exp #29b (0.06 odds shift, 0.002 spot change) and has bled since &mdash; restore tight defaults.</p>
+    <p><strong>Changes:</strong></p>
+    <ul style="margin: 0.5rem 0 0.75rem 1.5rem; color: var(--text-muted); font-size: 0.9rem;">
+        <li><code>BOT_ENABLE_ASYMMETRIC=false</code> (was true) &mdash; Disabled. -$972 lifetime, 43.9% WR, no asset profitable.</li>
+        <li><code>BOT_SNIPER_MIN_ENTRY_PRICE=0.30</code> (was 0.05) &mdash; Eliminates worthless contract sprays. Winning avg entry is $0.53.</li>
+        <li><code>BOT_FADE_PANIC_ODDS_SHIFT_THRESHOLD=0.15</code> (was 0.06) &mdash; Restored default. Only genuine 15%+ odds shifts trigger entries.</li>
+        <li><code>BOT_FADE_PANIC_SPOT_MAX_CHANGE=0.0005</code> (was 0.002) &mdash; Restored default. Tighter &ldquo;no spot movement&rdquo; filter rejects fundamental repricing events.</li>
+        <li><code>BOT_DIP_ORDER_SIZE=250</code> (was 100) &mdash; 2.5x scale-up of only profitable strategy (+$27.94, avg win $47 vs avg loss $1.85).</li>
+    </ul>
+    <div class="experiment-metrics">
+        <div class="stat"><div class="stat-value green">6</div><div class="stat-label">Strategies loaded (was 7)</div></div>
+        <div class="stat"><div class="stat-value red">-$972</div><div class="stat-label">Asymmetric lifetime P&amp;L</div></div>
+        <div class="stat"><div class="stat-value green">+$27.94</div><div class="stat-label">Dip Buyer lifetime P&amp;L</div></div>
+        <div class="stat"><div class="stat-value green">250</div><div class="stat-label">Dip order size (was 100)</div></div>
+    </div>
+    <p><strong>Verification:</strong> Bot restarted at 16:40 UTC. Startup log confirms <code>enable_asymmetric: false</code>, 6 strategies loaded: [arbitrage, price_lag, maker_arbitrage, dip_buyer, fade_panic, resolution_sniper]. price_lag kept as-is per user decision.</p>
+    <p><strong>Expected outcome:</strong> Bleeding from asymmetric stops immediately (-$972 was 40% of all losses). Sniper filters out sub-$0.30 lottery tickets. Fade panic fires less often but on higher-quality signals. Dip buyer deploys 2.5x more capital behind proven edge.</p>
+</div>
 
 <!-- Experiment #35 -->
 <div class="timeline-entry kept">
@@ -1604,7 +1632,7 @@
 
 <hr class="separator">
 <p class="muted" style="text-align: center; font-size: 0.8rem;">
-    This document is auto-maintained by the Claude analysis agent. Last updated: 2026-02-10 14:22 UTC.
+    This document is auto-maintained by the Claude analysis agent. Last updated: 2026-02-10 16:42 UTC.
 </p>
 
 </body>
