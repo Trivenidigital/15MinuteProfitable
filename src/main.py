@@ -962,7 +962,9 @@ async def _execute_hmm_scalp(
     try:
         await rate_limiter.acquire(2)
 
-        sell_result = await executor.execute_order(sell_order)
+        await executor.sign_order(sell_order)
+        sell_result = await executor.submit_order(sell_order)
+        sell_result = await executor.verify_fill(sell_result)
 
         if sell_result.status not in (OrderStatus.FILLED, OrderStatus.PARTIALLY_FILLED):
             _log.warning(
