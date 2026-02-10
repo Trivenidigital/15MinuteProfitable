@@ -221,6 +221,15 @@ The window controls BOTH when the strategy activates AND when it records odds da
 - **AsyncMock `.closed` attribute is truthy by default.** When mocking `aiohttp.ClientSession`, `AsyncMock().closed` returns a `MagicMock` object (truthy), causing guards like `if self._session.closed` to trigger early return. Always set `mock_session.closed = False` explicitly. This bug silently skipped 9 tests without any assertion error — the mock just never reached the HTTP call.
 - **Mock context managers need both `__aenter__` and `__aexit__`.** For `async with session.get(url) as resp:`, the mock needs: `mock_response.__aenter__ = AsyncMock(return_value=mock_response)` and `mock_response.__aexit__ = AsyncMock(return_value=False)`, plus `mock_session.get = MagicMock(return_value=mock_response)`.
 
+## All-Time Performance Analysis Insights (Feb 10)
+
+- **Only 1 of 6 strategies is profitable lifetime.** dip_buyer (+$27.94) is the only net positive strategy across 1400+ trades over 3 days. asymmetric (-$972), price_lag (-$795), fade_panic (-$425), resolution_sniper (-$186) are all losing. Don't keep unprofitable strategies running hoping they'll turn around — disable after sufficient data (100+ trades, 24h+ runtime).
+- **Asymmetric payoff ratios matter more than win rates.** dip_buyer has 74% WR but also 25:1 win/loss ratio ($47 avg win vs $1.85 avg loss). Even at 50% WR it would be profitable. When evaluating strategies, look at the asymmetry of payoffs, not just win rate.
+- **"Spray cheap contracts" is a losing approach.** Resolution sniper entries below $0.30 had terrible win rates — the average losing entry was $0.21 vs winning entry $0.53. Cheap isn't the same as good value. Set meaningful min entry price floors based on actual win-rate-by-price-bucket analysis.
+- **Loosened filters accumulate losses silently.** Experiment #29b loosened fade_panic thresholds (odds shift 0.15→0.06, spot max change 0.0005→0.002) for "max signal throughput." The result: -$425 lifetime. More signals ≠ more profit. Tight filters with fewer but higher-quality entries beat loose filters with volume.
+- **Scale winners, kill losers — don't allocate uniformly.** When you identify a strategy with proven edge (dip_buyer: +$27.94, 74% WR, 25:1 payoff), scale it up aggressively. When a strategy has no edge in any asset/timeframe/condition (asymmetric: -$972), disable it entirely. Don't split capital equally.
+- **All-time data > single-session data.** The Feb 10 8-hour analysis showed fade_panic at +$158 and dip_buyer at +$59. The all-time analysis (3 days) showed fade_panic at -$425 and dip_buyer at +$27.94. Single sessions can be misleading due to regime effects. Always check all-time performance before making parameter decisions.
+
 ## Common Mistakes
 
 - **Heredoc in SSH:** Copy-pasting heredocs (`cat << 'EOF'`) over SSH often fails. Use multiple `printf` or `echo` commands instead.

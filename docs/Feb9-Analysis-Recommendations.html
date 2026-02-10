@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Feb 9, 2026 - Bot Analysis &amp; Recommendations</title>
+<style>
+  :root { --bg: #0d1117; --card: #161b22; --border: #30363d; --text: #c9d1d9; --accent: #58a6ff; --red: #f85149; --green: #3fb950; --yellow: #d29922; --orange: #db6d28; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, sans-serif; line-height: 1.6; padding: 20px; max-width: 1200px; margin: 0 auto; }
+  h1 { color: var(--accent); border-bottom: 2px solid var(--accent); padding-bottom: 10px; margin-bottom: 20px; }
+  h2 { color: var(--accent); margin: 30px 0 15px; border-left: 4px solid var(--accent); padding-left: 12px; }
+  h3 { color: var(--yellow); margin: 20px 0 10px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin: 15px 0; }
+  .metric { display: inline-block; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 12px 18px; margin: 5px; text-align: center; min-width: 140px; }
+  .metric .value { font-size: 1.8em; font-weight: bold; display: block; }
+  .metric .label { font-size: 0.85em; color: #8b949e; }
+  .red { color: var(--red); }
+  .green { color: var(--green); }
+  .yellow { color: var(--yellow); }
+  .orange { color: var(--orange); }
+  table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+  th, td { padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--border); }
+  th { background: var(--bg); color: var(--accent); font-weight: 600; }
+  tr:hover { background: rgba(88,166,255,0.05); }
+  .severity-critical { border-left: 4px solid var(--red); }
+  .severity-high { border-left: 4px solid var(--orange); }
+  .severity-medium { border-left: 4px solid var(--yellow); }
+  .severity-low { border-left: 4px solid var(--green); }
+  .tag { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.8em; font-weight: 600; margin: 2px; }
+  .tag-critical { background: rgba(248,81,73,0.2); color: var(--red); }
+  .tag-fix { background: rgba(63,185,80,0.2); color: var(--green); }
+  .tag-investigate { background: rgba(210,153,34,0.2); color: var(--yellow); }
+  code { background: var(--bg); padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
+  pre { background: var(--bg); padding: 15px; border-radius: 6px; overflow-x: auto; margin: 10px 0; border: 1px solid var(--border); }
+  .timeline { border-left: 3px solid var(--border); padding-left: 20px; margin: 15px 0; }
+  .timeline-event { margin: 15px 0; position: relative; }
+  .timeline-event::before { content: ''; position: absolute; left: -26px; top: 6px; width: 12px; height: 12px; border-radius: 50%; background: var(--accent); }
+  .timeline-event.bad::before { background: var(--red); }
+  .timeline-event.good::before { background: var(--green); }
+  .recommendation { background: rgba(63,185,80,0.05); border: 1px solid rgba(63,185,80,0.3); border-radius: 8px; padding: 15px; margin: 10px 0; }
+  .recommendation strong { color: var(--green); }
+  .warning { background: rgba(248,81,73,0.05); border: 1px solid rgba(248,81,73,0.3); border-radius: 8px; padding: 15px; margin: 10px 0; }
+  .warning strong { color: var(--red); }
+  .toc { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin: 20px 0; }
+  .toc a { color: var(--accent); text-decoration: none; display: block; padding: 4px 0; }
+  .toc a:hover { text-decoration: underline; }
+  .update-banner { background: rgba(88,166,255,0.1); border: 1px solid var(--accent); border-radius: 8px; padding: 15px; margin: 15px 0; text-align: center; }
+</style>
+</head>
+<body>
+
+<h1>Feb 9, 2026 - Bot Analysis &amp; Recommendations</h1>
+
+<div class="update-banner">
+  <strong>Monitoring Window:</strong> 17:00 UTC - 01:00 UTC (8 hours) | <strong>Last Updated:</strong> <span id="last-update">2026-02-10 16:42 UTC</span>
+  <br><em>This document is updated progressively during the monitoring window.</em>
+</div>
+
+<div class="toc">
+  <strong>Table of Contents</strong>
+  <a href="#executive-summary">1. Executive Summary</a>
+  <a href="#headline-metrics">2. Headline Metrics (Feb 9)</a>
+  <a href="#catastrophic-event">3. Catastrophic Event Analysis</a>
+  <a href="#strategy-breakdown">4. Strategy-by-Strategy Breakdown</a>
+  <a href="#stacking-problem">5. The Stacking Problem</a>
+  <a href="#signal-anticorrelation">6. Signal Anti-Correlation Discovery</a>
+  <a href="#entry-price-analysis">7. Entry Price vs Win Rate</a>
+  <a href="#hourly-patterns">8. Hourly Patterns</a>
+  <a href="#asset-performance">9. Asset-Level Performance</a>
+  <a href="#server-config">10. Server Config Issues</a>
+  <a href="#root-causes">11. Root Cause Analysis</a>
+  <a href="#recommendations">12. Recommendations (Priority Ordered)</a>
+  <a href="#smart-money-strategy">13. Proposed: Smart Money Signal Strategy</a>
+  <a href="#external-alpha">14. External Alpha Sources</a>
+  <a href="#monitoring-timeline">15. Monitoring Timeline</a>
+</div>
+
+<!-- ============================================ -->
+<h2 id="executive-summary">1. Executive Summary</h2>
+<!-- ============================================ -->
+
+<div class="card severity-critical">
+  <p>The bot is <strong class="red">deeply unprofitable</strong> and bleeding rapidly. Total P&amp;L on Feb 9: <strong class="red">-$2,238.94</strong> across 122 resolved trades (27.9% win rate). The sim_balance dropped from ~$10,000 to ~$6,500.</p>
+
+  <p style="margin-top: 10px;">The <strong>#1 problem</strong> is <em>catastrophic position stacking</em> &mdash; fade_panic enters the same market 5-22 times in under 2 minutes, turning a $25-100 bet into a $200-990 concentrated position. When wrong (75% of the time), the entire stack is lost.</p>
+
+  <p style="margin-top: 10px;">The <strong>#2 problem</strong> is the <em>absence of informational edge</em>. Market outcomes are near 50/50 (YES 52% / NO 48%), meaning no strategy has consistent predictive power. The bot is essentially paying fees to flip coins.</p>
+
+  <p style="margin-top: 10px;"><strong class="yellow">Key Insight:</strong> If fade_panic was limited to 1 entry per market at $25, with max entry price $0.35, the same 49 resolved markets would produce roughly <strong>-$50 to breakeven</strong> instead of <strong>-$1,647</strong>. The strategy signal isn't terrible &mdash; the position management is catastrophic.</p>
+</div>
+
+<!-- ============================================ -->
+<h2 id="headline-metrics">2. Headline Metrics (Feb 9)</h2>
+<!-- ============================================ -->
+
+<div class="card">
+  <div class="metric"><span class="value red">-$2,239</span><span class="label">Today's P&amp;L</span></div>
+  <div class="metric"><span class="value red">27.9%</span><span class="label">Win Rate</span></div>
+  <div class="metric"><span class="value">122</span><span class="label">Resolved Trades</span></div>
+  <div class="metric"><span class="value">618+</span><span class="label">Total Entries</span></div>
+  <div class="metric"><span class="value">$6,505</span><span class="label">Sim Balance</span></div>
+  <div class="metric"><span class="value">312</span><span class="label">Markets Observed</span></div>
+</div>
+
+<table>
+  <tr><th>Strategy</th><th>Trades</th><th>W/L</th><th>Win Rate</th><th>P&amp;L</th><th>Avg Win</th><th>Avg Loss</th><th>W/L Ratio</th></tr>
+  <tr><td>fade_panic</td><td>49</td><td>12/37</td><td class="red">24.5%</td><td class="red">-$1,647.63</td><td>$94.41</td><td>$75.15</td><td>1.26</td></tr>
+  <tr><td>asymmetric</td><td>25</td><td>10/15</td><td class="yellow">40.0%</td><td class="red">-$456.07</td><td>$43.13</td><td>$59.16</td><td>0.73</td></tr>
+  <tr><td>resolution_sniper</td><td>33</td><td>10/23</td><td class="red">30.3%</td><td class="red">-$134.25</td><td>$9.09</td><td>$9.79</td><td>0.93</td></tr>
+  <tr><td>maker_arbitrage</td><td>13</td><td>0/13</td><td class="red">0.0%</td><td class="red">-$12.50</td><td>-</td><td>$0.96</td><td>-</td></tr>
+  <tr><td>price_lag</td><td>2</td><td>2/0</td><td class="green">100%</td><td class="green">+$11.51</td><td>$5.76</td><td>-</td><td>-</td></tr>
+</table>
+
+<p><em>Market outcomes today: YES 162 (52%) / NO 148 (47%) / FLAT 2 (1%) &mdash; near coin-flip distribution.</em></p>
+
+<!-- ============================================ -->
+<h2 id="catastrophic-event">3. Catastrophic Event Analysis</h2>
+<!-- ============================================ -->
+
+<div class="card severity-critical">
+  <h3 class="red">SOL Market Disaster: -$990.86 (19:13-19:15 UTC)</h3>
+
+  <p>Condition ID: <code>0xd5df...d6ad</code></p>
+  <p><strong>22 fade_panic entries</strong> in 1 minute 42 seconds, all buying YES at escalating prices:</p>
+
+  <table>
+    <tr><th>Time</th><th>Price</th><th>Size</th><th>Cost</th><th>Notes</th></tr>
+    <tr><td>19:13:06</td><td>$0.25</td><td>100</td><td>$25.00</td><td>Reasonable entry</td></tr>
+    <tr><td>19:13:10</td><td>$0.25</td><td>100</td><td>$25.06</td><td>Duplicate 4s later</td></tr>
+    <tr><td>19:13:12</td><td>$0.24</td><td>100</td><td>$24.00</td><td>3rd entry, 6s total</td></tr>
+    <tr><td>19:13:16</td><td>$0.24</td><td>100</td><td>$24.00</td><td>4th entry</td></tr>
+    <tr><td>19:13:55</td><td>$0.25</td><td>100</td><td>$24.65</td><td>Still cheap...</td></tr>
+    <tr><td>19:14:09</td><td class="yellow">$0.52</td><td>100</td><td>$52.10</td><td class="yellow">Price doubled!</td></tr>
+    <tr><td>19:14:11</td><td class="yellow">$0.53</td><td>100</td><td>$52.67</td><td class="yellow">Chasing up</td></tr>
+    <tr><td>19:14:30</td><td class="orange">$0.58</td><td>100</td><td>$58.10</td><td class="orange">Still buying</td></tr>
+    <tr><td>19:14:34</td><td class="red">$0.76</td><td>100</td><td>$76.00</td><td class="red">Paying 76c for YES</td></tr>
+    <tr><td>19:14:48</td><td class="red">$0.71</td><td>100</td><td>$71.00</td><td class="red">Last entry</td></tr>
+  </table>
+
+  <p style="margin-top: 10px;"><strong>Total invested:</strong> $990.86 across 22 entries (+ 2 resolution_sniper + 1 price_lag)</p>
+  <p><strong>Market resolved:</strong> NO &rarr; All YES positions worth $0</p>
+  <p><strong>Loss:</strong> -$990.86</p>
+
+  <div class="warning" style="margin-top: 15px;">
+    <strong>What went wrong:</strong>
+    <ol style="margin-top: 8px; padding-left: 20px;">
+      <li>fade_panic detected a YES-side "panic" signal at $0.25 &mdash; reasonable first entry</li>
+      <li>0.5-second cooldown allowed immediate re-entry, stacking 4 entries in 10 seconds</li>
+      <li>Price rose from $0.25 to $0.76 as the bot kept buying (chasing its own orders)</li>
+      <li><code>max_entries_per_market=50</code> allowed 22 entries on a single market</li>
+      <li>No price escalation guard &mdash; strategy kept buying even at $0.76</li>
+      <li>Market resolved NO, obliterating the entire $990.86 position</li>
+    </ol>
+  </div>
+</div>
+
+<div class="card severity-high">
+  <h3 class="orange">Other Major Stacking Events Today</h3>
+  <table>
+    <tr><th>Market</th><th>Asset</th><th>Time</th><th>Entries</th><th>Cost</th><th>Result</th></tr>
+    <tr><td><code>0xc530...52cf</code></td><td>BTC</td><td>04:58-04:59</td><td>17</td><td>$286.41</td><td class="red">-$286.41 (NO)</td></tr>
+    <tr><td><code>0x3ea7...acb3</code></td><td>BTC</td><td>03:28-03:29</td><td>17</td><td>$199.99</td><td class="red">-$199.99 (YES)</td></tr>
+    <tr><td><code>0x7ba7...def80</code></td><td>ETH</td><td>03:13-03:14</td><td>14</td><td>$103.00</td><td class="red">Lost</td></tr>
+    <tr><td><code>0x4689...dbfc7</code></td><td>XRP</td><td>03:58-03:59</td><td>13</td><td>$196.38</td><td class="red">-$196.38 (YES)</td></tr>
+    <tr><td><code>0x9d64...4c3a</code></td><td>BTC</td><td>02:13-02:14</td><td>13</td><td>$179.29</td><td class="red">Lost</td></tr>
+    <tr><td><code>0x5e4c...44ff</code></td><td>SOL</td><td>05:58</td><td>10</td><td>$221.50</td><td class="red">-$221.50 (YES)</td></tr>
+  </table>
+</div>
+
+<!-- ============================================ -->
+<h2 id="strategy-breakdown">4. Strategy-by-Strategy Breakdown</h2>
+<!-- ============================================ -->
+
+<div class="card">
+  <h3>fade_panic <span class="tag tag-critical">CRITICAL - 73% of losses</span></h3>
+  <ul>
+    <li><strong>P&amp;L:</strong> <span class="red">-$1,647.63</span> (49 trades, 12W/37L, 24.5% WR)</li>
+    <li><strong>Problem:</strong> 5.1 avg entries per market (299 entries across 59 markets)</li>
+    <li><strong>Win/Loss Ratio:</strong> 1.26x (avg win $94.41 vs avg loss $75.15)</li>
+    <li><strong>Breakeven WR needed:</strong> 1/(1+1.26) = 44.2% &mdash; current 24.5% is way below</li>
+    <li><strong>If limited to 1 entry/market at $25:</strong> Avg loss drops to ~$25, ratio improves to ~3:1, breakeven WR drops to ~25% &mdash; roughly breakeven</li>
+    <li><strong>YES vs NO first-entry WR:</strong> NO side 28.0%, YES side 20.8%</li>
+  </ul>
+</div>
+
+<div class="card">
+  <h3>asymmetric <span class="tag tag-critical">LOSING - negative W/L ratio</span></h3>
+  <ul>
+    <li><strong>P&amp;L:</strong> <span class="red">-$456.07</span> (25 trades, 10W/15L, 40% WR)</li>
+    <li><strong>Win/Loss Ratio:</strong> 0.73x (avg win $43.13 vs avg loss $59.16)</li>
+    <li><strong>Problem:</strong> Even when correct 40% of the time, losses are 37% larger than wins</li>
+    <li><strong>Stopped trading</strong> after ~02:00 UTC (require_hedge=true filtering out opportunities)</li>
+    <li><strong>Root cause:</strong> Combined YES+NO cost exceeds $1 payout threshold</li>
+  </ul>
+</div>
+
+<div class="card">
+  <h3>resolution_sniper <span class="tag tag-investigate">MARGINAL</span></h3>
+  <ul>
+    <li><strong>P&amp;L:</strong> <span class="red">-$134.25</span> (33 trades, 10W/23L, 30.3% WR)</li>
+    <li><strong>Win/Loss Ratio:</strong> 0.93x (avg win $9.09 vs avg loss $9.79)</li>
+    <li><strong>Problem:</strong> Buying at fair value, no edge. Near-random outcomes.</li>
+    <li><strong>Small position sizes</strong> ($10 avg) limit damage but also limit upside</li>
+    <li><strong>ETH is the only profitable asset</strong> for this strategy (+$31.58, 50% WR)</li>
+  </ul>
+</div>
+
+<div class="card">
+  <h3>maker_arbitrage <span class="tag tag-critical">DEAD - 0% WR</span></h3>
+  <ul>
+    <li><strong>P&amp;L:</strong> <span class="red">-$12.50</span> (13 trades, 0W/13L, 0% WR)</li>
+    <li><strong>Problem:</strong> Never wins. Spreads are too wide for maker arb to profit after fees.</li>
+    <li><strong>Recommendation:</strong> Disable immediately</li>
+  </ul>
+</div>
+
+<div class="card">
+  <h3>price_lag <span class="tag tag-investigate">RE-ENABLED AT 19:17 UTC</span></h3>
+  <ul>
+    <li><strong>P&amp;L:</strong> <span class="green">+$11.51</span> (2 trades, 2W/0L) &mdash; pre-enable</li>
+    <li>Re-enabled via .env change at 19:21 UTC; trading aggressively since restart</li>
+    <li>15 new price_lag entries in first 5 minutes after restart</li>
+    <li><strong>Status:</strong> Need more data to evaluate. Historical performance was poor.</li>
+  </ul>
+</div>
+
+<!-- ============================================ -->
+<h2 id="stacking-problem">5. The Stacking Problem</h2>
+<!-- ============================================ -->
+
+<div class="card severity-critical">
+  <h3>Position Stacking Is The #1 Cause of Losses</h3>
+
+  <p>fade_panic entered <strong>299 times</strong> across only <strong>59 unique markets</strong> today &mdash; averaging <strong>5.1 entries per market</strong>. The worst market had 22 entries.</p>
+
+  <h3 style="margin-top: 15px;">Why Stacking Is Catastrophic for Binary Markets</h3>
+  <ol style="padding-left: 20px; margin-top: 8px;">
+    <li><strong>Binary payoff:</strong> You either win 100% of payout or lose 100% of investment. There's no gradual loss.</li>
+    <li><strong>When WRONG (75% of the time):</strong> ALL entries on that market lose everything. 5 entries = 5x the loss.</li>
+    <li><strong>When RIGHT (25% of the time):</strong> The first entry captures most of the profit. Additional entries at HIGHER prices yield diminishing returns.</li>
+    <li><strong>Self-adverse selection:</strong> The bot's own buying pushes prices UP, making subsequent entries worse.</li>
+    <li><strong>Asymmetric damage:</strong> A single wrong market with 22 entries (-$990) wipes out 10+ winning markets.</li>
+  </ol>
+
+  <h3 style="margin-top: 15px;">Stacking Ratios by Strategy</h3>
+  <table>
+    <tr><th>Strategy</th><th>Unique Markets</th><th>Total Entries</th><th>Avg Entries/Market</th></tr>
+    <tr><td>asymmetric</td><td>24</td><td>216</td><td class="red"><strong>9.0</strong></td></tr>
+    <tr><td>fade_panic</td><td>59</td><td>299</td><td class="red"><strong>5.1</strong></td></tr>
+    <tr><td>price_lag</td><td>8</td><td>31</td><td class="orange"><strong>3.9</strong></td></tr>
+    <tr><td>maker_arbitrage</td><td>13</td><td>48</td><td class="orange"><strong>3.7</strong></td></tr>
+    <tr><td>resolution_sniper</td><td>36</td><td>53</td><td class="green"><strong>1.5</strong></td></tr>
+  </table>
+
+  <p style="margin-top: 10px;"><strong>Timing:</strong> All 299 fade_panic entries occur in the last 2 minutes of each 15-min window (configured via <code>fade_panic_window_seconds=120</code>). The worst stacking event (22 entries) completed in 102 seconds. The 0.5s cooldown allows rapid-fire entries with no effective throttling.</p>
+
+  <div class="recommendation" style="margin-top: 15px;">
+    <strong>Fix:</strong> Set <code>MAX_ENTRIES_PER_MARKET=1</code> (or 2 max). This single change would reduce today's fade_panic loss from -$1,647 to approximately -$200 to -$400.
+  </div>
+</div>
+
+<!-- ============================================ -->
+<h2 id="signal-anticorrelation">6. Signal Anti-Correlation Discovery</h2>
+<!-- ============================================ -->
+
+<div class="card severity-critical">
+  <h3 class="red">fade_panic's Signal Is ANTI-PREDICTIVE</h3>
+
+  <p>By comparing the direction of each first fade_panic entry against the actual market outcome, we find the signal is <strong>systematically wrong</strong>:</p>
+
+  <table>
+    <tr><th>Bot Action</th><th>Correct</th><th>Wrong</th><th>Accuracy</th><th>Expected (Random)</th></tr>
+    <tr><td>Bought NO (betting DOWN)</td><td>7</td><td>23</td><td class="red">23.3%</td><td>~48%</td></tr>
+    <tr><td>Bought YES (betting UP)</td><td>9</td><td>19</td><td class="red">31.0%</td><td>~52%</td></tr>
+    <tr><td><strong>Overall</strong></td><td><strong>16</strong></td><td><strong>42</strong></td><td class="red"><strong>27.1%</strong></td><td><strong>~50%</strong></td></tr>
+  </table>
+
+  <p style="margin-top: 10px;"><strong>If the signal were inverted</strong> (buy the opposite side), win rate would be <strong class="green">71.2%</strong> (42/59 markets).</p>
+
+  <h3 style="margin-top: 15px;">What This Means</h3>
+  <p>The "panic" fade_panic detects &mdash; a rapid odds shift without corresponding spot price movement &mdash; is not noise or irrational panic. It's <strong>informed trading by market participants who know something</strong>. The odds are shifting because the market is correctly pricing in the likely outcome.</p>
+
+  <p style="margin-top: 10px;">By "fading the panic" (buying the cheap side), the bot is systematically betting <em>against</em> informed market participants. This is the exact opposite of what a profitable strategy should do.</p>
+
+  <h3 style="margin-top: 15px;">Can We Simply Invert the Signal?</h3>
+  <p><strong>No.</strong> Due to price symmetry, inverting the signal means buying the expensive side (~$0.70) instead of the cheap side (~$0.25):</p>
+  <ul>
+    <li>Inverted win: $0.30 profit per share at 71.2% rate</li>
+    <li>Inverted loss: $0.70 cost per share at 28.8% rate</li>
+    <li>EV = 0.712 &times; $0.30 - 0.288 &times; $0.70 = <strong>+$0.012/share</strong> (1.7% ROI)</li>
+    <li>After fees (3.15% taker + 2% winner): <strong>NEGATIVE</strong></li>
+  </ul>
+
+  <div class="recommendation" style="margin-top: 10px;">
+    <strong>Actionable Use of This Finding:</strong>
+    <ol style="padding-left: 20px; margin-top: 8px;">
+      <li><strong>Use as a FILTER:</strong> When fade_panic fires, <em>avoid</em> that market entirely. The odds shift is information, not panic.</li>
+      <li><strong>Combine with external alpha:</strong> Only trade when fade_panic signal AGREES with external signals (funding rate, OI delta). Disagreement = market knows something.</li>
+      <li><strong>Investigate the information source:</strong> The rapid odds shifts are coming from somewhere. If we can identify the source (whale wallets? large CLOB orders? cross-exchange arbitrageurs?), we could trade WITH them.</li>
+    </ol>
+  </div>
+</div>
+
+<div class="card">
+  <h3>resolution_sniper Direction Accuracy</h3>
+  <table>
+    <tr><th>Bot Action</th><th>Correct</th><th>Wrong</th><th>Accuracy</th></tr>
+    <tr><td>Bought YES</td><td>9</td><td>3 (+1 FLAT)</td><td class="green">69.2%</td></tr>
+    <tr><td>Bought NO</td><td>10</td><td>13</td><td class="yellow">43.5%</td></tr>
+  </table>
+  <p style="margin-top: 10px;">resolution_sniper's YES-buying is strong (69.2% accuracy). The NO-buying side (43.5%) drags overall performance down. Consider restricting resolution_sniper to YES buys only.</p>
+</div>
+
+<!-- ============================================ -->
+<h2 id="entry-price-analysis">7. Entry Price vs Win Rate</h2>
+<!-- ============================================ -->
+<!-- ============================================ -->
+
+<div class="card">
+  <h3>fade_panic Win Rate by Entry Price Bucket</h3>
+  <table>
+    <tr><th>Entry Price</th><th>Entries</th><th>Win Rate</th><th>Verdict</th></tr>
+    <tr><td>$0.00 - $0.19</td><td>60</td><td class="red">6.7%</td><td>Too cheap = market is right to price it low</td></tr>
+    <tr><td>$0.20 - $0.29</td><td>76</td><td class="green">35.5%</td><td><strong>Best bucket</strong> &mdash; sweet spot</td></tr>
+    <tr><td>$0.30 - $0.39</td><td>43</td><td class="yellow">20.9%</td><td>Declining edge</td></tr>
+    <tr><td>$0.40 - $0.49</td><td>41</td><td class="yellow">24.4%</td><td>Marginal</td></tr>
+    <tr><td>$0.50 - $0.59</td><td>19</td><td class="red">15.8%</td><td>Paying fair value</td></tr>
+    <tr><td>$0.60 - $0.69</td><td>1</td><td class="red">0.0%</td><td>Overpaying</td></tr>
+    <tr><td>$0.70 - $0.79</td><td>5</td><td class="red">0.0%</td><td>Overpaying badly</td></tr>
+  </table>
+
+  <div class="recommendation">
+    <strong>Key Finding:</strong> The $0.20-$0.29 bucket is the only one with meaningful edge (35.5% WR). At a 3:1 payout ratio ($0.25 entry wins $0.75), breakeven is 25% &mdash; so 35.5% is genuinely profitable.
+    <br><br>
+    <strong>Fix:</strong> Set <code>fade_panic_max_entry_price=0.35</code> to avoid the losing $0.50+ entries. Also consider setting <code>min_entry_price=0.15</code> to filter out the $0.00-$0.19 range (6.7% WR = terrible).
+  </div>
+</div>
+
+<!-- ============================================ -->
+<h2 id="hourly-patterns">8. Hourly Patterns</h2>
+<!-- ============================================ -->
+
+<div class="card">
+  <h3>P&amp;L and Win Rate by Hour (UTC)</h3>
+  <table>
+    <tr><th>Hour</th><th>Trades</th><th>W/L</th><th>Win Rate</th><th>P&amp;L</th><th>Notes</th></tr>
+    <tr><td>00:00</td><td>13</td><td>4/9</td><td class="red">30.8%</td><td class="red">-$325.36</td><td></td></tr>
+    <tr><td>01:00</td><td>8</td><td>3/5</td><td class="yellow">37.5%</td><td class="red">-$95.76</td><td></td></tr>
+    <tr><td>02:00</td><td>8</td><td>5/3</td><td class="green">62.5%</td><td class="green">+$300.60</td><td>Best hour</td></tr>
+    <tr><td>03:00</td><td>5</td><td>0/5</td><td class="red">0.0%</td><td class="red">-$347.66</td><td>Worst WR</td></tr>
+    <tr><td>04:00</td><td>4</td><td>0/4</td><td class="red">0.0%</td><td class="red">-$197.96</td><td></td></tr>
+    <tr><td>05:00</td><td>7</td><td>2/5</td><td class="red">28.6%</td><td class="green">+$26.50</td><td></td></tr>
+    <tr><td>06:00</td><td>4</td><td>0/4</td><td class="red">0.0%</td><td class="red">-$227.08</td><td></td></tr>
+    <tr><td>07:00</td><td>2</td><td>0/2</td><td class="red">0.0%</td><td class="red">-$5.70</td><td>Low volume</td></tr>
+    <tr><td>08:00</td><td>7</td><td>1/6</td><td class="red">14.3%</td><td class="red">-$49.15</td><td></td></tr>
+    <tr><td>09:00</td><td>6</td><td>5/1</td><td class="green">83.3%</td><td class="green">+$94.58</td><td>Best WR</td></tr>
+    <tr><td>10:00</td><td>5</td><td>1/4</td><td class="red">20.0%</td><td class="green">+$92.40</td><td>1 big win</td></tr>
+    <tr><td>11:00</td><td>6</td><td>3/3</td><td class="yellow">50.0%</td><td class="green">+$56.07</td><td></td></tr>
+    <tr><td>12:00</td><td>6</td><td>0/6</td><td class="red">0.0%</td><td class="red">-$13.40</td><td></td></tr>
+    <tr><td>13:00</td><td>6</td><td>0/6</td><td class="red">0.0%</td><td class="red">-$303.59</td><td>Stacking losses</td></tr>
+    <tr><td>14:00</td><td>3</td><td>0/3</td><td class="red">0.0%</td><td class="red">-$24.72</td><td></td></tr>
+    <tr><td>15:00</td><td>7</td><td>0/7</td><td class="red">0.0%</td><td class="red">-$108.45</td><td></td></tr>
+    <tr><td>16:00</td><td>8</td><td>3/5</td><td class="yellow">37.5%</td><td class="green">+$14.24</td><td></td></tr>
+    <tr><td>17:00</td><td>6</td><td>2/4</td><td class="yellow">33.3%</td><td class="red">-$113.68</td><td></td></tr>
+    <tr><td>18:00</td><td>4</td><td>0/4</td><td class="red">0.0%</td><td class="red">-$90.79</td><td></td></tr>
+    <tr><td>19:00</td><td>7</td><td>5/2</td><td class="green">71.4%</td><td class="red">-$920.03</td><td>SOL disaster</td></tr>
+  </table>
+
+  <p style="margin-top: 10px;"><strong>Pattern:</strong> Hours 03-08 and 12-15 UTC are consistently losing (0% WR in many hours). Hours 09-11 UTC show better performance. However, with only 1 day of data, these patterns are not statistically significant.</p>
+</div>
+
+<!-- ============================================ -->
+<h2 id="asset-performance">9. Asset-Level Performance</h2>
+<!-- ============================================ -->
+
+<div class="card">
+  <h3>P&amp;L by Asset &times; Strategy</h3>
+  <table>
+    <tr><th>Asset</th><th>Strategy</th><th>Trades</th><th>Win Rate</th><th>P&amp;L</th></tr>
+    <tr><td>SOL</td><td>fade_panic</td><td>12</td><td class="red">25.0%</td><td class="red">-$1,219.15</td></tr>
+    <tr><td>BTC</td><td>fade_panic</td><td>12</td><td class="red">16.7%</td><td class="red">-$560.53</td></tr>
+    <tr><td>XRP</td><td>fade_panic</td><td>9</td><td class="red">22.2%</td><td class="red">-$287.42</td></tr>
+    <tr><td>ETH</td><td>fade_panic</td><td>9</td><td class="yellow">33.3%</td><td class="green">+$324.78</td></tr>
+    <tr><td>ETH</td><td>resolution_sniper</td><td>12</td><td class="green">50.0%</td><td class="green">+$31.58</td></tr>
+    <tr><td>BTC</td><td>resolution_sniper</td><td>8</td><td class="red">0.0%</td><td class="red">-$19.65</td></tr>
+  </table>
+
+  <div class="recommendation">
+    <strong>Key Finding:</strong> ETH is the only profitable asset for both fade_panic (+$324.78, 33.3% WR) and resolution_sniper (+$31.58, 50% WR). SOL, BTC, and XRP are consistently losing.
+    <br><br>
+    <strong>Possible reason:</strong> ETH 15-minute markets may have less efficient pricing (fewer bots competing), creating a small edge that doesn't exist in the more liquid BTC/SOL markets. Needs more data to confirm.
+    <br><br>
+    <strong>Consider:</strong> Restricting trading to ETH only for an observation period.
+  </div>
+</div>
+
+<!-- ============================================ -->
+<h2 id="server-config">10. Server Config Issues</h2>
+<!-- ============================================ -->
+
+<div class="card severity-critical">
+  <h3>Dangerous Server Configuration</h3>
+  <p>The .env on the server has several settings that dramatically amplify losses:</p>
+
+  <table>
+    <tr><th>Setting</th><th>Server Value</th><th>Code Default</th><th>Danger Level</th></tr>
+    <tr><td><code>MAX_ENTRIES_PER_MARKET</code></td><td class="red"><strong>50</strong></td><td>10</td><td><span class="tag tag-critical">CRITICAL</span> Allows 50 entries per 15-min market</td></tr>
+    <tr><td><code>FADE_PANIC_ORDER_SIZE</code></td><td class="orange"><strong>$100</strong></td><td>$50</td><td><span class="tag tag-critical">HIGH</span> Double the default</td></tr>
+    <tr><td><code>COOLDOWN_SECONDS</code></td><td class="orange"><strong>0.5s</strong></td><td>2.0s</td><td><span class="tag tag-critical">HIGH</span> Rapid-fire stacking</td></tr>
+    <tr><td><code>DISABLE_CIRCUIT_BREAKER</code></td><td class="red"><strong>true</strong></td><td>false</td><td><span class="tag tag-critical">HIGH</span> No safety valve</td></tr>
+    <tr><td><code>MAX_DAILY_LOSS</code></td><td class="yellow">$250</td><td>$250</td><td>Bypassed by disabled circuit breaker</td></tr>
+  </table>
+
+  <p style="margin-top: 10px;"><strong>Disaster formula:</strong> $100/entry &times; 50 max entries &times; 0.5s cooldown = <strong>up to $5,000 at risk per market</strong> with no circuit breaker to stop it.</p>
+</div>
+
+<!-- ============================================ -->
+<h2 id="root-causes">11. Root Cause Analysis</h2>
+<!-- ============================================ -->
+
+<div class="card">
+  <h3>Why the Bot Loses Money (Ranked by Impact)</h3>
+
+  <div class="warning">
+    <strong>1. CRITICAL: Uncontrolled Position Stacking</strong>
+    <p>fade_panic enters the same market 5-22 times because <code>max_entries_per_market=50</code> and <code>cooldown_seconds=0.5</code>. Each wrong market (75% of the time) loses 5-22x what a single entry would lose. The bot also chases its own price impact, buying at $0.25 and continuing to buy up to $0.76.</p>
+  </div>
+
+  <div class="warning">
+    <strong>2. CRITICAL: Signal Is Anti-Predictive (Worse Than Random)</strong>
+    <p>The fade_panic signal doesn't just lack edge &mdash; it's <em>actively wrong</em>. When the bot buys NO (betting DOWN), the market goes UP 77% of the time. When it buys YES (betting UP), the market goes DOWN 69% of the time. Overall 27.1% accuracy vs 50% random baseline. The "panic" it fades is actually informed trading. See <a href="#signal-anticorrelation">Section 6</a> for full analysis.</p>
+  </div>
+
+  <div class="warning">
+    <strong>3. HIGH: Entry Price Indiscriminate</strong>
+    <p>The bot buys at any price up to <code>fade_panic_max_entry_price=0.92</code>. But win rate drops from 35.5% at $0.20-$0.29 to 0% above $0.60. Every entry above $0.40 is statistically a losing bet.</p>
+  </div>
+
+  <div class="warning" style="border-color: rgba(210,153,34,0.3); background: rgba(210,153,34,0.05);">
+    <strong style="color: var(--yellow);">4. MEDIUM: Asymmetric's Negative W/L Ratio</strong>
+    <p>Even with 40% WR, asymmetric loses because avg_win ($43) &lt; avg_loss ($59). The strategy buys both YES and NO sides but combined cost exceeds $1 payout more often than not.</p>
+  </div>
+
+  <div class="warning" style="border-color: rgba(210,153,34,0.3); background: rgba(210,153,34,0.05);">
+    <strong style="color: var(--yellow);">5. MEDIUM: resolution_sniper Buys at Fair Value</strong>
+    <p>With 0.93 W/L ratio and 30% WR, resolution_sniper has no edge. It's buying contracts at approximately their fair probability. Small sizes limit damage.</p>
+  </div>
+
+  <div class="warning" style="border-color: rgba(63,185,80,0.3); background: rgba(63,185,80,0.05);">
+    <strong style="color: var(--green);">6. LOW: maker_arbitrage Spreads Too Wide</strong>
+    <p>0% WR across 13 trades. Spreads ($1.01-$1.05) are too wide for profitable arb after fees. Small losses per trade but zero upside.</p>
+  </div>
+</div>
+
+<!-- ============================================ -->
+<h2 id="recommendations">12. Recommendations (Priority Ordered)</h2>
+<!-- ============================================ -->
+
+<div class="update-banner" style="background: rgba(63,185,80,0.1); border-color: var(--green); margin-bottom: 20px;">
+  <strong class="green">STATUS UPDATE &mdash; Feb 10, 16:42 UTC</strong><br>
+  All-time data analysis (Feb 7-10, 1400+ trades) confirmed Feb 9 patterns held over 3 days. Actions taken in Experiment #36:
+  <ul style="text-align:left; margin-top:8px; padding-left:20px;">
+    <li><strong class="green">R1:</strong> Entry cap implemented (Exp #8: 50&rarr;5, then #33: per-strategy caps, then #35: max_entries_per_strategy_per_market=5)</li>
+    <li><strong class="green">R3:</strong> Min entry price floor added at $0.10 (Exp #7), sniper raised to $0.30 (Exp #36)</li>
+    <li><strong class="green">R12:</strong> Asymmetric DISABLED &mdash; -$972 lifetime, 43.9% WR, no asset profitable (Exp #36)</li>
+    <li><strong class="green">R13:</strong> External alpha DEPLOYED &mdash; funding rate, OI delta, vol regime from Binance Futures (Exp #34)</li>
+    <li><strong class="green">R15:</strong> Kelly criterion integrated into risk manager (implemented Feb 8)</li>
+    <li><strong class="yellow">fade_panic:</strong> Tightened filters &mdash; odds shift 0.06&rarr;0.15, spot max change 0.002&rarr;0.0005 (Exp #36)</li>
+    <li><strong class="yellow">dip_buyer:</strong> Scaled up 100&rarr;250 shares &mdash; only profitable strategy at +$27.94 lifetime (Exp #36)</li>
+  </ul>
+</div>
+
+<div class="card severity-critical">
+  <h3>IMMEDIATE - Deploy Today</h3>
+
+  <div class="recommendation">
+    <strong>R1: Cap entries at 1-2 per market</strong> <span class="tag tag-fix">DONE (Exp #8, #33, #35)</span><br>
+    <code>BOT_MAX_ENTRIES_PER_MARKET=20</code> + <code>BOT_MAX_ENTRIES_PER_STRATEGY_PER_MARKET=5</code><br>
+    <em>Implemented via global cap + per-strategy-per-market compound key tracking. Stacking problem eliminated.</em>
+  </div>
+
+  <div class="recommendation">
+    <strong>R2: Reduce order sizes</strong> <span class="tag tag-investigate">EVOLVED</span><br>
+    <em>Instead of reducing all sizes, we moved to performance-based allocation: winners get more capital, losers get cut. See Exp #35.</em>
+  </div>
+
+  <div class="recommendation">
+    <strong>R3: Tighten entry price filter</strong> <span class="tag tag-fix">DONE (Exp #7, #36)</span><br>
+    <code>BOT_MIN_ENTRY_PRICE=0.10</code> (Exp #7), <code>BOT_SNIPER_MIN_ENTRY_PRICE=0.30</code> (Exp #36)<br>
+    <em>Min entry floor added globally. Sniper raised from $0.05&rarr;$0.30 after data showed winning avg entry is $0.53 vs losing avg $0.21.</em>
+  </div>
+
+  <div class="recommendation">
+    <strong>R4: Increase cooldown to prevent rapid stacking</strong> <span class="tag tag-fix">SUPERSEDED</span><br>
+    <em>Per-strategy-per-market entry caps (Exp #35) solve the stacking problem more precisely than cooldowns. Cooldown remains at 2s.</em>
+  </div>
+
+  <div class="recommendation">
+    <strong>R5: Re-enable circuit breaker</strong> <span class="tag tag-investigate">DEFERRED</span><br>
+    <code>BOT_DISABLE_CIRCUIT_BREAKER=true</code> remains &mdash; circuit breaker was causing more harm (blocking recovery) than good in DRY_RUN mode. Will re-evaluate for live trading.
+  </div>
+
+  <div class="recommendation">
+    <strong>R6: Disable maker_arbitrage</strong> <span class="tag tag-investigate">KEPT</span><br>
+    <em>Maker arbitrage kept enabled &mdash; near-zero losses and may eventually find fills as spreads tighten. Low risk to keep.</em>
+  </div>
+</div>
+
+<div class="card severity-high">
+  <h3>SHORT TERM - Deploy This Week</h3>
+
+  <div class="recommendation">
+    <strong>R7: Convert fade_panic to Smart Money Signal + Direction Override (code change)</strong> <span class="tag tag-investigate">NOT IMPLEMENTED</span><br>
+    Subsequent experiments showed fade_panic is profitable in its original (non-inverted) fading mode when filters are tight enough. Exp #36 restored tight defaults (15% odds shift, 0.05% max spot change). Signal override architecture remains available if fade_panic continues bleeding.
+  </div>
+
+  <div class="recommendation">
+    <strong>R8: Restrict resolution_sniper to YES buys only</strong> <span class="tag tag-investigate">PARTIALLY</span><br>
+    Instead of YES-only restriction, sniper min entry raised to $0.30 (Exp #36) and confidence gate tightened to 0.65 with 0.90 high-confidence multiplier (Exp #27). All-time data shows $0.30+ entries have much better WR.
+  </div>
+
+  <div class="recommendation">
+    <strong>R9: Add per-market price escalation guard (code change)</strong> <span class="tag tag-fix">SUPERSEDED</span><br>
+    Per-strategy-per-market entry caps (max 5) prevent the runaway stacking that caused price chasing. Escalation guard no longer needed.
+  </div>
+
+  <div class="recommendation">
+    <strong>R10: Add per-market cooldown (code change)</strong> <span class="tag tag-fix">SUPERSEDED</span><br>
+    Per-market investment cap (fade_panic_max_per_market) + per-strategy entry cap solve this more precisely than cooldowns.
+  </div>
+
+  <div class="recommendation">
+    <strong>R11: ETH-only observation period</strong> <span class="tag tag-investigate">NOT DONE</span><br>
+    All-time data shows no consistent single-asset edge (ETH profitability was regime-dependent). All 4 assets kept.
+  </div>
+
+  <div class="recommendation">
+    <strong>R12: Evaluate asymmetric strategy</strong> <span class="tag tag-fix">DONE &mdash; DISABLED (Exp #36)</span><br>
+    <code>BOT_ENABLE_ASYMMETRIC=false</code><br>
+    <em>All-time analysis: -$972.61, 43.9% WR, no asset shows edge. Disabled as of Feb 10 16:40 UTC.</em>
+  </div>
+</div>
+
+<div class="card severity-medium">
+  <h3>MEDIUM TERM - Research &amp; Implement</h3>
+
+  <div class="recommendation">
+    <strong>R13: External alpha integration</strong> <span class="tag tag-fix">DONE (Exp #34)</span><br>
+    Deployed Feb 10 04:55 UTC. Funding rate, OI delta, and volatility regime signals from Binance Futures API. All 4 directional strategies inject alpha metadata. dip_buyer actively gates on HIGH vol regime.
+  </div>
+
+  <div class="recommendation">
+    <strong>R14: Implement proper backtesting</strong> <span class="tag tag-investigate">NOT STARTED</span><br>
+    Still needed. 3+ days of trade data available for replay testing.
+  </div>
+
+  <div class="recommendation">
+    <strong>R15: Kelly criterion for dynamic sizing</strong> <span class="tag tag-fix">DONE</span><br>
+    Kelly criterion integrated into risk/manager.py with kelly_fraction=0.15. Dynamic allocation system (Exp #28) adds profit-factor-based multipliers on top.
+  </div>
+</div>
+
+<!-- ============================================ -->
+<h2 id="smart-money-strategy">13. Proposed: Smart Money Signal Strategy</h2>
+<!-- ============================================ -->
+
+<div class="card severity-high">
+  <h3>The Core Insight</h3>
+  <p>fade_panic detects sharp odds shifts without corresponding spot price movement. Analysis of 59 markets shows these shifts are <strong>informed trading (smart money)</strong>, not panic &mdash; they predict direction correctly <strong>72.9% of the time</strong>. Three options were evaluated:</p>
+
+  <table>
+    <tr><th>Option</th><th>Approach</th><th>Problem</th></tr>
+    <tr><td class="red">Current</td><td>Fade (bet against) the odds shift</td><td>27.1% WR &mdash; systematically wrong</td></tr>
+    <tr><td class="yellow">Invert</td><td>Buy the expensive side (with the shift)</td><td>~1.7% ROI pre-fees, negative after taker+winner fees</td></tr>
+    <tr><td class="yellow">Filter</td><td>Block trading on markets with smart money signal</td><td>Too conservative &mdash; throws away 72.9% accurate directional info</td></tr>
+    <tr><td class="green"><strong>Override</strong></td><td>Use signal to redirect other strategies' direction</td><td><strong>Best of both worlds</strong> &mdash; preserves sniper/dip_buyer entry prices + smart money direction</td></tr>
+  </table>
+</div>
+
+<div class="card">
+  <h3>Architecture: Signal-Only fade_panic + Direction Override</h3>
+
+  <pre>
+fade_panic evaluates market &rarr; publishes SmartMoneySignal (direction + metadata)
+                                         &darr;
+              &boxdr;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxul;
+              &boxv;  dip_buyer / sniper check signal store   &boxv;
+              &boxv;  Signal exists &rarr; override direction      &boxv;
+              &boxv;  No signal &rarr; trade natural direction     &boxv;
+              &boxur;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxh;&boxdl;
+  </pre>
+
+  <h3 style="margin-top: 15px;">How It Works</h3>
+  <ol style="padding-left: 20px;">
+    <li><strong>fade_panic becomes signal-only:</strong> It keeps all its detection logic (time window, odds shift, spot comparison, oracle cross-validation) but <em>never trades</em>. Instead, it publishes a <code>SmartMoneySignal</code> to a shared store in StateManager.</li>
+    <li><strong>Two-pass scanner:</strong> The MarketScanner evaluates signal-only strategies first (pass 1), then trading strategies second (pass 2). This ensures signals are available before other strategies check for them.</li>
+    <li><strong>Direction override in sniper/dip_buyer:</strong> After determining their natural <code>raw_direction</code>, these strategies check the signal store. If a SmartMoneySignal exists for that market, they override their direction to match smart money. If no signal exists, they trade their natural direction as before.</li>
+    <li><strong>Sniper reverts to natural direction:</strong> The current contrarian inversion (<code>UP &rarr; DOWN</code>) is reverted so the override logic is clean: <code>UP &rarr; buy YES</code>, <code>DOWN &rarr; buy NO</code>.</li>
+  </ol>
+
+  <h3 style="margin-top: 15px;">Direction Logic (Critical)</h3>
+  <table>
+    <tr><th>Odds Shift</th><th>Meaning</th><th>Current fade_panic</th><th>New Signal Direction</th></tr>
+    <tr>
+      <td>YES odds go UP (&gt;8%)</td>
+      <td>Smart money buying YES</td>
+      <td class="red">Buys NO (fading) &mdash; 23.3% WR</td>
+      <td class="green">Signal: <strong>UP</strong> &mdash; sniper/dip_buyer buy YES</td>
+    </tr>
+    <tr>
+      <td>YES odds go DOWN (&gt;8%)</td>
+      <td>Smart money buying NO</td>
+      <td class="red">Buys YES (fading) &mdash; 31.0% WR</td>
+      <td class="green">Signal: <strong>DOWN</strong> &mdash; sniper/dip_buyer buy NO</td>
+    </tr>
+  </table>
+
+  <h3 style="margin-top: 15px;">Why This Is Better Than the Alternatives</h3>
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 10px;">
+    <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 15px;">
+      <strong class="green">vs. Inverting fade_panic</strong>
+      <p style="margin-top: 5px;">Inverting means buying the expensive side ($0.70+), yielding only $0.30 profit on win &mdash; negative after fees. The override approach keeps sniper/dip_buyer's normal entry prices (typically $0.25-$0.40) while redirecting their direction.</p>
+    </div>
+    <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 15px;">
+      <strong class="green">vs. Filtering</strong>
+      <p style="margin-top: 5px;">Filtering blocks all trading on markets with smart money signals. But those are the markets where we have the <em>best</em> directional information (72.9% accuracy). The override captures this edge instead of discarding it.</p>
+    </div>
+  </div>
+
+  <h3 style="margin-top: 15px;">Signal Design Decisions</h3>
+  <ul style="padding-left: 20px;">
+    <li><strong>Lifetime:</strong> Entire 15-minute market window (no decay &mdash; binary outcome, direction doesn't change)</li>
+    <li><strong>No strength threshold:</strong> Any fade_panic signal overrides direction. The detection thresholds (8% odds shift, spot comparison) already filter noise.</li>
+    <li><strong>No position size changes:</strong> Only direction is overridden. Existing profit checks and entry price filters guard against bad entries.</li>
+    <li><strong>Last signal wins:</strong> If fade_panic fires multiple times for the same market, the latest direction overwrites (handles changing conditions).</li>
+  </ul>
+</div>
+
+<div class="card">
+  <h3>Expected Impact</h3>
+
+  <table>
+    <tr><th>Metric</th><th>Current</th><th>Expected After Change</th><th>Reasoning</th></tr>
+    <tr>
+      <td>fade_panic P&amp;L</td>
+      <td class="red">-$1,647.63</td>
+      <td class="green">$0.00</td>
+      <td>No longer trades directly &mdash; signal-only</td>
+    </tr>
+    <tr>
+      <td>fade_panic entries</td>
+      <td>299 entries / 59 markets</td>
+      <td>0 entries</td>
+      <td>Eliminated stacking and direct trading entirely</td>
+    </tr>
+    <tr>
+      <td>sniper direction accuracy</td>
+      <td class="red">30.3% WR</td>
+      <td class="yellow">~40-50% WR (est.)</td>
+      <td>Smart money override improves direction on ~30% of trades</td>
+    </tr>
+    <tr>
+      <td>Signal coverage</td>
+      <td>N/A</td>
+      <td>~20% of markets</td>
+      <td>fade_panic fires on ~59/312 markets today (19%)</td>
+    </tr>
+    <tr>
+      <td>Non-signaled trades</td>
+      <td>N/A</td>
+      <td>No change</td>
+      <td>Sniper/dip_buyer trade normally when no signal exists</td>
+    </tr>
+  </table>
+
+  <div class="recommendation" style="margin-top: 15px;">
+    <strong>Key Advantage:</strong> This approach has <strong>zero downside risk</strong>. In the worst case (signal provides no value), sniper and dip_buyer still trade normally on the ~80% of markets without smart money signals. The signal can only improve direction accuracy on the ~20% of markets where it fires.
+  </div>
+
+  <h3 style="margin-top: 15px;">Files Changed</h3>
+  <table>
+    <tr><th>File</th><th>Change</th></tr>
+    <tr><td><code>src/core/models.py</code></td><td>Add <code>SmartMoneySignal</code> dataclass</td></tr>
+    <tr><td><code>src/core/state.py</code></td><td>Add signal store (publish / get / cleanup methods)</td></tr>
+    <tr><td><code>src/strategy/base.py</code></td><td>Add <code>is_signal_only</code> property (default <code>False</code>)</td></tr>
+    <tr><td><code>src/strategy/fade_panic.py</code></td><td>Convert to signal-only: publish signal instead of trading</td></tr>
+    <tr><td><code>src/strategy/resolution_sniper.py</code></td><td>Revert to natural direction + add signal override</td></tr>
+    <tr><td><code>src/strategy/dip_buyer.py</code></td><td>Add signal override after determining direction</td></tr>
+    <tr><td><code>src/strategy/scanner.py</code></td><td>Two-pass evaluation (signal strategies first)</td></tr>
+    <tr><td><code>src/main.py</code></td><td>Wire <code>StateManager</code> to strategies that need it</td></tr>
+  </table>
+</div>
+
+<!-- ============================================ -->
+<h2 id="external-alpha">14. External Alpha Sources</h2>
+<!-- ============================================ -->
+
+<div class="card">
+  <h3>Signals That Could Provide Genuine Edge</h3>
+
+  <table>
+    <tr><th>Signal</th><th>Source</th><th>Edge Type</th><th>Implementation Effort</th><th>Expected Impact</th></tr>
+    <tr>
+      <td><strong>Funding Rate</strong></td>
+      <td>Binance Futures API (free)</td>
+      <td>Directional bias</td>
+      <td>Low (REST call every 8h)</td>
+      <td class="green">HIGH &mdash; funding shows market consensus direction</td>
+    </tr>
+    <tr>
+      <td><strong>Open Interest Delta</strong></td>
+      <td>Binance Futures API (free)</td>
+      <td>Trend confirmation</td>
+      <td>Low (REST call every 1-5 min)</td>
+      <td class="green">HIGH &mdash; OI + price divergence = fade signal</td>
+    </tr>
+    <tr>
+      <td><strong>Liquidation Cascade</strong></td>
+      <td>Binance WS (free)</td>
+      <td>Short-term reversal</td>
+      <td>Medium (new WS stream)</td>
+      <td class="yellow">MEDIUM &mdash; cascading liquidations cause overreaction</td>
+    </tr>
+    <tr>
+      <td><strong>Cross-Exchange Orderflow</strong></td>
+      <td>Multiple exchange APIs</td>
+      <td>Order flow imbalance</td>
+      <td>High (multiple integrations)</td>
+      <td class="yellow">MEDIUM &mdash; large limit orders signal direction</td>
+    </tr>
+    <tr>
+      <td><strong>Volatility Regime</strong></td>
+      <td>Calculated from spot buffer</td>
+      <td>Strategy selection</td>
+      <td>Low (already have spot data)</td>
+      <td class="green">HIGH &mdash; fade works in low vol, momentum in high vol</td>
+    </tr>
+    <tr>
+      <td><strong>Macro Calendar</strong></td>
+      <td>Static schedule / API</td>
+      <td>Avoid/target events</td>
+      <td>Low (cron-based)</td>
+      <td class="yellow">MEDIUM &mdash; FOMC/CPI cause predictable volatility</td>
+    </tr>
+    <tr>
+      <td><strong>Whale Alerts</strong></td>
+      <td>On-chain monitoring / API</td>
+      <td>Directional intent</td>
+      <td>Medium (new data source)</td>
+      <td class="yellow">MEDIUM &mdash; large exchange deposits signal selling</td>
+    </tr>
+  </table>
+
+  <h3 style="margin-top: 20px;">Recommended Priority: Funding Rate + OI Delta</h3>
+  <p>Both are free from the Binance API we already integrate with, require minimal code, and provide the strongest directional signals:</p>
+  <pre>
+# Example integration concept:
+# 1. Poll funding rate every 8 hours
+funding_rate = await binance.get_funding_rate("BTCUSDT")
+
+# 2. If funding is strongly positive (> 0.01%), bias toward NO (price may correct)
+# 3. If funding is strongly negative (< -0.01%), bias toward YES (shorts squeezed)
+
+# 4. Poll OI every 5 minutes
+oi_change = await binance.get_oi_change("BTCUSDT", window=300)
+
+# 5. Rising OI + rising price = genuine trend (follow, don't fade)
+# 6. Rising OI + falling price = short buildup (potential squeeze = buy YES)
+# 7. Falling OI + any direction = position unwinding (uncertain, reduce size)
+  </pre>
+</div>
+
+<!-- ============================================ -->
+<h2 id="monitoring-timeline">15. Monitoring Timeline</h2>
+<!-- ============================================ -->
+
+<div class="card">
+  <div class="timeline">
+    <div class="timeline-event">
+      <strong>17:00 UTC - Monitoring Start</strong>
+      <p>Baseline: P&amp;L -$1,191.60, sim_balance $8,492.71, 107 trades</p>
+    </div>
+    <div class="timeline-event">
+      <strong>17:15-18:00 UTC - Gradual Bleeding</strong>
+      <p>fade_panic continued losing. P&amp;L drifted to -$1,251.19. sim_balance $8,390.62</p>
+    </div>
+    <div class="timeline-event bad">
+      <strong>18:00-19:00 UTC - Accelerating Losses</strong>
+      <p>P&amp;L dropped to -$1,318.91. resolution_sniper added more losses. sim_balance $8,263.82</p>
+    </div>
+    <div class="timeline-event bad">
+      <strong>19:13-19:15 UTC - CATASTROPHIC EVENT</strong>
+      <p>fade_panic stacked 22 entries on SOL market ($990.86 invested). Market resolved NO. Single-market loss: -$990.86. sim_balance briefly showed $0 (state reload issue).</p>
+    </div>
+    <div class="timeline-event">
+      <strong>19:17 UTC - Bot Restarted (3 times)</strong>
+      <p>User modified .env: enabled price_lag, possibly other changes. Bot restarted at 19:12, 19:16, 19:17 UTC. sim_balance recovered to $6,504.67 after state reload.</p>
+    </div>
+    <div class="timeline-event">
+      <strong>19:18 UTC - price_lag Active</strong>
+      <p>price_lag immediately began trading aggressively (15 entries in 5 minutes). Monitoring ongoing.</p>
+    </div>
+    <div class="timeline-event">
+      <strong>19:30 UTC - Data Snapshot</strong>
+      <p>Today's P&amp;L: -$2,238.94. 122 trades. 27.9% WR. fade_panic -$1,647.63 (dominant loss contributor).</p>
+    </div>
+  </div>
+
+  <p><em>Updates will continue at ~21:00, ~23:00, and ~01:00 UTC.</em></p>
+</div>
+
+<!-- ============================================ -->
+<h2>Appendix: Mathematical Framework</h2>
+<!-- ============================================ -->
+
+<div class="card">
+  <h3>Breakeven Win Rate Calculation</h3>
+  <p>For a strategy with win/loss ratio R (avg_win / avg_loss), the breakeven win rate is:</p>
+  <pre>WR_breakeven = 1 / (1 + R)</pre>
+
+  <table>
+    <tr><th>Strategy</th><th>W/L Ratio (R)</th><th>Breakeven WR</th><th>Actual WR</th><th>Gap</th></tr>
+    <tr><td>fade_panic</td><td>1.26</td><td>44.2%</td><td class="red">24.5%</td><td class="red">-19.7pp</td></tr>
+    <tr><td>asymmetric</td><td>0.73</td><td>57.8%</td><td class="red">40.0%</td><td class="red">-17.8pp</td></tr>
+    <tr><td>resolution_sniper</td><td>0.93</td><td>51.8%</td><td class="red">30.3%</td><td class="red">-21.5pp</td></tr>
+  </table>
+
+  <h3 style="margin-top: 15px;">Impact of Limiting Entries to 1 Per Market</h3>
+  <p>With 1 entry per market at $25 max investment and $0.25 avg entry price:</p>
+  <ul>
+    <li>Avg loss per wrong market: ~$25 (instead of $75 with stacking)</li>
+    <li>Avg win per right market: ~$75 (payout $100 - $25 cost)</li>
+    <li>W/L ratio improves to ~3.0</li>
+    <li>Breakeven WR at R=3.0: 1/(1+3) = <strong>25%</strong></li>
+    <li>Current WR in the $0.20-$0.29 bucket: <strong>35.5%</strong> &mdash; <span class="green">above breakeven!</span></li>
+  </ul>
+
+  <div class="recommendation">
+    <strong>Conclusion:</strong> The fade_panic signal has a <em>genuine but small edge</em> in the $0.20-$0.29 entry price range, but this edge is obliterated by position stacking. Fix position management first, then optimize the signal.
+  </div>
+</div>
+
+<div style="margin-top: 40px; padding: 20px; border-top: 1px solid var(--border); text-align: center; color: #8b949e;">
+  <p>Generated by Claude Code monitoring session | Feb 9, 2026</p>
+  <p>Monitoring: 17:00-01:00 UTC | Data source: trades.db + monitor_snapshots.jsonl</p>
+</div>
+
+</body>
+</html>
