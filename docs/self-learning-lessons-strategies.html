@@ -378,6 +378,66 @@
 
 <p>Chronological record of every parameter change. Newest entries at the top.</p>
 
+<!-- Experiment #33 -->
+<div class="timeline-entry kept">
+    <div class="timeline-date">2026-02-09 23:32 UTC &mdash; Experiment #33</div>
+    <div class="timeline-title">
+        fade_panic Per-Market Cap + One-Strategy-Per-Market Conflict Resolver + Sniper Confidence Gate + Hard Stop
+        <span class="badge badge-deployed">DEPLOYED</span>
+    </div>
+    <p><strong>Hypothesis:</strong> Four compounding problems identified from the 6:15 PM window (-$20.39): (1) fade_panic machine-gunned 13 trades/$34.64 on BTC alone, (2) multiple strategies piled onto same markets amplifying losses, (3) sniper traded at 56-70% confidence (barely better than a coin flip), (4) fade_panic traded 17.9s before close.</p>
+    <p><strong>Changes:</strong></p>
+    <ul style="margin: 0.5rem 0 0.75rem 1.5rem; color: var(--text-muted); font-size: 0.9rem;">
+        <li><code>fade_panic.py</code>: Added <code>_market_investment</code> tracking dict, cap at <code>fade_panic_max_per_market=$10</code></li>
+        <li><code>main.py</code>: Enhanced <code>_resolve_strategy_conflicts()</code> &mdash; keeps only highest-confidence strategy per market regardless of direction (was only handling opposite-direction conflicts)</li>
+        <li><code>.env</code>: <code>BOT_SNIPER_MIN_CONFIDENCE=0.70</code> (was 0.50), <code>BOT_FADE_PANIC_HARD_STOP_SECONDS=30</code> (was 10)</li>
+    </ul>
+    <p><strong>First results (2 windows post-deploy):</strong> +$1.60 net. fade_panic placed 1 trade/market (was 13). Sniper only fired at 94.96% confidence &mdash; won +$6.86. Conflict resolver has 13 suppressions logged.</p>
+    <p><strong>Feb 10 full day so far:</strong> +$59.14 from 5 positions. Sniper +$54.23 (BTC YES at 95% confidence), fade_panic +$6.41 net (1 win, 2 losses at capped sizes).</p>
+</div>
+
+<!-- Experiment #32 -->
+<div class="timeline-entry kept">
+    <div class="timeline-date">2026-02-09 22:59 UTC &mdash; Experiment #32</div>
+    <div class="timeline-title">
+        Per-Strategy Inversion: fade_panic + sniper Return to Original Direction
+        <span class="badge badge-deployed">DEPLOYED</span>
+    </div>
+    <p><strong>Hypothesis:</strong> Inverted fade_panic = momentum play (agrees with panic) instead of fading it &mdash; structurally wrong. Inverted sniper = bets AGAINST CDF probability &mdash; structurally negative EV. Only price_lag benefits from inversion (contrarian = fades spot noise).</p>
+    <p><strong>Code:</strong> Overrode <code>_maybe_invert()</code> in <code>fade_panic.py</code> and <code>resolution_sniper.py</code> to skip global inversion flag. price_lag remains the only inverted strategy.</p>
+    <p><strong>Result:</strong> Correct direction restored. fade_panic now fades panic (bets against odds shift), sniper bets with CDF math.</p>
+</div>
+
+<!-- Experiment #31 -->
+<div class="timeline-entry kept">
+    <div class="timeline-date">2026-02-09 21:53 UTC &mdash; Experiment #31</div>
+    <div class="timeline-title">
+        dip_buyer Trades Original Direction (No Inversion)
+        <span class="badge badge-deployed">DEPLOYED</span>
+    </div>
+    <p><strong>Hypothesis:</strong> Mean reversion should always fade spikes regardless of global inversion flag. Inverted dip_buyer = momentum play, which contradicts the strategy thesis.</p>
+    <p><strong>Code:</strong> Overrode <code>_maybe_invert()</code> in <code>dip_buyer.py</code> to always return original direction.</p>
+    <p><strong>Result:</strong> dip_buyer correctly fading spikes. +$47.04 on XRP NO in first resolved window.</p>
+</div>
+
+<!-- Experiment #30 -->
+<div class="timeline-entry kept">
+    <div class="timeline-date">2026-02-09 ~22:00 UTC &mdash; Experiment #30</div>
+    <div class="timeline-title">
+        Evening Session Review: All-Strategy Performance with Inversion
+        <span class="badge badge-neutral">ANALYSIS</span>
+    </div>
+    <p><strong>Data:</strong> 37 trades across 4 strategies (22:00-23:00 UTC). Net +$27.51 across 3 resolved windows.</p>
+    <p><strong>Key findings:</strong></p>
+    <ul style="margin: 0.5rem 0 0.75rem 1.5rem; color: var(--text-muted); font-size: 0.9rem;">
+        <li>fade_panic deployed $280 in 26 trades &mdash; machine-gunning problem identified</li>
+        <li>fade_panic + sniper both bet same direction on XRP, both lost ($87.54 + $15.61)</li>
+        <li>price_lag (inverted) was the only profitable strategy at +$27</li>
+        <li>Decision: per-strategy inversion overrides needed</li>
+    </ul>
+    <p><strong>All-time review (Feb 6-10):</strong> -$3,520 total. fade_panic -$1,351, price_lag -$1,364, asymmetric -$817. Only dip_buyer (+$35) and sniper (-$8) near profitable.</p>
+</div>
+
 <!-- Experiment #29 -->
 <div class="timeline-entry pending">
     <div class="timeline-date">2026-02-09 ~18:44 UTC &mdash; Experiment #29</div>
@@ -1493,7 +1553,7 @@
 
 <hr class="separator">
 <p class="muted" style="text-align: center; font-size: 0.8rem;">
-    This document is auto-maintained by the Claude analysis agent. Last updated: 2026-02-09 18:44 UTC.
+    This document is auto-maintained by the Claude analysis agent. Last updated: 2026-02-10 00:45 UTC.
 </p>
 
 </body>

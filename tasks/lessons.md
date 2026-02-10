@@ -190,6 +190,32 @@ Three options were evaluated for making fade_panic more aggressive. Option #2 wa
 ### Key insight
 The window controls BOTH when the strategy activates AND when it records odds data. Shrinking the window doesn't just reduce the trading window — it starves the signal detector of historical data. The hard stop is a pure execution parameter with no signal-detection side effects.
 
+## Strategy Machine-Gunning (Feb 9)
+
+- **fade_panic fires every evaluation cycle** (~2s) when odds shift threshold is met. Each cycle creates a NEW order. On BTC: 13 trades, $34.64 deployed on one market. Fix: per-market investment cap (`fade_panic_max_per_market`).
+- **Investment tracker must increment in evaluate()** not after execution. This is conservative (over-counts investment if opportunity is suppressed by conflict resolver), which is safer than under-counting.
+- **Any strategy with a continuous trigger (not tranche-gated like sniper) needs a per-market cap.** Otherwise a persistent signal causes runaway position accumulation.
+
+## Per-Strategy Inversion (Feb 9)
+
+- **Global `invert_signals` flag inverts ALL strategies equally** — but each strategy has a different relationship with direction. Override `_maybe_invert()` per-strategy when needed.
+- **Inversion mapping discovered empirically:**
+  - price_lag: inverted = contrarian (fades spot noise) — profitable
+  - fade_panic: original = fades panic — structurally correct
+  - resolution_sniper: original = bets with CDF math — structurally correct
+  - dip_buyer: original = mean reversion — structurally correct
+- **Inverting to "hedge" two strategies against each other is a trap.** Both pay taker fees + winner fees. Net of fees, the guaranteed hedge is always negative EV.
+
+## Strategy Conflict Detection (Feb 9)
+
+- **Same-direction pileups are as bad as opposite-direction conflicts.** Two strategies betting NO on the same market doubles the loss when wrong. The conflict resolver must keep only highest-confidence per market regardless of direction.
+- **Per-cycle conflict detection has a blind spot:** strategies firing in different cycles (e.g., sniper tranche at T-110, fade_panic at T-90) bypass the resolver. Need cross-cycle position tracking for full coverage.
+
+## Sniper Confidence Calibration (Feb 9)
+
+- **`sniper_min_confidence=0.50` is too low** — sniper traded at 0.567 (XRP) and 0.615 (ETH), lost $32 on ETH. Raised to 0.70. First post-fix trade: SOL at 94.96% confidence, won +$54.23.
+- **The 3x high-confidence multiplier works well** — SOL trade used $93 instead of $10, turned a $0.68 profit into $6.86.
+
 ## Common Mistakes
 
 - **Heredoc in SSH:** Copy-pasting heredocs (`cat << 'EOF'`) over SSH often fails. Use multiple `printf` or `echo` commands instead.
