@@ -18,6 +18,7 @@ from pydantic import SecretStr
 import uvicorn
 from fastapi import APIRouter, FastAPI, HTTPException, Query, Request, WebSocket, status
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.websockets import WebSocketDisconnect
 
@@ -69,6 +70,11 @@ def create_app() -> FastAPI:
         version="1.0.0",
     )
     _app_ref = app
+
+    # Serve static files (HTML docs, etc.) from project-root/static/
+    _static_dir = Path(__file__).resolve().parent.parent.parent / "static"
+    if _static_dir.is_dir():
+        app.mount("/static", StaticFiles(directory=str(_static_dir), html=True), name="static")
 
     # Router for all HTTP endpoints — monitoring dashboard is read-only,
     # no authentication required.
