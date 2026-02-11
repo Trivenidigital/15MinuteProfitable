@@ -1058,7 +1058,8 @@ async def _execute_directional_trade(
         await rate_limiter.acquire(2)  # 1 sign + 1 submit
         await executor.sign_order(order)
         if order.status == OrderStatus.REJECTED:
-            risk_manager.record_execution_failure()
+            if not order.market_condition_rejection:
+                risk_manager.record_execution_failure()
             _log.warning("directional_sign_rejected", market=market.slug)
             return
         result = await executor.submit_order(order)
@@ -1081,7 +1082,7 @@ async def _execute_directional_trade(
                 except Exception as hedge_exc:
                     _log.error("cex_hedge_failed", error=str(hedge_exc))
                     # Hedge failure is non-fatal — Polymarket trade already executed
-        else:
+        elif not result.market_condition_rejection:
             risk_manager.record_execution_failure()
         _log.info(
             "directional_complete",

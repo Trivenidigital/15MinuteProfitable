@@ -182,6 +182,7 @@ class OrderExecutor:
                 )
                 if fill_est is None or not fill_est.sufficient_liquidity:
                     order.status = OrderStatus.REJECTED
+                    order.market_condition_rejection = True
                     self._log.info(
                         "order_rejected_dry_no_liquidity",
                         order_id=order.order_id,
@@ -194,6 +195,7 @@ class OrderExecutor:
                 max_slippage = self._settings.max_fill_slippage
                 if fill_est.best_price > 0 and fill_est.vwap > fill_est.best_price * (1 + max_slippage):
                     order.status = OrderStatus.REJECTED
+                    order.market_condition_rejection = True
                     self._log.info(
                         "order_rejected_dry_slippage",
                         order_id=order.order_id,
@@ -207,6 +209,7 @@ class OrderExecutor:
                 max_levels = self._settings.max_levels_consumed
                 if fill_est.levels_consumed > max_levels:
                     order.status = OrderStatus.REJECTED
+                    order.market_condition_rejection = True
                     self._log.info(
                         "order_rejected_dry_thin_book",
                         order_id=order.order_id,

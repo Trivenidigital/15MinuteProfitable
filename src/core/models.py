@@ -140,6 +140,7 @@ class TradeOrder:
     signed_order: Optional[dict] = None
     fill_size: float = 0.0
     fill_price: float = 0.0
+    market_condition_rejection: bool = False
 
 
 # ---------------------------------------------------------------------------
