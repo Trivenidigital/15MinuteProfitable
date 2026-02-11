@@ -192,7 +192,7 @@ class Settings(BaseSettings):
     hmm_hold_to_resolution: bool = True       # Hold remaining (non-scalped) side to resolution
 
     # Resolution Sniper Strategy Parameters
-    enable_resolution_sniper: bool = True
+    enable_resolution_sniper: bool = False
     sniper_order_size: float = 30.0           # Must be >= 3 * MIN_TRADE_SIZE (3 tranches)
     sniper_min_confidence: float = 0.75       # Min win probability to enter (calibrated via vol_multiplier)
     sniper_window_seconds: float = 120.0      # Activate at T-120s
