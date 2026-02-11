@@ -236,7 +236,7 @@ class Settings(BaseSettings):
     market_slug_override: str = ""
 
     # Risk Limits (AGGRESSIVE MODE)
-    disable_circuit_breaker: bool = False  # skip circuit breaker (useful in DRY_RUN)
+    disable_circuit_breaker: bool = True  # circuit breaker disabled until manual re-enable
     strategy_cooldown_consecutive_losses: int = 4
     strategy_cooldown_duration: float = 10800.0  # 3 hours
     max_entries_per_market: int = 10  # limit accumulation; 10 * $50 = $500 max per market
