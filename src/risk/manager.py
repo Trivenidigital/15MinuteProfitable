@@ -127,8 +127,9 @@ class RiskManager:
         """
         condition_id = opp.market.condition_id
 
-        # 1. Circuit breaker (skipped when disabled via config)
-        if not self._settings.disable_circuit_breaker:
+        # 1. Circuit breaker (skipped in DRY_RUN or when explicitly disabled)
+        skip_breaker = self._settings.dry_run or self._settings.disable_circuit_breaker
+        if not skip_breaker:
             if self.is_circuit_breaker_active():
                 reason = f"circuit breaker active: {self._circuit_breaker_reason}"
                 self._log.warning("risk_rejected", check="circuit_breaker", reason=reason)
