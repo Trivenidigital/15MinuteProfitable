@@ -71,12 +71,22 @@ class SpotBuffer:
         self._last_update_epoch[update.symbol] = time.monotonic()
         self._prune(update.symbol)
 
-    def get_price(self, symbol: str) -> Optional[float]:
-        """Get the most recent price for a symbol, or None if not available."""
+    def get_price(self, symbol: str, max_age: float | None = None) -> Optional[float]:
+        """Get the most recent price for a symbol, or None if not available.
+
+        If *max_age* is set (seconds), returns None when the latest tick
+        is older than *max_age* seconds.
+        """
         buf = self._buffers.get(symbol)
         if not buf:
             return None
+        if max_age is not None and time.time() - buf[-1][0] > max_age:
+            return None
         return buf[-1][1]
+
+    def get_price_if_fresh(self, symbol: str, max_age_seconds: float = 30.0) -> float | None:
+        """Return the latest price only if it is younger than *max_age_seconds*."""
+        return self.get_price(symbol, max_age=max_age_seconds)
 
     def get_price_history(
         self, symbol: str, window_seconds: int | None = None

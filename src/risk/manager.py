@@ -97,6 +97,9 @@ class RiskManager:
         # Optional persistence
         self._trade_db: object | None = None
 
+        # Optional orderbook manager for mark-to-market
+        self._book_manager: object | None = None
+
         # Per-strategy consecutive loss cooldown
         self._strategy_consecutive_losses: dict[str, int] = {}
         self._strategy_cooldown_until: dict[str, float] = {}
@@ -104,6 +107,42 @@ class RiskManager:
     def set_trade_db(self, trade_db: object) -> None:
         """Attach a TradeDatabase for persisting circuit breaker state."""
         self._trade_db = trade_db
+
+    def set_book_manager(self, bm: object) -> None:
+        """Attach an OrderBookManager for mark-to-market valuation."""
+        self._book_manager = bm
+        self._log.info("book_manager_attached")
+
+    def unrealized_loss(self) -> float:
+        """Compute total unrealized loss from open positions marked to market.
+
+        Returns a negative number (loss) or 0.0 if no unrealized loss.
+        """
+        if self._book_manager is None:
+            return 0.0
+
+        total_loss = 0.0
+        try:
+            positions = self._state.get_all_positions()  # type: ignore[attr-defined]
+        except AttributeError:
+            return 0.0
+
+        for pos in positions:
+            current_value = 0.0
+            if pos.yes_shares > 0:
+                book = self._book_manager.get_book(pos.market.yes_token_id)  # type: ignore[attr-defined]
+                if book and book.best_bid is not None:
+                    current_value += pos.yes_shares * book.best_bid
+            if pos.no_shares > 0:
+                book = self._book_manager.get_book(pos.market.no_token_id)  # type: ignore[attr-defined]
+                if book and book.best_bid is not None:
+                    current_value += pos.no_shares * book.best_bid
+
+            pnl = current_value - pos.total_investment
+            if pnl < 0:
+                total_loss += pnl
+
+        return total_loss
 
     # ------------------------------------------------------------------
     # Pre-trade checks
@@ -126,6 +165,13 @@ class RiskManager:
             8. Time remaining > 30 seconds
         """
         condition_id = opp.market.condition_id
+
+        # Snapshot state values for consistent reads within this check
+        _market_exp = self._state.market_exposure(condition_id)
+        _total_exp = self._state.total_exposure()
+        _unhedged_exp = self._state.total_unhedged_exposure()
+        _entry_count = self._state.position_entry_count(condition_id)
+        _strat_count = self._state.strategy_entry_count(condition_id, opp.strategy.value)
 
         # 1. Circuit breaker (skipped in DRY_RUN or when explicitly disabled)
         skip_breaker = self._settings.dry_run or self._settings.disable_circuit_breaker
@@ -160,11 +206,21 @@ class RiskManager:
                     )
                 return False, reason
 
+            # 2b. Unrealized loss check
+            if self._book_manager is not None:
+                unreal_loss = self.unrealized_loss()
+                if abs(unreal_loss) > 0.8 * self._settings.max_daily_loss:
+                    reason = (
+                        f"unrealized loss near daily limit: {unreal_loss:.2f}, "
+                        f"threshold=-{0.8 * self._settings.max_daily_loss:.2f}"
+                    )
+                    self._log.warning("risk_rejected", check="unrealized_loss", reason=reason)
+                    return False, reason
+
         # 3. Market exposure
-        market_exp = self._state.market_exposure(condition_id)
-        if market_exp >= self._settings.max_position_per_market:
+        if _market_exp >= self._settings.max_position_per_market:
             reason = (
-                f"market exposure limit reached: {market_exp:.2f} >= "
+                f"market exposure limit reached: {_market_exp:.2f} >= "
                 f"{self._settings.max_position_per_market:.2f}"
             )
             self._log.warning("risk_rejected", check="market_exposure", reason=reason)
@@ -172,10 +228,9 @@ class RiskManager:
 
         # 3b. Max entries per market
         max_entries = self._settings.max_entries_per_market
-        entry_count = self._state.position_entry_count(condition_id)
-        if entry_count >= max_entries:
+        if _entry_count >= max_entries:
             reason = (
-                f"max entries reached: {entry_count} >= "
+                f"max entries reached: {_entry_count} >= "
                 f"{max_entries}"
             )
             self._log.warning("risk_rejected", check="max_entries", reason=reason)
@@ -183,20 +238,18 @@ class RiskManager:
 
         # 3c. Max entries per strategy per market
         max_per_strat = self._settings.max_entries_per_strategy_per_market
-        strat_count = self._state.strategy_entry_count(condition_id, opp.strategy.value)
-        if strat_count >= max_per_strat:
+        if _strat_count >= max_per_strat:
             reason = (
-                f"max entries per strategy reached: {strat_count} >= "
+                f"max entries per strategy reached: {_strat_count} >= "
                 f"{max_per_strat} ({opp.strategy.value})"
             )
             self._log.warning("risk_rejected", check="max_entries_per_strategy", reason=reason)
             return False, reason
 
         # 4. Total exposure
-        total_exp = self._state.total_exposure()
-        if total_exp >= self._settings.max_total_position:
+        if _total_exp >= self._settings.max_total_position:
             reason = (
-                f"total exposure limit reached: {total_exp:.2f} >= "
+                f"total exposure limit reached: {_total_exp:.2f} >= "
                 f"{self._settings.max_total_position:.2f}"
             )
             self._log.warning("risk_rejected", check="total_exposure", reason=reason)
@@ -204,10 +257,9 @@ class RiskManager:
 
         # 5. Unhedged exposure (skip for hedged strategies like arbitrage)
         if opp.strategy not in _HEDGED_STRATEGIES:
-            unhedged = self._state.total_unhedged_exposure()
-            if unhedged >= self._settings.max_unhedged_exposure:
+            if _unhedged_exp >= self._settings.max_unhedged_exposure:
                 reason = (
-                    f"unhedged exposure limit reached: {unhedged:.2f} >= "
+                    f"unhedged exposure limit reached: {_unhedged_exp:.2f} >= "
                     f"{self._settings.max_unhedged_exposure:.2f}"
                 )
                 self._log.warning("risk_rejected", check="unhedged_exposure", reason=reason)
@@ -237,7 +289,10 @@ class RiskManager:
         remaining = time_remaining_seconds(end_ts)
         if opp.strategy not in _LATE_GAME_STRATEGIES:
             if remaining <= _MIN_TIME_REMAINING:
-                reason = f"insufficient time remaining: {remaining:.1f}s <= {_MIN_TIME_REMAINING:.1f}s"
+                reason = (
+                    f"insufficient time remaining: {remaining:.1f}s "
+                    f"<= {_MIN_TIME_REMAINING:.1f}s"
+                )
                 self._log.warning("risk_rejected", check="time_remaining", reason=reason)
                 return False, reason
 
@@ -252,7 +307,15 @@ class RiskManager:
     # Size adjustment
     # ------------------------------------------------------------------
 
-    def adjust_size(self, opp: Opportunity, requested_size: float) -> float:
+    def adjust_size(
+        self,
+        opp: Opportunity,
+        requested_size: float,
+        *,
+        cached_market_exp: float | None = None,
+        cached_total_exp: float | None = None,
+        cached_unhedged_exp: float | None = None,
+    ) -> float:
         """Adjust order size to stay within risk limits.
 
         Returns the minimum of:
@@ -261,22 +324,29 @@ class RiskManager:
           - remaining total capacity
           - remaining unhedged capacity (for directional / non-hedged strategies)
 
+        Optional cached_* kwargs avoid redundant state queries when called
+        from ``check_opportunity`` which already snapshotted the values.
+
         Returns ``0.0`` if no capacity remains.
         """
         condition_id = opp.market.condition_id
 
-        # Market capacity
-        market_remaining = (
-            self._settings.max_position_per_market
-            - self._state.market_exposure(condition_id)
+        market_exp = (
+            cached_market_exp if cached_market_exp is not None
+            else self._state.market_exposure(condition_id)
         )
+        total_exp = (
+            cached_total_exp if cached_total_exp is not None
+            else self._state.total_exposure()
+        )
+
+        # Market capacity
+        market_remaining = self._settings.max_position_per_market - market_exp
         if market_remaining <= 0:
             return 0.0
 
         # Total capacity
-        total_remaining = (
-            self._settings.max_total_position - self._state.total_exposure()
-        )
+        total_remaining = self._settings.max_total_position - total_exp
         if total_remaining <= 0:
             return 0.0
 
@@ -284,10 +354,11 @@ class RiskManager:
 
         # Unhedged capacity (only constrain non-hedged strategies)
         if opp.strategy not in _HEDGED_STRATEGIES:
-            unhedged_remaining = (
-                self._settings.max_unhedged_exposure
-                - self._state.total_unhedged_exposure()
+            unhedged_exp = (
+                cached_unhedged_exp if cached_unhedged_exp is not None
+                else self._state.total_unhedged_exposure()
             )
+            unhedged_remaining = self._settings.max_unhedged_exposure - unhedged_exp
             if unhedged_remaining <= 0:
                 return 0.0
             size = min(size, unhedged_remaining)

@@ -7,9 +7,9 @@ so the dashboard can render historical data across sessions.
 from __future__ import annotations
 
 import sqlite3
+import threading
 import time
-from dataclasses import asdict, dataclass, field
-from datetime import date, datetime
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
@@ -283,6 +283,22 @@ CREATE TABLE IF NOT EXISTS strategy_cooldown_state (
     id INTEGER PRIMARY KEY CHECK (id = 1),
     state_json TEXT NOT NULL DEFAULT '{}'
 );
+
+CREATE TABLE IF NOT EXISTS pending_orders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp REAL NOT NULL,
+    order_id TEXT NOT NULL DEFAULT '',
+    condition_id TEXT NOT NULL DEFAULT '',
+    token_id TEXT NOT NULL DEFAULT '',
+    side TEXT NOT NULL DEFAULT '',
+    price REAL NOT NULL DEFAULT 0.0,
+    size REAL NOT NULL DEFAULT 0.0,
+    order_type TEXT NOT NULL DEFAULT '',
+    strategy TEXT NOT NULL DEFAULT '',
+    metadata_json TEXT NOT NULL DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS idx_pending_order_id ON pending_orders(order_id);
 """
 
 
@@ -312,6 +328,7 @@ class TradeDatabase:
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute("PRAGMA synchronous=NORMAL")
         self._init_schema()
+        self._write_lock = threading.Lock()
         logger.info("trade_db_initialized", db_path=db_path)
 
     def _init_schema(self) -> None:
@@ -329,36 +346,37 @@ class TradeDatabase:
 
     def save_trade(self, trade: TradeRecord) -> int:
         """Insert a trade record. Returns the row ID."""
-        cursor = self._conn.execute(
-            """INSERT INTO trades
-               (timestamp, condition_id, market_slug, asset, strategy, side,
-                token_side, price, size, cost, order_type, order_id, status,
-                fees, expected_profit, metadata_json)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (
-                trade.timestamp,
-                trade.condition_id,
-                trade.market_slug,
-                trade.asset,
-                trade.strategy,
-                trade.side,
-                trade.token_side,
-                trade.price,
-                trade.size,
-                trade.cost,
-                trade.order_type,
-                trade.order_id,
-                trade.status,
-                trade.fees,
-                trade.expected_profit,
-                trade.metadata_json,
-            ),
-        )
-        self._conn.commit()
-        row_id = cursor.lastrowid
-        assert row_id is not None
-        logger.debug("trade_saved", id=row_id, condition_id=trade.condition_id)
-        return row_id
+        with self._write_lock:
+            cursor = self._conn.execute(
+                """INSERT INTO trades
+                   (timestamp, condition_id, market_slug, asset, strategy, side,
+                    token_side, price, size, cost, order_type, order_id, status,
+                    fees, expected_profit, metadata_json)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    trade.timestamp,
+                    trade.condition_id,
+                    trade.market_slug,
+                    trade.asset,
+                    trade.strategy,
+                    trade.side,
+                    trade.token_side,
+                    trade.price,
+                    trade.size,
+                    trade.cost,
+                    trade.order_type,
+                    trade.order_id,
+                    trade.status,
+                    trade.fees,
+                    trade.expected_profit,
+                    trade.metadata_json,
+                ),
+            )
+            self._conn.commit()
+            row_id = cursor.lastrowid
+            assert row_id is not None
+            logger.debug("trade_saved", id=row_id, condition_id=trade.condition_id)
+            return row_id
 
     def get_trades(
         self,
@@ -395,34 +413,35 @@ class TradeDatabase:
 
     def save_trade_result(self, result: TradeResult) -> int:
         """Insert a trade result record. Returns the row ID."""
-        cursor = self._conn.execute(
-            """INSERT INTO trade_results
-               (timestamp, condition_id, market_slug, asset, strategy,
-                was_hedged, yes_shares, no_shares, investment,
-                gross_payout, net_profit, outcome)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (
-                result.timestamp,
-                result.condition_id,
-                result.market_slug,
-                result.asset,
-                result.strategy,
-                1 if result.was_hedged else 0,
-                result.yes_shares,
-                result.no_shares,
-                result.investment,
-                result.gross_payout,
-                result.net_profit,
-                result.outcome,
-            ),
-        )
-        self._conn.commit()
-        row_id = cursor.lastrowid
-        assert row_id is not None
-        logger.debug(
-            "trade_result_saved", id=row_id, condition_id=result.condition_id
-        )
-        return row_id
+        with self._write_lock:
+            cursor = self._conn.execute(
+                """INSERT INTO trade_results
+                   (timestamp, condition_id, market_slug, asset, strategy,
+                    was_hedged, yes_shares, no_shares, investment,
+                    gross_payout, net_profit, outcome)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    result.timestamp,
+                    result.condition_id,
+                    result.market_slug,
+                    result.asset,
+                    result.strategy,
+                    1 if result.was_hedged else 0,
+                    result.yes_shares,
+                    result.no_shares,
+                    result.investment,
+                    result.gross_payout,
+                    result.net_profit,
+                    result.outcome,
+                ),
+            )
+            self._conn.commit()
+            row_id = cursor.lastrowid
+            assert row_id is not None
+            logger.debug(
+                "trade_result_saved", id=row_id, condition_id=result.condition_id
+            )
+            return row_id
 
     def get_trade_results(
         self,
@@ -546,39 +565,40 @@ class TradeDatabase:
 
     def save_daily_snapshot(self, snapshot: DailySnapshot) -> None:
         """Upsert a daily snapshot (insert or replace by date)."""
-        self._conn.execute(
-            """INSERT INTO daily_snapshots
-               (date, trades, gross_profit, net_profit, total_fees,
-                win_count, loss_count, max_drawdown, sim_balance,
-                opportunities_seen, opportunities_taken)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-               ON CONFLICT(date) DO UPDATE SET
-                 trades=excluded.trades,
-                 gross_profit=excluded.gross_profit,
-                 net_profit=excluded.net_profit,
-                 total_fees=excluded.total_fees,
-                 win_count=excluded.win_count,
-                 loss_count=excluded.loss_count,
-                 max_drawdown=excluded.max_drawdown,
-                 sim_balance=excluded.sim_balance,
-                 opportunities_seen=excluded.opportunities_seen,
-                 opportunities_taken=excluded.opportunities_taken""",
-            (
-                snapshot.date,
-                snapshot.trades,
-                snapshot.gross_profit,
-                snapshot.net_profit,
-                snapshot.total_fees,
-                snapshot.win_count,
-                snapshot.loss_count,
-                snapshot.max_drawdown,
-                snapshot.sim_balance,
-                snapshot.opportunities_seen,
-                snapshot.opportunities_taken,
-            ),
-        )
-        self._conn.commit()
-        logger.debug("daily_snapshot_saved", date=snapshot.date)
+        with self._write_lock:
+            self._conn.execute(
+                """INSERT INTO daily_snapshots
+                   (date, trades, gross_profit, net_profit, total_fees,
+                    win_count, loss_count, max_drawdown, sim_balance,
+                    opportunities_seen, opportunities_taken)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                   ON CONFLICT(date) DO UPDATE SET
+                     trades=excluded.trades,
+                     gross_profit=excluded.gross_profit,
+                     net_profit=excluded.net_profit,
+                     total_fees=excluded.total_fees,
+                     win_count=excluded.win_count,
+                     loss_count=excluded.loss_count,
+                     max_drawdown=excluded.max_drawdown,
+                     sim_balance=excluded.sim_balance,
+                     opportunities_seen=excluded.opportunities_seen,
+                     opportunities_taken=excluded.opportunities_taken""",
+                (
+                    snapshot.date,
+                    snapshot.trades,
+                    snapshot.gross_profit,
+                    snapshot.net_profit,
+                    snapshot.total_fees,
+                    snapshot.win_count,
+                    snapshot.loss_count,
+                    snapshot.max_drawdown,
+                    snapshot.sim_balance,
+                    snapshot.opportunities_seen,
+                    snapshot.opportunities_taken,
+                ),
+            )
+            self._conn.commit()
+            logger.debug("daily_snapshot_saved", date=snapshot.date)
 
     def get_historical_net_profit(self, exclude_date: str | None = None) -> float:
         """Sum net_profit from all daily_snapshots, optionally excluding a date.
@@ -609,28 +629,29 @@ class TradeDatabase:
 
     def save_portfolio_state(self, state: PortfolioState) -> None:
         """Upsert the single-row portfolio state."""
-        self._conn.execute(
-            """INSERT INTO portfolio_state
-               (id, updated_at, total_equity, total_exposure,
-                open_positions, total_trades, total_pnl)
-               VALUES (1, ?, ?, ?, ?, ?, ?)
-               ON CONFLICT(id) DO UPDATE SET
-                 updated_at=excluded.updated_at,
-                 total_equity=excluded.total_equity,
-                 total_exposure=excluded.total_exposure,
-                 open_positions=excluded.open_positions,
-                 total_trades=excluded.total_trades,
-                 total_pnl=excluded.total_pnl""",
-            (
-                state.updated_at,
-                state.total_equity,
-                state.total_exposure,
-                state.open_positions,
-                state.total_trades,
-                state.total_pnl,
-            ),
-        )
-        self._conn.commit()
+        with self._write_lock:
+            self._conn.execute(
+                """INSERT INTO portfolio_state
+                   (id, updated_at, total_equity, total_exposure,
+                    open_positions, total_trades, total_pnl)
+                   VALUES (1, ?, ?, ?, ?, ?, ?)
+                   ON CONFLICT(id) DO UPDATE SET
+                     updated_at=excluded.updated_at,
+                     total_equity=excluded.total_equity,
+                     total_exposure=excluded.total_exposure,
+                     open_positions=excluded.open_positions,
+                     total_trades=excluded.total_trades,
+                     total_pnl=excluded.total_pnl""",
+                (
+                    state.updated_at,
+                    state.total_equity,
+                    state.total_exposure,
+                    state.open_positions,
+                    state.total_trades,
+                    state.total_pnl,
+                ),
+            )
+            self._conn.commit()
 
     def get_portfolio_state(self) -> PortfolioState | None:
         """Fetch the single-row portfolio state, or None if not yet saved."""
@@ -655,31 +676,32 @@ class TradeDatabase:
 
     def save_decision(self, d: StrategyDecision) -> int:
         """Insert a strategy decision record. Returns the row ID."""
-        cursor = self._conn.execute(
-            """INSERT INTO strategy_decisions
-               (timestamp, cycle_id, condition_id, market_slug, asset, strategy,
-                decision, rejection_reason, confidence, expected_profit,
-                expected_profit_pct, metadata_json)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (
-                d.timestamp,
-                d.cycle_id,
-                d.condition_id,
-                d.market_slug,
-                d.asset,
-                d.strategy,
-                d.decision,
-                d.rejection_reason,
-                d.confidence,
-                d.expected_profit,
-                d.expected_profit_pct,
-                d.metadata_json,
-            ),
-        )
-        self._conn.commit()
-        row_id = cursor.lastrowid
-        assert row_id is not None
-        return row_id
+        with self._write_lock:
+            cursor = self._conn.execute(
+                """INSERT INTO strategy_decisions
+                   (timestamp, cycle_id, condition_id, market_slug, asset, strategy,
+                    decision, rejection_reason, confidence, expected_profit,
+                    expected_profit_pct, metadata_json)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    d.timestamp,
+                    d.cycle_id,
+                    d.condition_id,
+                    d.market_slug,
+                    d.asset,
+                    d.strategy,
+                    d.decision,
+                    d.rejection_reason,
+                    d.confidence,
+                    d.expected_profit,
+                    d.expected_profit_pct,
+                    d.metadata_json,
+                ),
+            )
+            self._conn.commit()
+            row_id = cursor.lastrowid
+            assert row_id is not None
+            return row_id
 
     def get_decisions(
         self,
@@ -707,15 +729,16 @@ class TradeDatabase:
 
     def save_spot_snapshot(self, s: SpotSnapshot) -> int:
         """Insert a spot snapshot record. Returns the row ID."""
-        cursor = self._conn.execute(
-            """INSERT INTO spot_snapshots (timestamp, symbol, price)
-               VALUES (?, ?, ?)""",
-            (s.timestamp, s.symbol, s.price),
-        )
-        self._conn.commit()
-        row_id = cursor.lastrowid
-        assert row_id is not None
-        return row_id
+        with self._write_lock:
+            cursor = self._conn.execute(
+                """INSERT INTO spot_snapshots (timestamp, symbol, price)
+                   VALUES (?, ?, ?)""",
+                (s.timestamp, s.symbol, s.price),
+            )
+            self._conn.commit()
+            row_id = cursor.lastrowid
+            assert row_id is not None
+            return row_id
 
     def get_spot_snapshots(
         self,
@@ -760,30 +783,31 @@ class TradeDatabase:
         Uses INSERT OR REPLACE to handle duplicate condition_ids
         (e.g. if the same market is recorded twice).
         """
-        cursor = self._conn.execute(
-            """INSERT OR REPLACE INTO market_outcomes
-               (timestamp, condition_id, asset, market_slug, window_start,
-                window_end, outcome, spot_open, spot_close,
-                price_change_pct, was_traded)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (
-                o.timestamp,
-                o.condition_id,
-                o.asset,
-                o.market_slug,
-                o.window_start,
-                o.window_end,
-                o.outcome,
-                o.spot_open,
-                o.spot_close,
-                o.price_change_pct,
-                1 if o.was_traded else 0,
-            ),
-        )
-        self._conn.commit()
-        row_id = cursor.lastrowid
-        assert row_id is not None
-        return row_id
+        with self._write_lock:
+            cursor = self._conn.execute(
+                """INSERT OR REPLACE INTO market_outcomes
+                   (timestamp, condition_id, asset, market_slug, window_start,
+                    window_end, outcome, spot_open, spot_close,
+                    price_change_pct, was_traded)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    o.timestamp,
+                    o.condition_id,
+                    o.asset,
+                    o.market_slug,
+                    o.window_start,
+                    o.window_end,
+                    o.outcome,
+                    o.spot_open,
+                    o.spot_close,
+                    o.price_change_pct,
+                    1 if o.was_traded else 0,
+                ),
+            )
+            self._conn.commit()
+            row_id = cursor.lastrowid
+            assert row_id is not None
+            return row_id
 
     def get_market_outcomes(
         self,
@@ -856,18 +880,20 @@ class TradeDatabase:
         sample_count: int,
     ) -> None:
         """Upsert the Kelly sizing state (single row)."""
-        self._conn.execute(
-            """INSERT INTO kelly_state (id, updated_at, win_rate, avg_win, avg_loss, sample_count)
-               VALUES (1, ?, ?, ?, ?, ?)
-               ON CONFLICT(id) DO UPDATE SET
-                 updated_at=excluded.updated_at,
-                 win_rate=excluded.win_rate,
-                 avg_win=excluded.avg_win,
-                 avg_loss=excluded.avg_loss,
-                 sample_count=excluded.sample_count""",
-            (time.time(), win_rate, avg_win, avg_loss, sample_count),
-        )
-        self._conn.commit()
+        with self._write_lock:
+            self._conn.execute(
+                """INSERT INTO kelly_state
+               (id, updated_at, win_rate, avg_win, avg_loss, sample_count)
+                   VALUES (1, ?, ?, ?, ?, ?)
+                   ON CONFLICT(id) DO UPDATE SET
+                     updated_at=excluded.updated_at,
+                     win_rate=excluded.win_rate,
+                     avg_win=excluded.avg_win,
+                     avg_loss=excluded.avg_loss,
+                     sample_count=excluded.sample_count""",
+                (time.time(), win_rate, avg_win, avg_loss, sample_count),
+            )
+            self._conn.commit()
 
     def load_kelly_state(self) -> dict[str, float] | None:
         """Load the persisted Kelly state, or None if not yet saved."""
@@ -894,16 +920,17 @@ class TradeDatabase:
         until_ts: float,
     ) -> None:
         """Upsert the circuit breaker state (single row)."""
-        self._conn.execute(
-            """INSERT INTO circuit_breaker_state (id, active, reason, until_ts)
-               VALUES (1, ?, ?, ?)
-               ON CONFLICT(id) DO UPDATE SET
-                 active=excluded.active,
-                 reason=excluded.reason,
-                 until_ts=excluded.until_ts""",
-            (1 if active else 0, reason, until_ts),
-        )
-        self._conn.commit()
+        with self._write_lock:
+            self._conn.execute(
+                """INSERT INTO circuit_breaker_state (id, active, reason, until_ts)
+                   VALUES (1, ?, ?, ?)
+                   ON CONFLICT(id) DO UPDATE SET
+                     active=excluded.active,
+                     reason=excluded.reason,
+                     until_ts=excluded.until_ts""",
+                (1 if active else 0, reason, until_ts),
+            )
+            self._conn.commit()
 
     def load_circuit_breaker_state(self) -> dict[str, float | str | bool] | None:
         """Load the persisted circuit breaker state, or None if not yet saved."""
@@ -924,14 +951,15 @@ class TradeDatabase:
 
     def save_strategy_cooldown_state(self, state_json: str) -> None:
         """Upsert the strategy cooldown state (single row, JSON blob)."""
-        self._conn.execute(
-            """INSERT INTO strategy_cooldown_state (id, state_json)
-               VALUES (1, ?)
-               ON CONFLICT(id) DO UPDATE SET
-                 state_json=excluded.state_json""",
-            (state_json,),
-        )
-        self._conn.commit()
+        with self._write_lock:
+            self._conn.execute(
+                """INSERT INTO strategy_cooldown_state (id, state_json)
+                   VALUES (1, ?)
+                   ON CONFLICT(id) DO UPDATE SET
+                     state_json=excluded.state_json""",
+                (state_json,),
+            )
+            self._conn.commit()
 
     def load_strategy_cooldown_state(self) -> dict | None:
         """Load the persisted strategy cooldown state, or None if not yet saved."""
@@ -946,6 +974,53 @@ class TradeDatabase:
             return json.loads(row["state_json"])
         except (json.JSONDecodeError, TypeError):
             return None
+
+    # ------------------------------------------------------------------
+    # Pending orders
+    # ------------------------------------------------------------------
+
+    def save_pending_order(self, order_data: dict) -> int:
+        """Insert a pending order record. Returns the row ID."""
+        import time as _time
+
+        with self._write_lock:
+            cursor = self._conn.execute(
+                """INSERT INTO pending_orders
+                   (timestamp, order_id, condition_id, token_id, side, price, size,
+                    order_type, strategy, metadata_json)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    order_data.get("timestamp", _time.time()),
+                    order_data.get("order_id", ""),
+                    order_data.get("condition_id", ""),
+                    order_data.get("token_id", ""),
+                    order_data.get("side", ""),
+                    order_data.get("price", 0.0),
+                    order_data.get("size", 0.0),
+                    order_data.get("order_type", ""),
+                    order_data.get("strategy", ""),
+                    order_data.get("metadata_json", "{}"),
+                ),
+            )
+            self._conn.commit()
+            row_id = cursor.lastrowid
+            assert row_id is not None
+            return row_id
+
+    def clear_pending_order(self, order_id: str) -> None:
+        """Delete a pending order by order_id."""
+        with self._write_lock:
+            self._conn.execute(
+                "DELETE FROM pending_orders WHERE order_id = ?", (order_id,)
+            )
+            self._conn.commit()
+
+    def get_pending_orders(self) -> list[dict]:
+        """Fetch all pending orders as dicts."""
+        rows = self._conn.execute(
+            "SELECT * FROM pending_orders ORDER BY timestamp DESC"
+        ).fetchall()
+        return [dict(r) for r in rows]
 
     # ------------------------------------------------------------------
     # Spot series for correlation computation

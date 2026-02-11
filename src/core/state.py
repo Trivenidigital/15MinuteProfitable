@@ -6,7 +6,7 @@ import asyncio
 import json
 from collections.abc import Callable
 from dataclasses import asdict
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -277,11 +277,24 @@ class StateManager:
         for k in keys_to_remove:
             del self._strategy_entry_counts[k]
 
-    def total_unhedged_exposure(self) -> float:
+    def _get_market_mid_price(self, pos: Position, book_manager: object) -> float | None:
+        """Get mid-price from orderbook for position valuation."""
+        try:
+            # Use whichever token the position holds
+            token_id = pos.market.yes_token_id if pos.yes_shares > 0 else pos.market.no_token_id
+            book = book_manager.get_book(token_id)  # type: ignore[attr-defined]
+            if book is not None and book.best_bid is not None and book.best_ask is not None:
+                return (book.best_bid + book.best_ask) / 2.0
+        except (AttributeError, Exception):
+            pass
+        return None
+
+    def total_unhedged_exposure(self, book_manager: object | None = None) -> float:
         """Sum of abs(net_directional_exposure * avg_price) across all positions.
 
         For each position, avg_price is total_investment / total_shares (or 0 if
-        no shares are held).
+        no shares are held). When *book_manager* is provided, uses mid-price
+        from the orderbook instead, falling back to cost-basis.
         """
         total = 0.0
         for pos in self._positions.values():
@@ -290,6 +303,12 @@ class StateManager:
                 avg_price = pos.total_investment / total_shares
             else:
                 avg_price = 0.0
+
+            if book_manager is not None:
+                mid = self._get_market_mid_price(pos, book_manager)
+                if mid is not None:
+                    avg_price = mid
+
             total += abs(pos.net_directional_exposure) * avg_price
         return total
 
@@ -913,5 +932,34 @@ class StateManager:
                 delta=delta,
             )
             self._sim_balance_value = true_balance
+
+        return delta
+
+    def reconcile_daily_pnl_from_db(self) -> float:
+        """Reconcile in-memory daily P&L against trade_results DB.
+
+        Returns the correction delta (positive means P&L was too low).
+        """
+        if self._trade_db is None:
+            return 0.0
+
+        today = datetime.now(timezone.utc).date()
+        start_of_today = datetime(today.year, today.month, today.day, tzinfo=timezone.utc)
+        start_ts = start_of_today.timestamp()
+
+        results = self._trade_db.get_trade_results_since(start_ts)
+        db_daily_profit = sum(r.net_profit for r in results)
+
+        pnl = self._get_or_create_daily_pnl()
+        delta = db_daily_profit - pnl.net_profit
+
+        if abs(delta) > 0.01:
+            logger.warning(
+                "daily_pnl_reconciled",
+                in_memory=pnl.net_profit,
+                from_db=db_daily_profit,
+                delta=delta,
+            )
+            pnl.net_profit = db_daily_profit
 
         return delta

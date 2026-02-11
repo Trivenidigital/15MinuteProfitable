@@ -220,6 +220,13 @@ class Settings(BaseSettings):
     max_fill_slippage: float = 0.05           # Max VWAP-to-best-price ratio (5% default)
     max_levels_consumed: int = 3              # Max orderbook levels to walk for a fill
 
+    # Fill verification
+    fill_verify_timeout: float = 15.0
+    fill_verify_poll_interval: float = 0.5
+
+    # Spot staleness
+    spot_staleness_threshold: float = 30.0
+
     # Spot buffer
     spot_buffer_window: int = 900             # Max age of spot prices in buffer (15 min)
 
@@ -227,10 +234,6 @@ class Settings(BaseSettings):
     markets: list[str] = ["BTC", "ETH", "SOL", "XRP"]
     market_intervals: list[str] = ["15m"]  # Future: add "1h", "4h" for hourly markets
     market_slug_override: str = ""
-
-    # Strategy Cooldown (per-strategy consecutive loss protection)
-    strategy_cooldown_consecutive_losses: int = 4
-    strategy_cooldown_duration: float = 10800.0  # 3 hours
 
     # Risk Limits (AGGRESSIVE MODE)
     disable_circuit_breaker: bool = False  # skip circuit breaker (useful in DRY_RUN)
@@ -352,3 +355,35 @@ class Settings(BaseSettings):
             dotenv_settings,
             file_secret_settings,
         )
+
+    def validate_live_mode(self) -> list[str]:
+        """Validate settings for live (non-dry-run) mode.
+
+        Returns a list of warnings. Raises ValueError if critical settings
+        are missing.
+        """
+        if self.dry_run:
+            return []
+
+        if self.private_key.get_secret_value() == "":
+            raise ValueError("private_key is required for live trading")
+
+        warnings: list[str] = []
+
+        if self.disable_circuit_breaker:
+            warnings.append("circuit breaker is disabled in live mode")
+
+        if self.max_daily_loss > 500:
+            warnings.append(
+                f"max_daily_loss={self.max_daily_loss} exceeds recommended limit of $500"
+            )
+
+        if self.max_total_position > 10000:
+            warnings.append(
+                f"max_total_position={self.max_total_position} exceeds recommended limit of $10,000"
+            )
+
+        if self.dashboard_enabled and self.dashboard_password.get_secret_value() == "":
+            warnings.append("dashboard is enabled without password protection")
+
+        return warnings

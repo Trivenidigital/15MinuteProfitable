@@ -42,6 +42,7 @@ class L2BookState:
         self.last_hash: str = ""
         self._last_update_epoch: float = 0.0  # monotonic time of last update
         self._cached_orderbook: OrderBook | None = None
+        self.has_snapshot: bool = False
 
     # -- mutations -----------------------------------------------------------
 
@@ -68,6 +69,7 @@ class L2BookState:
 
         self._last_update_epoch = time.monotonic()
         self._cached_orderbook = None
+        self.has_snapshot = True
 
     def apply_delta(self, changes: list[dict]) -> None:
         """Apply incremental updates to the book.
@@ -244,6 +246,13 @@ class OrderBookManager:
             state._cached_orderbook = None
             count += 1
         return count
+
+    def has_received_snapshot(self, token_id: str) -> bool:
+        """Return True if the book for *token_id* has received at least one snapshot."""
+        state = self._books.get(token_id)
+        if state is None:
+            return False
+        return state.has_snapshot
 
     def remove_stale_books(self, threshold_s: float = 120.0) -> int:
         """Remove books that haven't been updated within *threshold_s* seconds.

@@ -29,6 +29,7 @@ from src.data.spot_buffer import SpotBuffer
 from src.strategy.base import BaseStrategy
 from src.strategy.price_lag import ASSET_TO_BINANCE_SYMBOL
 from src.utils.fees import WINNER_FEE_RATE, taker_fee_amount
+from src.utils.time_utils import WINDOW_SECONDS
 
 # ---------------------------------------------------------------------------
 # Normal CDF approximation (Abramowitz & Stegun, max error 7.5e-8)
@@ -171,7 +172,7 @@ class ResolutionSniperStrategy(BaseStrategy):
             return None
 
         # 4. Capture or retrieve opening price (using market open time)
-        market_start_ts = market.start_time.timestamp()
+        market_start_ts = market.end_time.timestamp() - WINDOW_SECONDS
         open_price = self._capture_opening_price(
             market.condition_id, binance_symbol, market_start_ts
         )

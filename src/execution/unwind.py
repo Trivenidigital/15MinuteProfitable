@@ -12,10 +12,11 @@ logger = get_logger(__name__)
 class EmergencyUnwind:
     """Handles emergency position flattening."""
 
-    def __init__(self, executor: object, state_manager: StateManager) -> None:
+    def __init__(self, executor: object, state_manager: StateManager, risk_manager: object | None = None) -> None:
         # executor is OrderExecutor but we use duck typing to avoid circular imports
         self._executor = executor
         self._state = state_manager
+        self._risk_manager = risk_manager
 
     async def unwind_position(self, position: Position) -> bool:
         """Attempt to sell all shares in a position at best available prices.
@@ -31,7 +32,7 @@ class EmergencyUnwind:
                 TradeOrder(
                     token_id=market.yes_token_id,
                     side=Side.SELL,
-                    price=0.02,  # Near-market sell (safety floor above 0.01)
+                    price=0.01,  # Polymarket minimum tick (maximizes fill probability)
                     size=position.yes_shares,
                     order_type="FOK",
                 )
@@ -42,7 +43,7 @@ class EmergencyUnwind:
                 TradeOrder(
                     token_id=market.no_token_id,
                     side=Side.SELL,
-                    price=0.02,  # Near-market sell (safety floor above 0.01)
+                    price=0.01,  # Polymarket minimum tick (maximizes fill probability)
                     size=position.no_shares,
                     order_type="FOK",
                 )
@@ -91,6 +92,13 @@ class EmergencyUnwind:
                 condition_id=market.condition_id,
                 error=str(exc),
             )
+            if self._risk_manager is not None:
+                try:
+                    self._risk_manager.activate_circuit_breaker(
+                        reason=f"unwind failed: {exc}"
+                    )
+                except Exception:
+                    pass
             return False
 
     async def flatten_all(self) -> dict[str, bool]:
@@ -177,4 +185,11 @@ class EmergencyUnwind:
             return success
         except Exception as exc:
             logger.error("partial_arb_unwind_error", error=str(exc))
+            if self._risk_manager is not None:
+                try:
+                    self._risk_manager.activate_circuit_breaker(
+                        reason=f"partial arb unwind failed: {exc}"
+                    )
+                except Exception:
+                    pass
             return False

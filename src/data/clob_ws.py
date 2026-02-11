@@ -40,6 +40,7 @@ class ClobWebSocket:
         self._log = get_logger("clob_ws")
         self._delta_count: int = 0
         self._delta_log_interval: int = 100
+        self._reconnect_needed: bool = False
 
     # -- subscription management ------------------------------------------------
 
@@ -108,6 +109,10 @@ class ClobWebSocket:
                     # Process messages
                     async for raw in ws:
                         self._process_message(raw)
+                        if self._reconnect_needed:
+                            self._reconnect_needed = False
+                            await self.reconnect()
+                            break
 
             except (websockets.ConnectionClosed, ConnectionError, OSError) as exc:
                 self._ws = None
@@ -267,6 +272,9 @@ class ClobWebSocket:
         for token_id, token_changes in changes_by_asset.items():
             book = self._book_manager.ensure_book(token_id)
             book.apply_delta(token_changes)
+            if not book.has_snapshot:
+                self._reconnect_needed = True
+                self._log.warning("delta_without_snapshot", token_id=token_id)
 
         # Update metadata if present
         if asset_id:

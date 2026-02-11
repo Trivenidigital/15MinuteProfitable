@@ -503,6 +503,19 @@ async def _execute_arb_trade(
         dry_run=settings.dry_run,
     )
 
+    # Track pending orders for crash recovery
+    if state_manager.trade_db is not None:
+        for _pend_order in [yes_order, no_order]:
+            state_manager.trade_db.save_pending_order({
+                "condition_id": market.condition_id,
+                "token_id": _pend_order.token_id,
+                "side": _pend_order.side.value,
+                "price": _pend_order.price,
+                "size": _pend_order.size,
+                "order_type": _pend_order.order_type,
+                "strategy": opp.strategy.value,
+            })
+
     try:
         await rate_limiter.acquire(4)
         yes_result, no_result = await executor.execute_arb(yes_order, no_order)
@@ -517,7 +530,7 @@ async def _execute_arb_trade(
                 yes_status=yes_result.status.value,
                 no_status=no_result.status.value,
             )
-            unwind = EmergencyUnwind(executor, state_manager)
+            unwind = EmergencyUnwind(executor, state_manager, risk_manager=risk_manager)
             filled = yes_result if yes_filled else no_result
             unfilled = no_result if yes_filled else yes_result
             await unwind.unwind_partial_arb(filled, unfilled)
@@ -529,6 +542,13 @@ async def _execute_arb_trade(
             return
 
         await state_manager.record_trade(opp, [yes_result, no_result])
+
+        # Clear pending orders after successful recording
+        if state_manager.trade_db is not None:
+            for _done_order in [yes_result, no_result]:
+                if _done_order.order_id:
+                    state_manager.trade_db.clear_pending_order(_done_order.order_id)
+
         risk_manager.record_execution_success(market.condition_id)
         _log.info(
             "arb_complete",
@@ -2583,6 +2603,136 @@ async def async_main() -> None:
             _alerts = None
 
 
+async def _shutdown_sequence(
+    clob_ws: ClobWebSocket,
+    binance_ws: BinanceWebSocket,
+    executor: OrderExecutor,
+    state_manager: StateManager,
+    risk_manager: RiskManager,
+    settings: Settings,
+    dashboard_server,
+    trade_db: TradeDatabase | None,
+    discovery: MarketDiscovery,
+    alpha_signals: AlphaSignalProvider | None,
+    hedge_manager,
+    ws_task: asyncio.Task,
+    binance_task: asyncio.Task,
+    monitor_task: asyncio.Task,
+    strategy_task: asyncio.Task,
+    rollover_task: asyncio.Task,
+    exit_task: asyncio.Task,
+    gtc_task: asyncio.Task,
+    maker_arb_task: asyncio.Task,
+    summary_task: asyncio.Task,
+    dashboard_task: asyncio.Task | None,
+    snapshot_task: asyncio.Task | None,
+    resolution_task: asyncio.Task,
+    spot_snapshot_task: asyncio.Task | None,
+    market_outcome_task: asyncio.Task | None,
+    alpha_signals_task: asyncio.Task | None,
+) -> None:
+    """Execute full graceful shutdown sequence.
+
+    Extracted so it can be wrapped in ``asyncio.wait_for`` with a timeout.
+    """
+    await clob_ws.stop()
+    await binance_ws.stop()
+
+    # Cancel all pending GTC orders (asymmetric)
+    for entry in _pending_gtc_orders:
+        try:
+            order = entry["order"]
+            if order.order_id:
+                await executor.cancel_order(order.order_id)
+        except Exception as exc:
+            _log.warning("gtc_cancel_error", error=str(exc))
+    _pending_gtc_orders.clear()
+
+    # Cancel all pending maker arb pairs
+    for entry in _pending_maker_arb_pairs:
+        try:
+            pair: ArbPair = entry["pair"]
+            yes_order = entry["yes_order"]
+            no_order = entry["no_order"]
+            if yes_order.order_id:
+                await executor.cancel_order(yes_order.order_id)
+            if no_order.order_id:
+                await executor.cancel_order(no_order.order_id)
+            _log.info("maker_arb_shutdown_cancel", pair_id=pair.pair_id)
+        except Exception as exc:
+            _log.warning("maker_arb_cancel_error", error=str(exc))
+    _pending_maker_arb_pairs.clear()
+
+    # Cancel all pending HMM pairs
+    for entry in _pending_hmm_pairs:
+        try:
+            hmm_pair: HMMPair = entry["pair"]
+            yes_order = entry["yes_order"]
+            no_order = entry["no_order"]
+            if yes_order.order_id:
+                await executor.cancel_order(yes_order.order_id)
+            if no_order.order_id:
+                await executor.cancel_order(no_order.order_id)
+            _log.info("hmm_shutdown_cancel", pair_id=hmm_pair.pair_id)
+        except Exception as exc:
+            _log.warning("hmm_cancel_error", error=str(exc))
+    _pending_hmm_pairs.clear()
+
+    # Flatten unhedged directional positions on shutdown
+    unhedged = [p for p in state_manager.get_all_positions() if not p.is_hedged]
+    if unhedged:
+        _log.warning("shutdown_unwind_unhedged", count=len(unhedged))
+        unwinder = EmergencyUnwind(executor, state_manager, risk_manager=risk_manager)
+        for pos in unhedged:
+            try:
+                await unwinder.unwind_position(pos)
+            except Exception as exc:
+                _log.error(
+                    "shutdown_unwind_error",
+                    condition_id=pos.market.condition_id,
+                    error=str(exc),
+                )
+
+    # Shut down dashboard server
+    if dashboard_server is not None:
+        dashboard_server.should_exit = True
+
+    # Cancel non-WS tasks first so no trades are in-flight during snapshot
+    all_tasks = [
+        monitor_task, strategy_task, rollover_task,
+        exit_task, gtc_task, maker_arb_task, summary_task,
+        dashboard_task, snapshot_task, resolution_task,
+        spot_snapshot_task, market_outcome_task,
+        alpha_signals_task,
+    ]
+    for task in all_tasks:
+        if task is not None:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
+    # Save state after all strategy/execution tasks are cancelled
+    state_manager.save_snapshot(settings.state_snapshot_path)
+
+    # Close WS connections
+    for ws in [ws_task, binance_task]:
+        try:
+            await asyncio.wait_for(ws, timeout=5.0)
+        except asyncio.TimeoutError:
+            ws.cancel()
+
+    # Close HTTP clients, alpha signals, Binance Futures, and trade database
+    await discovery.close()
+    if alpha_signals is not None:
+        await alpha_signals.close()
+    if hedge_manager is not None and hasattr(hedge_manager, '_client'):
+        await hedge_manager._client.close()
+    if trade_db is not None:
+        trade_db.close()
+
+
 async def _run_bot(settings: Settings, pid_lock: PidLock) -> None:
     """Core bot logic, separated for clean PID lock management."""
     global _alerts
@@ -2605,6 +2755,11 @@ async def _run_bot(settings: Settings, pid_lock: PidLock) -> None:
         enable_divergence_scoring=settings.enable_divergence_scoring,
         enable_cross_asset_strategy=settings.enable_cross_asset_strategy,
     )
+
+    # Live mode safety checks
+    warnings = settings.validate_live_mode()
+    for w in warnings:
+        _log.warning("live_mode_warning", warning=w)
 
     # Alert dispatcher
     _alerts = AlertDispatcher.from_settings(settings)
@@ -2647,6 +2802,7 @@ async def _run_bot(settings: Settings, pid_lock: PidLock) -> None:
         max_size=500.0,
     )
     risk_manager.set_sizer(sizer)
+    risk_manager.set_book_manager(book_manager)
 
     # Restore Kelly inputs from DB if available
     if trade_db is not None:
@@ -2951,104 +3107,25 @@ async def _run_bot(settings: Settings, pid_lock: PidLock) -> None:
     assert _shutdown_event is not None
     await _shutdown_event.wait()
 
-    # Graceful shutdown
+    # Graceful shutdown with timeout
     _log.info("shutting_down")
-    await clob_ws.stop()
-    await binance_ws.stop()
-
-    # Cancel all pending GTC orders (asymmetric)
-    for entry in _pending_gtc_orders:
-        try:
-            order = entry["order"]
-            if order.order_id:
-                await executor.cancel_order(order.order_id)
-        except Exception as exc:
-            _log.warning("gtc_cancel_error", error=str(exc))
-    _pending_gtc_orders.clear()
-
-    # Cancel all pending maker arb pairs
-    for entry in _pending_maker_arb_pairs:
-        try:
-            pair: ArbPair = entry["pair"]
-            yes_order = entry["yes_order"]
-            no_order = entry["no_order"]
-            if yes_order.order_id:
-                await executor.cancel_order(yes_order.order_id)
-            if no_order.order_id:
-                await executor.cancel_order(no_order.order_id)
-            _log.info("maker_arb_shutdown_cancel", pair_id=pair.pair_id)
-        except Exception as exc:
-            _log.warning("maker_arb_cancel_error", error=str(exc))
-    _pending_maker_arb_pairs.clear()
-
-    # Cancel all pending HMM pairs
-    for entry in _pending_hmm_pairs:
-        try:
-            hmm_pair: HMMPair = entry["pair"]
-            yes_order = entry["yes_order"]
-            no_order = entry["no_order"]
-            if yes_order.order_id:
-                await executor.cancel_order(yes_order.order_id)
-            if no_order.order_id:
-                await executor.cancel_order(no_order.order_id)
-            _log.info("hmm_shutdown_cancel", pair_id=hmm_pair.pair_id)
-        except Exception as exc:
-            _log.warning("hmm_cancel_error", error=str(exc))
-    _pending_hmm_pairs.clear()
-
-    # Flatten unhedged directional positions on shutdown
-    unhedged = [p for p in state_manager.get_all_positions() if not p.is_hedged]
-    if unhedged:
-        _log.warning("shutdown_unwind_unhedged", count=len(unhedged))
-        unwinder = EmergencyUnwind(executor, state_manager)
-        for pos in unhedged:
-            try:
-                await unwinder.unwind_position(pos)
-            except Exception as exc:
-                _log.error(
-                    "shutdown_unwind_error",
-                    condition_id=pos.market.condition_id,
-                    error=str(exc),
-                )
-
-    # Shut down dashboard server
-    if dashboard_server is not None:
-        dashboard_server.should_exit = True
-
-    # Cancel non-WS tasks first so no trades are in-flight during snapshot
-    all_tasks = [
-        monitor_task, strategy_task, rollover_task,
-        exit_task, gtc_task, maker_arb_task, summary_task,
-        dashboard_task, snapshot_task, resolution_task,
-        spot_snapshot_task, market_outcome_task,
-        alpha_signals_task,
-    ]
-    for task in all_tasks:
-        if task is not None:
-            task.cancel()
-            try:
-                await task
-            except asyncio.CancelledError:
-                pass
-
-    # Save state after all strategy/execution tasks are cancelled
-    state_manager.save_snapshot(settings.state_snapshot_path)
-
-    # Close WS connections
-    for ws in [ws_task, binance_task]:
-        try:
-            await asyncio.wait_for(ws, timeout=5.0)
-        except asyncio.TimeoutError:
-            ws.cancel()
-
-    # Close HTTP clients, alpha signals, Binance Futures, and trade database
-    await discovery.close()
-    if alpha_signals is not None:
-        await alpha_signals.close()
-    if hedge_manager is not None and hasattr(hedge_manager, '_client'):
-        await hedge_manager._client.close()
-    if trade_db is not None:
-        trade_db.close()
+    try:
+        await asyncio.wait_for(
+            _shutdown_sequence(
+                clob_ws, binance_ws, executor, state_manager, risk_manager,
+                settings, dashboard_server, trade_db, discovery, alpha_signals,
+                hedge_manager, ws_task, binance_task,
+                monitor_task, strategy_task, rollover_task, exit_task,
+                gtc_task, maker_arb_task, summary_task, dashboard_task,
+                snapshot_task, resolution_task, spot_snapshot_task,
+                market_outcome_task, alpha_signals_task,
+            ),
+            timeout=30.0,
+        )
+    except asyncio.TimeoutError:
+        _log.error("shutdown_timeout", msg="Shutdown took >30s, forcing exit")
+    except Exception as exc:
+        _log.error("shutdown_error", error=str(exc))
 
     pnl = state_manager.daily_pnl()
     _log.info(

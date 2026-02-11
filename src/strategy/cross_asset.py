@@ -31,7 +31,7 @@ from src.utils.divergence import (
     compute_return_correlation,
     market_mispricing_score,
 )
-from src.utils.fees import taker_fee_amount
+from src.utils.fees import WINNER_FEE_RATE, taker_fee_amount
 
 # How often to recompute the correlation matrix (seconds)
 _CORRELATION_REFRESH_INTERVAL = 900.0  # 15 minutes
@@ -166,7 +166,9 @@ class CrossAssetCorrelationStrategy(BaseStrategy):
 
             # Expected profit: conservative — capture 30% of deviation
             taker_fee = taker_fee_amount(fill.vwap, size)
-            expected_profit = abs(deviation) * 0.3 * size - taker_fee
+            gross_profit = abs(deviation) * 0.3 * size - taker_fee
+            winner_fee = WINNER_FEE_RATE * max(0.0, gross_profit)
+            expected_profit = gross_profit - winner_fee
             if expected_profit <= 0:
                 continue
 
@@ -193,7 +195,7 @@ class CrossAssetCorrelationStrategy(BaseStrategy):
                 no_fill=no_fill,
                 expected_profit=expected_profit,
                 expected_profit_pct=profit_pct,
-                total_fees=taker_fee,
+                total_fees=taker_fee + winner_fee,
                 confidence=confidence,
                 requested_size=size,
                 metadata={

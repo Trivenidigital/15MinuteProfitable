@@ -27,7 +27,7 @@ from src.data.orderbook import OrderBookManager
 from src.data.spot_buffer import SpotBuffer
 from src.strategy.base import BaseStrategy
 from src.strategy.price_lag import ASSET_TO_BINANCE_SYMBOL
-from src.utils.fees import taker_fee_amount
+from src.utils.fees import WINNER_FEE_RATE, taker_fee_amount
 
 
 class DipBuyerStrategy(BaseStrategy):
@@ -210,7 +210,9 @@ class DipBuyerStrategy(BaseStrategy):
         # Expected profit: conservative — capture half the spike as reversion
         taker_fee = taker_fee_amount(fill.vwap, size)
         expected_reversion = short_movement.change_pct * 0.3  # 30% reversion
-        expected_profit = expected_reversion * size - taker_fee
+        gross_profit = expected_reversion * size - taker_fee
+        winner_fee = WINNER_FEE_RATE * max(0.0, gross_profit)
+        expected_profit = gross_profit - winner_fee
         profit_pct = (
             expected_profit / (fill.vwap * size) if fill.vwap > 0 else 0.0
         )
@@ -249,7 +251,7 @@ class DipBuyerStrategy(BaseStrategy):
             no_fill=no_fill,
             expected_profit=expected_profit,
             expected_profit_pct=profit_pct,
-            total_fees=taker_fee,
+            total_fees=taker_fee + winner_fee,
             confidence=confidence,
             requested_size=size,
             metadata={

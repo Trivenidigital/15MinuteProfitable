@@ -140,6 +140,66 @@ class OrderExecutor:
         return list(await asyncio.gather(*tasks))
 
     # ------------------------------------------------------------------
+    # Market quality checks
+    # ------------------------------------------------------------------
+
+    def _check_market_quality(self, order: TradeOrder) -> TradeOrder | None:
+        """Check liquidity, slippage, and book depth for a BUY order.
+
+        Returns the rejected TradeOrder if checks fail, None if OK.
+        """
+        if self._book_manager is None:
+            return None
+
+        fill_est = self._book_manager.get_fill_estimate(
+            order.token_id, order.side, order.size
+        )
+        if fill_est is None or not fill_est.sufficient_liquidity:
+            order.status = OrderStatus.REJECTED
+            order.market_condition_rejection = True
+            self._log.info(
+                "order_rejected_no_liquidity",
+                order_id=order.order_id or "pre-submit",
+                token_id=order.token_id[:12],
+                side=order.side.value,
+                size=order.size,
+            )
+            return order
+
+        # Slippage guard
+        max_slippage = self._settings.max_fill_slippage
+        if fill_est.best_price > 0 and fill_est.vwap > fill_est.best_price * (1 + max_slippage):
+            order.status = OrderStatus.REJECTED
+            order.market_condition_rejection = True
+            self._log.info(
+                "order_rejected_slippage",
+                order_id=order.order_id or "pre-submit",
+                token_id=order.token_id[:12],
+                vwap=round(fill_est.vwap, 4),
+                best_price=round(fill_est.best_price, 4),
+                slippage_pct=round((fill_est.vwap / fill_est.best_price - 1) * 100, 2),
+            )
+            return order
+
+        # Book depth guard
+        max_levels = self._settings.max_levels_consumed
+        if fill_est.levels_consumed > max_levels:
+            order.status = OrderStatus.REJECTED
+            order.market_condition_rejection = True
+            self._log.info(
+                "order_rejected_thin_book",
+                order_id=order.order_id or "pre-submit",
+                token_id=order.token_id[:12],
+                levels_consumed=fill_est.levels_consumed,
+                max_levels=max_levels,
+            )
+            return order
+
+        # Store VWAP for dry-run fill simulation
+        order._fill_vwap = fill_est.vwap  # type: ignore[attr-defined]
+        return None  # All checks passed
+
+    # ------------------------------------------------------------------
     # Submission
     # ------------------------------------------------------------------
 
@@ -155,6 +215,12 @@ class OrderExecutor:
                 token_id=order.token_id[:12],
             )
             return order
+
+        # Market quality checks for non-GTC BUY orders (applies to both live and dry-run)
+        if order.order_type != "GTC" and order.side == Side.BUY:
+            rejected = self._check_market_quality(order)
+            if rejected is not None:
+                return rejected
 
         if self._dry_run:
             order.order_id = f"dry_{uuid.uuid4().hex[:8]}"
@@ -175,51 +241,9 @@ class OrderExecutor:
                 )
                 return order
 
-            # BUY: check orderbook liquidity, slippage, depth, and use VWAP
-            if order.side == Side.BUY and self._book_manager is not None:
-                fill_est = self._book_manager.get_fill_estimate(
-                    order.token_id, order.side, order.size
-                )
-                if fill_est is None or not fill_est.sufficient_liquidity:
-                    order.status = OrderStatus.REJECTED
-                    order.market_condition_rejection = True
-                    self._log.info(
-                        "order_rejected_dry_no_liquidity",
-                        order_id=order.order_id,
-                        token_id=order.token_id[:12],
-                        side=order.side.value,
-                        size=order.size,
-                    )
-                    return order
-                # Slippage guard: reject if VWAP exceeds best price by too much
-                max_slippage = self._settings.max_fill_slippage
-                if fill_est.best_price > 0 and fill_est.vwap > fill_est.best_price * (1 + max_slippage):
-                    order.status = OrderStatus.REJECTED
-                    order.market_condition_rejection = True
-                    self._log.info(
-                        "order_rejected_dry_slippage",
-                        order_id=order.order_id,
-                        token_id=order.token_id[:12],
-                        vwap=round(fill_est.vwap, 4),
-                        best_price=round(fill_est.best_price, 4),
-                        slippage_pct=round((fill_est.vwap / fill_est.best_price - 1) * 100, 2),
-                    )
-                    return order
-                # Book depth guard: reject if filling requires too many levels
-                max_levels = self._settings.max_levels_consumed
-                if fill_est.levels_consumed > max_levels:
-                    order.status = OrderStatus.REJECTED
-                    order.market_condition_rejection = True
-                    self._log.info(
-                        "order_rejected_dry_thin_book",
-                        order_id=order.order_id,
-                        token_id=order.token_id[:12],
-                        levels_consumed=fill_est.levels_consumed,
-                        max_levels=max_levels,
-                    )
-                    return order
-                order.fill_price = fill_est.vwap
-            # SELL: use orderbook best_bid for realistic exit price
+            # Use VWAP from quality check if available
+            if hasattr(order, '_fill_vwap'):
+                order.fill_price = order._fill_vwap  # type: ignore[attr-defined]
             elif order.side == Side.SELL and self._book_manager is not None:
                 book = self._book_manager.get_book(order.token_id)
                 if book and book.best_bid:
@@ -265,11 +289,20 @@ class OrderExecutor:
                 token_id=order.token_id[:12],
             )
         except Exception as exc:
-            self._log.error(
-                "submit_order_failed",
-                token_id=order.token_id[:12],
-                error=str(exc),
-            )
+            error_str = str(exc).lower()
+            if "429" in error_str or "rate limit" in error_str:
+                self._log.warning(
+                    "rate_limit_detected",
+                    token_id=order.token_id[:12],
+                    error=str(exc),
+                )
+                order.market_condition_rejection = True
+            else:
+                self._log.error(
+                    "submit_order_failed",
+                    token_id=order.token_id[:12],
+                    error=str(exc),
+                )
             order.status = OrderStatus.REJECTED
 
         return order
@@ -289,8 +322,8 @@ class OrderExecutor:
     async def verify_fill(
         self,
         order: TradeOrder,
-        timeout: float = 3.0,
-        poll_interval: float = 0.5,
+        timeout: float | None = None,
+        poll_interval: float | None = None,
     ) -> TradeOrder:
         """Poll order status until terminal or timeout.
 
@@ -298,6 +331,12 @@ class OrderExecutor:
         """
         if self._dry_run:
             return order
+
+        timeout = timeout if timeout is not None else self._settings.fill_verify_timeout
+        poll_interval = (
+            poll_interval if poll_interval is not None
+            else self._settings.fill_verify_poll_interval
+        )
 
         if not order.order_id:
             return order
@@ -322,7 +361,7 @@ class OrderExecutor:
 
                 if state in ("MATCHED", "FILLED"):
                     order.status = OrderStatus.FILLED
-                    order.fill_size = fill_size or order.size
+                    order.fill_size = fill_size
                     order.fill_price = fill_price
                     return order
                 elif state in ("CANCELLED", "EXPIRED"):
