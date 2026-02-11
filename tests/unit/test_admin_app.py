@@ -22,6 +22,13 @@ def _admin_env(monkeypatch, tmp_path):
     monkeypatch.setenv("VAULT_PATH", str(tmp_path / "secrets.vault"))
     monkeypatch.setenv("BOT_ENV_FILE", str(tmp_path / ".env"))
 
+    # Pre-register BOT_ keys that the save_settings endpoint may write to
+    # os.environ directly (bypassing monkeypatch).  By calling delenv here,
+    # monkeypatch records the original state and restores it after the test,
+    # preventing env pollution into subsequent test modules.
+    monkeypatch.delenv("BOT_DRY_RUN", raising=False)
+    monkeypatch.delenv("BOT_ORDER_SIZE", raising=False)
+
     # Create a minimal .env so Settings can load
     env_path = tmp_path / ".env"
     env_path.write_text("BOT_PRIVATE_KEY=0xtest123\n")

@@ -113,6 +113,8 @@ def settings() -> Settings:
         max_daily_loss=50.0,
         max_unhedged_exposure=100.0,
         cooldown_seconds=5.0,
+        disable_circuit_breaker=False,
+        dry_run=False,
     )
 
 

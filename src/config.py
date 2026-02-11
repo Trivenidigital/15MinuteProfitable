@@ -239,12 +239,12 @@ class Settings(BaseSettings):
     disable_circuit_breaker: bool = True  # circuit breaker disabled until manual re-enable
     strategy_cooldown_consecutive_losses: int = 4
     strategy_cooldown_duration: float = 10800.0  # 3 hours
-    max_entries_per_market: int = 3
-    max_entries_per_strategy_per_market: int = 5  # max entries per strategy per market window
-    max_position_per_market: float = 100.0
-    max_total_position: float = 500.0
-    max_daily_loss: float = 50.0
-    max_unhedged_exposure: float = 100.0
+    max_entries_per_market: int = 10
+    max_entries_per_strategy_per_market: int = 10  # max entries per strategy per market window
+    max_position_per_market: float = 500.0
+    max_total_position: float = 2000.0
+    max_daily_loss: float = 300.0
+    max_unhedged_exposure: float = 500.0
 
     # Signal Inversion (contrarian paper test)
     invert_signals: bool = False  # Flip all directional signals: YES→NO, NO→YES
@@ -273,7 +273,7 @@ class Settings(BaseSettings):
     neg_risk: bool = True
 
     # Risk Sizing
-    kelly_fraction: float = 0.10
+    kelly_fraction: float = 0.25
 
     # Process Management
     pid_lock_path: str = "15minuteprofitable.pid"
