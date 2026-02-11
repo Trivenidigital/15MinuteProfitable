@@ -58,8 +58,8 @@ def ensure_tls_cert(
 
     # Build self-signed certificate
     subject = issuer = x509.Name([
-        x509.NameAttribute(NameOID.COMMON_NAME, "BTC15MinuteBot Admin"),
-        x509.NameAttribute(NameOID.ORGANIZATION_NAME, "BTC15MinuteBot"),
+        x509.NameAttribute(NameOID.COMMON_NAME, "15MinuteProfitable Admin"),
+        x509.NameAttribute(NameOID.ORGANIZATION_NAME, "15MinuteProfitable"),
     ])
 
     now = datetime.datetime.now(datetime.timezone.utc)

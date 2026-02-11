@@ -9,44 +9,44 @@
 
 ```bash
 # Create bot user
-sudo useradd -r -m -d /opt/btc15minutebot botuser
+sudo useradd -r -m -d /opt/15minuteprofitable botuser
 
 # Clone and install
-sudo -u botuser git clone <repo-url> /opt/btc15minutebot
-cd /opt/btc15minutebot
+sudo -u botuser git clone <repo-url> /opt/15minuteprofitable
+cd /opt/15minuteprofitable
 sudo -u botuser python3 -m venv .venv
 sudo -u botuser .venv/bin/pip install -e .
 
 # Configure environment
 sudo -u botuser cp .env.example .env
 sudo -u botuser nano .env  # Set BOT_PRIVATE_KEY, BOT_FUNDER, etc.
-chmod 600 /opt/btc15minutebot/.env
+chmod 600 /opt/15minuteprofitable/.env
 
 # Create log directory
-sudo mkdir -p /var/log/btc15minutebot
-sudo chown botuser:botuser /var/log/btc15minutebot
+sudo mkdir -p /var/log/15minuteprofitable
+sudo chown botuser:botuser /var/log/15minuteprofitable
 
 # Install systemd service
-sudo cp deploy/btc15minutebot.service /etc/systemd/system/
+sudo cp deploy/15minuteprofitable.service /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable btc15minutebot
+sudo systemctl enable 15minuteprofitable
 
 # Install logrotate config
-sudo cp deploy/logrotate.conf /etc/logrotate.d/btc15minutebot
+sudo cp deploy/logrotate.conf /etc/logrotate.d/15minuteprofitable
 ```
 
 ## Operations
 
 ```bash
 # Start / stop / restart
-sudo systemctl start btc15minutebot
-sudo systemctl stop btc15minutebot
-sudo systemctl restart btc15minutebot
+sudo systemctl start 15minuteprofitable
+sudo systemctl stop 15minuteprofitable
+sudo systemctl restart 15minuteprofitable
 
 # View status and logs
-sudo systemctl status btc15minutebot
-sudo journalctl -u btc15minutebot -f
-tail -f /var/log/btc15minutebot/bot.log
+sudo systemctl status 15minuteprofitable
+sudo journalctl -u 15minuteprofitable -f
+tail -f /var/log/15minuteprofitable/bot.log
 
 # Dry-run mode
 # Set BOT_DRY_RUN=true in .env, then restart

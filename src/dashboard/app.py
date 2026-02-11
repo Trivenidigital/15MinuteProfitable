@@ -1,4 +1,4 @@
-"""FastAPI dashboard application for the BTC15MinuteBot Polymarket trading bot.
+"""FastAPI dashboard application for the 15MinuteProfitable Polymarket trading bot.
 
 Provides REST endpoints, WebSocket live updates, and an HTML dashboard
 for monitoring positions, P&L, orderbooks, trades, and risk status.
@@ -65,7 +65,7 @@ def create_app() -> FastAPI:
     global _app_ref
 
     app = FastAPI(
-        title="BTC15MinuteBot Dashboard",
+        title="15MinuteProfitable Dashboard",
         description="Polymarket 15-minute crypto trading bot monitoring dashboard",
         version="1.0.0",
     )

@@ -24,7 +24,7 @@ from src.utils.time_utils import WINDOW_SECONDS, align_to_window, compute_slug
 # Constants
 # ---------------------------------------------------------------------------
 
-_USER_AGENT = "BTC15MinuteBot/1.0"
+_USER_AGENT = "15MinuteProfitable/1.0"
 _HTTP_TIMEOUT = 15.0
 _SLUG_LOOKAHEAD = 7  # current window + next 6
 

@@ -12,12 +12,12 @@
 - **IP:** `46.62.206.192` (Hetzner VPS, Helsinki)
 - **SSH:** `ssh root@46.62.206.192` (key-based auth, no password needed)
 - **SSH Key:** `~/.ssh/id_ed25519` (ed25519, configured via ssh-copy-id)
-- **Bot path:** `/opt/btc15minutebot/`
-- **Config:** `/opt/btc15minutebot/.env`
+- **Bot path:** `/opt/15minuteprofitable/`
+- **Config:** `/opt/15minuteprofitable/.env`
 - **Branch on server:** `feat/risk-manager` (active development branch)
-- **Service:** `systemctl {start|stop|restart|status} btc15minutebot`
-- **Logs:** `/var/log/btc15minutebot/bot.log` (stdout) and `error.log` (stderr)
-- **Database:** `/opt/btc15minutebot/data/trades.db` (SQLite)
+- **Service:** `systemctl {start|stop|restart|status} 15minuteprofitable`
+- **Logs:** `/var/log/15minuteprofitable/bot.log` (stdout) and `error.log` (stderr)
+- **Database:** `/opt/15minuteprofitable/data/trades.db` (SQLite)
 - **Dashboard:** `http://46.62.206.192:8080`
 - **Note:** Server does not have `pgrep` installed — use `pidof` or `systemctl` for process checks
 
@@ -70,7 +70,7 @@ src/
     ├── rate_limiter.py  # Token bucket rate limiter
     └── time_utils.py    # 15-minute window alignment helpers
 deploy/
-├── btc15minutebot.service  # systemd unit file
+├── 15minuteprofitable.service  # systemd unit file
 ├── logrotate.conf          # Log rotation config
 └── README.md               # VPS deployment guide
 ```
@@ -129,7 +129,7 @@ IMPORTANT: After EVERY config change, code fix, parameter tuning, or bot-related
   5. Daily performance log (end-of-session snapshot)
   6. Last-updated timestamp at bottom of file
 This is a MANDATORY step — do not consider a task complete until this doc is updated.
-- **Deploy workflow:** `git push` → SSH `git pull` → `systemctl restart btc15minutebot`. No pip install needed for pure Python changes.
+- **Deploy workflow:** `git push` → SSH `git pull` → `systemctl restart 15minuteprofitable`. No pip install needed for pure Python changes.
 
 ## Conventions
 - Commit format: conventional commits (feat:, fix:, refactor:)

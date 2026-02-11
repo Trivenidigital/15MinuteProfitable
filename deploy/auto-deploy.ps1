@@ -1,17 +1,17 @@
-# BTC15MinuteBot - Fully Automated Deployment Script
-# Run from: C:\Projects\BTC15MinuteBot
+# 15MinuteProfitable - Fully Automated Deployment Script
+# Run from: C:\Projects\15MinuteProfitable
 
 param(
     [Parameter(Mandatory=$true)]
     [string]$ServerIP,
 
     [string]$User = "root",
-    [string]$RemotePath = "/opt/btc15minutebot"
+    [string]$RemotePath = "/opt/15minuteprofitable"
 )
 
 $ErrorActionPreference = "Stop"
 
-Write-Host "=== BTC15MinuteBot Automated Deployment ===" -ForegroundColor Cyan
+Write-Host "=== 15MinuteProfitable Automated Deployment ===" -ForegroundColor Cyan
 Write-Host "Server: $User@$ServerIP" -ForegroundColor Yellow
 Write-Host ""
 
@@ -48,7 +48,7 @@ apt update
 apt install -y python3.11 python3.11-venv python3-pip curl
 
 # Setup bot directory
-cd /opt/btc15minutebot
+cd /opt/15minuteprofitable
 
 # Create virtual environment
 python3.11 -m venv .venv
@@ -59,8 +59,8 @@ pip install --upgrade pip
 pip install -e .
 
 # Create directories
-mkdir -p /var/log/btc15minutebot
-mkdir -p /opt/btc15minutebot/data
+mkdir -p /var/log/15minuteprofitable
+mkdir -p /opt/15minuteprofitable/data
 
 # Create .env template if not exists
 if [ ! -f ".env" ]; then
@@ -91,9 +91,9 @@ chmod 600 .env
 fi
 
 # Install systemd service
-cp deploy/btc15minutebot.service /etc/systemd/system/
+cp deploy/15minuteprofitable.service /etc/systemd/system/
 systemctl daemon-reload
-systemctl enable btc15minutebot
+systemctl enable 15minuteprofitable
 
 # Setup firewall
 ufw allow 22/tcp
@@ -122,9 +122,9 @@ if ([string]::IsNullOrEmpty($dryRun)) { $dryRun = "true" }
 
 # Update .env on server
 $envUpdate = @"
-sed -i 's|BOT_PRIVATE_KEY=.*|BOT_PRIVATE_KEY=$privateKey|' /opt/btc15minutebot/.env
-sed -i 's|BOT_FUNDER=.*|BOT_FUNDER=$funder|' /opt/btc15minutebot/.env
-sed -i 's|BOT_DRY_RUN=.*|BOT_DRY_RUN=$dryRun|' /opt/btc15minutebot/.env
+sed -i 's|BOT_PRIVATE_KEY=.*|BOT_PRIVATE_KEY=$privateKey|' /opt/15minuteprofitable/.env
+sed -i 's|BOT_FUNDER=.*|BOT_FUNDER=$funder|' /opt/15minuteprofitable/.env
+sed -i 's|BOT_DRY_RUN=.*|BOT_DRY_RUN=$dryRun|' /opt/15minuteprofitable/.env
 "@
 
 $envUpdate | ssh "${User}@${ServerIP}" "bash"
@@ -132,7 +132,7 @@ $envUpdate | ssh "${User}@${ServerIP}" "bash"
 Write-Host "[5/5] Starting bot..." -ForegroundColor Green
 
 # Step 5: Start the bot
-ssh "${User}@${ServerIP}" "systemctl start btc15minutebot && sleep 3 && systemctl status btc15minutebot --no-pager"
+ssh "${User}@${ServerIP}" "systemctl start 15minuteprofitable && sleep 3 && systemctl status 15minuteprofitable --no-pager"
 
 Write-Host ""
 Write-Host "=== Deployment Complete! ===" -ForegroundColor Green
@@ -140,7 +140,7 @@ Write-Host ""
 Write-Host "Dashboard URL: http://${ServerIP}:8080" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Useful commands:" -ForegroundColor Yellow
-Write-Host "  ssh ${User}@${ServerIP} 'journalctl -u btc15minutebot -f'  # View logs"
-Write-Host "  ssh ${User}@${ServerIP} 'systemctl restart btc15minutebot' # Restart"
-Write-Host "  ssh ${User}@${ServerIP} 'systemctl stop btc15minutebot'    # Stop"
+Write-Host "  ssh ${User}@${ServerIP} 'journalctl -u 15minuteprofitable -f'  # View logs"
+Write-Host "  ssh ${User}@${ServerIP} 'systemctl restart 15minuteprofitable' # Restart"
+Write-Host "  ssh ${User}@${ServerIP} 'systemctl stop 15minuteprofitable'    # Stop"
 Write-Host ""

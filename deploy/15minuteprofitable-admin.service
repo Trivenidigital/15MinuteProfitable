@@ -1,0 +1,28 @@
+[Unit]
+Description=BTC 15-Minute Bot Admin Dashboard (HTTPS)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=botuser
+Group=botuser
+WorkingDirectory=/opt/15minuteprofitable
+EnvironmentFile=/opt/15minuteprofitable/.env
+EnvironmentFile=-/opt/15minuteprofitable/.admin.env
+ExecStart=/opt/15minuteprofitable/.venv/bin/python -m src.admin
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=15
+KillSignal=SIGTERM
+StandardOutput=append:/var/log/15minuteprofitable/admin.log
+StandardError=append:/var/log/15minuteprofitable/admin-error.log
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/opt/15minuteprofitable /var/log/15minuteprofitable
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

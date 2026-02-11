@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Strategy Comparison: BTC15MinuteBot vs PolyMarketAlphaBot</title>
+    <title>Strategy Comparison: 15MinuteProfitable vs PolyMarketAlphaBot</title>
     <style>
         * {
             margin: 0;
@@ -255,14 +255,14 @@
     <div class="container">
         <header>
             <h1>Strategy Comparison Report</h1>
-            <p class="subtitle">BTC15MinuteBot vs PolyMarketAlphaBot</p>
+            <p class="subtitle">15MinuteProfitable vs PolyMarketAlphaBot</p>
             <p class="date">Generated: February 5, 2026</p>
         </header>
 
         <!-- Executive Summary -->
         <div class="summary-box">
             <h3>Executive Summary</h3>
-            <p>Analysis of two Polymarket trading bots with different approaches: <strong>BTC15MinuteBot</strong> focuses on high-frequency 15-minute crypto arbitrage, while <strong>PolyMarketAlphaBot</strong> emphasizes research-driven alpha across all market types.</p>
+            <p>Analysis of two Polymarket trading bots with different approaches: <strong>15MinuteProfitable</strong> focuses on high-frequency 15-minute crypto arbitrage, while <strong>PolyMarketAlphaBot</strong> emphasizes research-driven alpha across all market types.</p>
 
             <div class="metric-grid">
                 <div class="metric">
@@ -290,7 +290,7 @@
             <thead>
                 <tr>
                     <th>Dimension</th>
-                    <th>BTC15MinuteBot</th>
+                    <th>15MinuteProfitable</th>
                     <th>PolyMarketAlphaBot</th>
                 </tr>
             </thead>
@@ -343,9 +343,9 @@
                     <span class="check">✓</span> Single-Condition Arbitrage
                     <span class="badge badge-green">SHARED</span>
                 </div>
-                <p><strong>BTC15MinuteBot:</strong> <span class="code">src/strategy/arbitrage.py</span></p>
+                <p><strong>15MinuteProfitable:</strong> <span class="code">src/strategy/arbitrage.py</span></p>
                 <p><strong>AlphaBot:</strong> <span class="code">src/arbitrage/single_condition.py</span></p>
-                <p style="margin-top: 0.5rem; color: #a1a1aa;">Buy YES + NO when combined &lt; $1.00 after fees. Both implement similar logic but BTC15MinuteBot focuses on exact fee calculation for 15-min markets.</p>
+                <p style="margin-top: 0.5rem; color: #a1a1aa;">Buy YES + NO when combined &lt; $1.00 after fees. Both implement similar logic but 15MinuteProfitable focuses on exact fee calculation for 15-min markets.</p>
             </div>
 
             <div class="card strategy-card shared">
@@ -353,7 +353,7 @@
                     <span class="check">✓</span> Kelly Criterion Sizing
                     <span class="badge badge-green">SHARED</span>
                 </div>
-                <p><strong>BTC15MinuteBot:</strong> <span class="code">src/risk/sizing.py</span></p>
+                <p><strong>15MinuteProfitable:</strong> <span class="code">src/risk/sizing.py</span></p>
                 <p><strong>AlphaBot:</strong> <span class="code">src/signals/position_sizer.py</span></p>
                 <p style="margin-top: 0.5rem; color: #a1a1aa;">Both use fractional Kelly (0.25x default) with bankroll management. AlphaBot has more sophisticated category-adaptive sizing.</p>
             </div>
@@ -363,13 +363,13 @@
                     <span class="check">✓</span> Liquidity-Aware Execution
                     <span class="badge badge-green">SHARED</span>
                 </div>
-                <p><strong>BTC15MinuteBot:</strong> <span class="code">src/data/orderbook.py</span></p>
+                <p><strong>15MinuteProfitable:</strong> <span class="code">src/data/orderbook.py</span></p>
                 <p><strong>AlphaBot:</strong> <span class="code">src/analysis/liquidity_edge.py</span></p>
                 <p style="margin-top: 0.5rem; color: #a1a1aa;">Both walk the order book to estimate fill prices. AlphaBot adds slippage and market impact modeling.</p>
             </div>
         </div>
 
-        <h3>Strategies ONLY in BTC15MinuteBot</h3>
+        <h3>Strategies ONLY in 15MinuteProfitable</h3>
         <div class="grid">
             <div class="card strategy-card btc">
                 <div class="card-title">
@@ -498,7 +498,7 @@
             <thead>
                 <tr>
                     <th>Feature</th>
-                    <th>BTC15MinuteBot</th>
+                    <th>15MinuteProfitable</th>
                     <th>PolyMarketAlphaBot</th>
                     <th>Notes</th>
                 </tr>
@@ -606,7 +606,7 @@
         <!-- Recommendations -->
         <div class="recommendation">
             <h3>Recommended Strategy Ports</h3>
-            <p>Based on effort vs. value analysis, these strategies from PolyMarketAlphaBot could enhance BTC15MinuteBot:</p>
+            <p>Based on effort vs. value analysis, these strategies from PolyMarketAlphaBot could enhance 15MinuteProfitable:</p>
 
             <div class="two-col" style="margin-top: 1rem;">
                 <div>
@@ -632,7 +632,7 @@
         <h2>Architecture Comparison</h2>
         <div class="two-col">
             <div class="card">
-                <div class="card-title">BTC15MinuteBot</div>
+                <div class="card-title">15MinuteProfitable</div>
                 <pre style="font-size: 0.8rem; color: #a1a1aa; overflow-x: auto;">
 src/
 ├── config.py           # Pydantic settings
@@ -1103,7 +1103,7 @@ src/
         <div class="grid">
             <div class="card">
                 <div class="card-title">1. Enable Existing Strategies</div>
-                <p style="color: #a1a1aa;">BTC15MinuteBot has price-lag and asymmetric strategies built but disabled. Enable them:</p>
+                <p style="color: #a1a1aa;">15MinuteProfitable has price-lag and asymmetric strategies built but disabled. Enable them:</p>
                 <pre style="margin-top: 0.5rem; font-size: 0.85rem; color: #22d3ee;">
 BOT_ENABLE_PRICE_LAG=true
 BOT_ENABLE_ASYMMETRIC=true</pre>
@@ -1126,8 +1126,8 @@ BOT_ENABLE_ASYMMETRIC=true</pre>
         </div>
 
         <footer style="text-align: center; margin-top: 3rem; padding: 2rem; color: #71717a; border-top: 1px solid rgba(255,255,255,0.1);">
-            <p>Generated by Claude | BTC15MinuteBot Analysis</p>
-            <p style="font-size: 0.85rem; margin-top: 0.5rem;">Source: C:\Projects\BTC15MinuteBot & C:\Projects\PolyMarketAlphaBot</p>
+            <p>Generated by Claude | 15MinuteProfitable Analysis</p>
+            <p style="font-size: 0.85rem; margin-top: 0.5rem;">Source: C:\Projects\15MinuteProfitable & C:\Projects\PolyMarketAlphaBot</p>
         </footer>
     </div>
 </body>

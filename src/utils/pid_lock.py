@@ -39,7 +39,7 @@ class PidLock:
             run_bot()
     """
 
-    def __init__(self, path: str = "btc15minutebot.pid") -> None:
+    def __init__(self, path: str = "15minuteprofitable.pid") -> None:
         self._path = Path(path)
         self._acquired = False
 

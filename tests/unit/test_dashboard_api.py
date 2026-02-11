@@ -150,7 +150,7 @@ async def test_root_returns_html(client: AsyncClient) -> None:
     resp = await client.get("/")
     assert resp.status_code == 200
     assert "text/html" in resp.headers["content-type"]
-    assert "BTC15MinuteBot Dashboard" in resp.text
+    assert "15MinuteProfitable Dashboard" in resp.text
 
 
 @pytest.mark.asyncio

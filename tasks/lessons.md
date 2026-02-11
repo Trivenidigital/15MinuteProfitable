@@ -79,7 +79,7 @@
 
 - **SSH key auth is set up.** `~/.ssh/id_ed25519` → `root@46.62.206.192`. No more password prompts.
 - **Server may have local changes.** When deploying, if `git checkout` fails with "local changes would be overwritten", run `git stash` first.
-- **Server lacks `pgrep`.** Use `pidof python` or `systemctl status btc15minutebot` instead of `pgrep -f src.main` for process checks.
+- **Server lacks `pgrep`.** Use `pidof python` or `systemctl status 15minuteprofitable` instead of `pgrep -f src.main` for process checks.
 - **Large log file queries hang.** Don't `grep` the entire bot.log (3.5M+ lines). Use `tail -N` to limit input, or `awk '/timestamp/,0'` to scope to a time range.
 - **Log rotation:** Consider setting up logrotate — the log file grows continuously and is already 3.6M+ lines.
 
@@ -249,7 +249,7 @@ The window controls BOTH when the strategy activates AND when it records odds da
 
 - **Heredoc in SSH:** Copy-pasting heredocs (`cat << 'EOF'`) over SSH often fails. Use multiple `printf` or `echo` commands instead.
 - **Forgot to create venv:** Always `source .venv/bin/activate` before running `pip install -e .`
-- **Wrong working directory:** Always `cd /opt/btc15minutebot` before running bot commands.
+- **Wrong working directory:** Always `cd /opt/15minuteprofitable` before running bot commands.
 - **Port already in use:** Kill old process before starting new one. Check with `netstat -ano | findstr :8080`
 - **MockState must match StateProvider protocol.** When adding new methods to StateProvider, always update MockState in test_risk_manager.py or tests will fail with AttributeError.
 - **Test market timing matters with dynamic thresholds.** When tests use `start_offset=-300, end_offset=600` (progress = 1/3), they hit the boundary between first and middle third. Choose offsets clearly within a phase (e.g., `-200/700` for first third, `-450/450` for middle).

@@ -379,13 +379,12 @@ class PriceLagStrategy(BaseStrategy):
 
         pnl_pct = (current_value - cost_basis) / cost_basis
 
-        # 1. Time-based exit — but skip for positions down >70%.
-        # Selling a position that's lost most of its value recovers little,
-        # while holding to resolution preserves the chance of full recovery
-        # if the market resolves favorably.
+        # 1. Time-based exit — but skip for near-worthless positions (<5% of cost).
+        # Selling recovers almost nothing while holding preserves the chance
+        # of full recovery if the market resolves favorably.
         if time_to_close <= self._settings.time_exit_seconds:
             value_ratio = current_value / cost_basis
-            if value_ratio < 0.30:
+            if value_ratio < 0.05:
                 self._log.info(
                     "time_exit_skipped_lottery",
                     market=market.slug,
@@ -451,7 +450,7 @@ class PriceLagStrategy(BaseStrategy):
                 effective_tp = None
             elif progress >= 1 / 3:
                 # Middle third: lower threshold to capture gains before late volatility
-                effective_tp = self._settings.take_profit_pct * 0.6
+                effective_tp = self._settings.take_profit_pct * 2
             else:
                 # First third: use base threshold, give position time to develop
                 effective_tp = self._settings.take_profit_pct

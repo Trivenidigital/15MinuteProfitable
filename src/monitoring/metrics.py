@@ -15,6 +15,7 @@ class MetricsCollector:
         self,
         pnl: DailyPnL,
         sim_balance: float,
+        lifetime_net_profit: float = 0.0,
     ) -> dict[str, float]:
         """Compute a dashboard of key metrics from today's P&L.
 
@@ -22,7 +23,7 @@ class MetricsCollector:
             Dictionary with: win_rate, avg_profit_per_trade, take_rate,
             net_profit, total_fees, max_drawdown, sim_balance,
             trades, win_count, loss_count, opportunities_seen,
-            opportunities_taken.
+            opportunities_taken, lifetime_net_profit.
         """
         total_resolved = pnl.win_count + pnl.loss_count
         win_rate = (pnl.win_count / total_resolved) if total_resolved > 0 else 0.0
@@ -58,6 +59,7 @@ class MetricsCollector:
             "opportunities_taken": float(pnl.opportunities_taken),
             "avg_win": avg_win,
             "avg_loss": avg_loss,
+            "lifetime_net_profit": lifetime_net_profit,
         }
 
     def format_daily_summary(self, dashboard: dict[str, float]) -> str:
@@ -69,7 +71,8 @@ class MetricsCollector:
             f"Trades: {int(dashboard['trades'])}",
             f"Win/Loss: {int(dashboard['win_count'])}/{int(dashboard['loss_count'])}",
             f"Win Rate: {dashboard['win_rate']:.1%}",
-            f"Net Profit: ${dashboard['net_profit']:.2f}",
+            f"Net Profit (Today): ${dashboard['net_profit']:.2f}",
+            f"Net Profit (Lifetime): ${dashboard['lifetime_net_profit']:.2f}",
             f"Gross Profit: ${dashboard['gross_profit']:.2f}",
             f"Total Fees: ${dashboard['total_fees']:.2f}",
             f"Avg Profit/Trade: ${dashboard['avg_profit_per_trade']:.4f}",

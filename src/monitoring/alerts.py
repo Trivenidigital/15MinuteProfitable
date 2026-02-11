@@ -76,7 +76,7 @@ class DiscordSink:
         }
         payload = {
             "embeds": [{
-                "title": f"BTC15MinuteBot - {level.value}",
+                "title": f"15MinuteProfitable - {level.value}",
                 "description": text,
                 "color": color_map.get(level, 3447003),
             }],

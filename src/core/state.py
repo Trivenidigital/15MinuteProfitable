@@ -431,18 +431,15 @@ class StateManager:
 
     @property
     def lifetime_net_profit(self) -> float:
-        """Cumulative net profit across all time (historical days + today).
+        """Cumulative net profit across all time from trade_results (ground truth).
 
-        Historical days are summed from SQLite daily_snapshots (excluding
-        today to avoid double-counting with the in-memory DailyPnL).
+        Uses the trade_results table (actual resolution outcomes) rather than
+        daily_snapshots or in-memory counters, which can drift across restarts.
         """
-        today_pnl = self._get_or_create_daily_pnl().net_profit
         if self._trade_db is None:
-            # No DB attached: sum all in-memory daily entries
+            # No DB attached: fall back to in-memory daily entries
             return sum(pnl.net_profit for pnl in self._daily_pnl.values())
-        today = datetime.now(timezone.utc).date().isoformat()
-        historical = self._trade_db.get_historical_net_profit(exclude_date=today)
-        return historical + today_pnl
+        return self._trade_db.get_lifetime_net_profit_from_results()
 
     def _get_or_create_daily_pnl(self) -> DailyPnL:
         """Get or lazily create today's DailyPnL record (UTC-based)."""
@@ -890,3 +887,31 @@ class StateManager:
             restored=report["positions_restored"],
         )
         return report
+
+    def reconcile_sim_balance(self) -> float:
+        """Reconcile sim_balance against trade_results ground truth.
+
+        Computes: starting_balance + SUM(net_profit FROM trade_results).
+        If the snapshot sim_balance diverges, correct it and log a warning.
+
+        Returns:
+            The correction delta (positive means balance was too low).
+        """
+        if self._trade_db is None:
+            return 0.0
+
+        true_profit = self._trade_db.get_lifetime_net_profit_from_results()
+        true_balance = self._settings.sim_balance + true_profit
+        delta = true_balance - self._sim_balance_value
+
+        if abs(delta) > 0.01:
+            logger.warning(
+                "sim_balance_reconciled",
+                snapshot_balance=self._sim_balance_value,
+                true_balance=true_balance,
+                lifetime_profit=true_profit,
+                delta=delta,
+            )
+            self._sim_balance_value = true_balance
+
+        return delta

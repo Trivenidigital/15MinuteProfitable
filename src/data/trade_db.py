@@ -278,6 +278,11 @@ CREATE TABLE IF NOT EXISTS circuit_breaker_state (
     reason TEXT NOT NULL DEFAULT '',
     until_ts REAL NOT NULL DEFAULT 0.0
 );
+
+CREATE TABLE IF NOT EXISTS strategy_cooldown_state (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    state_json TEXT NOT NULL DEFAULT '{}'
+);
 """
 
 
@@ -457,6 +462,17 @@ class TradeDatabase:
             "SELECT COUNT(*) FROM trade_results"
         ).fetchone()
         return row[0] if row else 0
+
+    def get_lifetime_net_profit_from_results(self) -> float:
+        """Sum net_profit from trade_results table (ground truth).
+
+        This queries actual resolution outcomes, not in-memory-derived
+        daily_snapshots, making it the authoritative source for lifetime P&L.
+        """
+        row = self._conn.execute(
+            "SELECT COALESCE(SUM(net_profit), 0.0) FROM trade_results"
+        ).fetchone()
+        return float(row[0]) if row else 0.0
 
     def get_position_strategy_breakdown(
         self, condition_id: str
@@ -901,6 +917,35 @@ class TradeDatabase:
             "reason": str(row["reason"]),
             "until_ts": float(row["until_ts"]),
         }
+
+    # ------------------------------------------------------------------
+    # Strategy cooldown state persistence
+    # ------------------------------------------------------------------
+
+    def save_strategy_cooldown_state(self, state_json: str) -> None:
+        """Upsert the strategy cooldown state (single row, JSON blob)."""
+        self._conn.execute(
+            """INSERT INTO strategy_cooldown_state (id, state_json)
+               VALUES (1, ?)
+               ON CONFLICT(id) DO UPDATE SET
+                 state_json=excluded.state_json""",
+            (state_json,),
+        )
+        self._conn.commit()
+
+    def load_strategy_cooldown_state(self) -> dict | None:
+        """Load the persisted strategy cooldown state, or None if not yet saved."""
+        import json
+
+        row = self._conn.execute(
+            "SELECT state_json FROM strategy_cooldown_state WHERE id = 1"
+        ).fetchone()
+        if row is None:
+            return None
+        try:
+            return json.loads(row["state_json"])
+        except (json.JSONDecodeError, TypeError):
+            return None
 
     # ------------------------------------------------------------------
     # Spot series for correlation computation

@@ -1,24 +1,24 @@
 #!/bin/bash
-# BTC15MinuteBot - Hetzner Amsterdam Setup Script
+# 15MinuteProfitable - Hetzner Amsterdam Setup Script
 # Run as root on a fresh Ubuntu 22.04 VPS
 
 set -e
 
-echo "=== BTC15MinuteBot Hetzner Setup ==="
+echo "=== 15MinuteProfitable Hetzner Setup ==="
 
 # 1. System updates
 apt update && apt upgrade -y
 apt install -y python3.11 python3.11-venv python3-pip git curl
 
 # 2. Create bot user
-useradd -r -m -d /opt/btc15minutebot -s /bin/bash botuser || true
+useradd -r -m -d /opt/15minuteprofitable -s /bin/bash botuser || true
 
 # 3. Clone repository (replace with your repo URL)
 cd /opt
-if [ ! -d "btc15minutebot/.git" ]; then
-    sudo -u botuser git clone https://github.com/YOUR_USERNAME/BTC15MinuteBot.git btc15minutebot
+if [ ! -d "15minuteprofitable/.git" ]; then
+    sudo -u botuser git clone https://github.com/YOUR_USERNAME/15MinuteProfitable.git 15minuteprofitable
 fi
-cd btc15minutebot
+cd 15minuteprofitable
 
 # 4. Create virtual environment and install
 sudo -u botuser python3.11 -m venv .venv
@@ -57,24 +57,24 @@ BOT_LOG_LEVEL=INFO
 EOF
     chown botuser:botuser .env
     chmod 600 .env
-    echo ">>> IMPORTANT: Edit /opt/btc15minutebot/.env with your keys!"
+    echo ">>> IMPORTANT: Edit /opt/15minuteprofitable/.env with your keys!"
 fi
 
 # 6. Create log directory
-mkdir -p /var/log/btc15minutebot
-chown botuser:botuser /var/log/btc15minutebot
+mkdir -p /var/log/15minuteprofitable
+chown botuser:botuser /var/log/15minuteprofitable
 
 # 7. Create data directory for SQLite
-sudo -u botuser mkdir -p /opt/btc15minutebot/data
-chown botuser:botuser /opt/btc15minutebot/data
+sudo -u botuser mkdir -p /opt/15minuteprofitable/data
+chown botuser:botuser /opt/15minuteprofitable/data
 
 # 8. Install systemd service
-cp deploy/btc15minutebot.service /etc/systemd/system/
+cp deploy/15minuteprofitable.service /etc/systemd/system/
 systemctl daemon-reload
-systemctl enable btc15minutebot
+systemctl enable 15minuteprofitable
 
 # 9. Install logrotate
-cp deploy/logrotate.conf /etc/logrotate.d/btc15minutebot
+cp deploy/logrotate.conf /etc/logrotate.d/15minuteprofitable
 
 # 10. Setup firewall (allow SSH + dashboard)
 ufw allow 22/tcp
@@ -85,12 +85,12 @@ echo ""
 echo "=== Setup Complete ==="
 echo ""
 echo "Next steps:"
-echo "1. Edit /opt/btc15minutebot/.env with your keys"
-echo "2. Start: sudo systemctl start btc15minutebot"
-echo "3. View logs: sudo journalctl -u btc15minutebot -f"
+echo "1. Edit /opt/15minuteprofitable/.env with your keys"
+echo "2. Start: sudo systemctl start 15minuteprofitable"
+echo "3. View logs: sudo journalctl -u 15minuteprofitable -f"
 echo "4. Dashboard: http://YOUR_SERVER_IP:8080"
 echo ""
 echo "Commands:"
-echo "  sudo systemctl status btc15minutebot  # Check status"
-echo "  sudo systemctl restart btc15minutebot # Restart"
-echo "  sudo systemctl stop btc15minutebot    # Stop"
+echo "  sudo systemctl status 15minuteprofitable  # Check status"
+echo "  sudo systemctl restart 15minuteprofitable # Restart"
+echo "  sudo systemctl stop 15minuteprofitable    # Stop"

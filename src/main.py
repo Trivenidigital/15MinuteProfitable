@@ -1693,6 +1693,7 @@ async def _exit_check_loop(
     trade_db: TradeDatabase | None = None,
     interval: float = 2.0,
     hedge_manager: object | None = None,
+    risk_manager: RiskManager | None = None,
 ) -> None:
     """Fast loop to check if directional positions should be exited.
 
@@ -1727,6 +1728,7 @@ async def _exit_check_loop(
                         position, market, executor, state_manager,
                         rate_limiter, settings, book_manager, trade_db,
                         hedge_manager=hedge_manager,
+                        risk_manager=risk_manager,
                     )
         except Exception as exc:
             _log.error("exit_check_error", error=str(exc))
@@ -1747,6 +1749,7 @@ async def _execute_exit(
     book_manager: OrderBookManager,
     trade_db: TradeDatabase | None = None,
     hedge_manager: object | None = None,
+    risk_manager: RiskManager | None = None,
 ) -> None:
     """Sell all shares in a directional position."""
     orders = []
@@ -1851,6 +1854,10 @@ async def _execute_exit(
                 outcome="early_exit",
             ))
 
+        # Record outcome for per-strategy cooldown tracking
+        if risk_manager is not None:
+            risk_manager.record_trade_outcome(position.strategy, net_profit >= 0)
+
         _log.info(
             "position_exited",
             market=market.slug,
@@ -1922,7 +1929,11 @@ async def _monitor_loop(
             )
 
         pnl = state_manager.daily_pnl()
-        dashboard = metrics.compute_dashboard(pnl, state_manager.sim_balance)
+        dashboard = metrics.compute_dashboard(
+            pnl,
+            state_manager.sim_balance,
+            lifetime_net_profit=state_manager.lifetime_net_profit,
+        )
         metrics.log_dashboard(dashboard)
 
         _log.info(
@@ -1961,7 +1972,11 @@ async def _daily_summary_loop(
             today = now.strftime("%Y-%m-%d")
             if now.hour == settings.daily_summary_hour and today != last_summary_date:
                 pnl = state_manager.daily_pnl()
-                dashboard = metrics.compute_dashboard(pnl, state_manager.sim_balance)
+                dashboard = metrics.compute_dashboard(
+                    pnl,
+                    state_manager.sim_balance,
+                    lifetime_net_profit=state_manager.lifetime_net_profit,
+                )
                 summary = metrics.format_daily_summary(dashboard)
                 if _alerts:
                     await _alerts.send_daily_summary(summary)
@@ -2105,6 +2120,7 @@ def _update_kelly_state(
 def _save_attributed_results(
     trade_db: TradeDatabase,
     report: dict[str, object],
+    risk_manager: RiskManager | None = None,
 ) -> None:
     """Save trade results with correct per-strategy attribution.
 
@@ -2125,6 +2141,7 @@ def _save_attributed_results(
         # the Position's strategy which may have been overwritten)
         if len(breakdown) == 1:
             strategy = next(iter(breakdown))
+        net_profit = float(report.get("net_profit", 0.0))
         trade_db.save_trade_result(TradeResult(
             timestamp=time.time(),
             condition_id=condition_id,
@@ -2136,9 +2153,17 @@ def _save_attributed_results(
             no_shares=float(report.get("no_shares", 0.0)),
             investment=float(report.get("investment", 0.0)),
             gross_payout=float(report.get("gross_payout", 0.0)),
-            net_profit=float(report.get("net_profit", 0.0)),
+            net_profit=net_profit,
             outcome=str(report.get("outcome", "")),
         ))
+        if risk_manager is not None and strategy:
+            try:
+                from src.core.models import StrategyType
+                risk_manager.record_trade_outcome(
+                    StrategyType(strategy), net_profit >= 0,
+                )
+            except ValueError:
+                pass  # Unknown strategy name — skip cooldown tracking
         return
 
     # Multiple strategies contributed — split into per-strategy results
@@ -2193,6 +2218,15 @@ def _save_attributed_results(
             outcome=outcome,
         ))
 
+        if risk_manager is not None:
+            try:
+                from src.core.models import StrategyType
+                risk_manager.record_trade_outcome(
+                    StrategyType(strat_name), s_net_profit >= 0,
+                )
+            except ValueError:
+                pass  # Unknown strategy name — skip cooldown tracking
+
     _log.info(
         "multi_strategy_attribution",
         condition_id=condition_id,
@@ -2207,6 +2241,7 @@ async def _resolution_loop(
     trade_db: TradeDatabase | None = None,
     interval: float = 15.0,
     hedge_manager: object | None = None,
+    risk_manager: RiskManager | None = None,
 ) -> None:
     """Periodically check for and resolve expired positions.
 
@@ -2228,7 +2263,7 @@ async def _resolution_loop(
             if resolved:
                 if trade_db is not None:
                     for report in resolved:
-                        _save_attributed_results(trade_db, report)
+                        _save_attributed_results(trade_db, report, risk_manager)
                 # Close CEX hedges for resolved positions
                 if hedge_manager is not None:
                     for report in resolved:
@@ -2654,6 +2689,15 @@ async def _run_bot(settings: Settings, pid_lock: PidLock) -> None:
     recovery_report = state_manager.startup_recovery(settings.state_snapshot_path)
     _log.info("startup_recovery", **recovery_report)
 
+    # Reconcile sim_balance against trade_results ground truth
+    delta = state_manager.reconcile_sim_balance()
+    if abs(delta) > 0.01:
+        _log.warning(
+            "sim_balance_corrected",
+            delta=delta,
+            new_balance=state_manager.sim_balance,
+        )
+
     # Initial market discovery via MarketManager
     markets = await market_manager.initialize()
     if not markets:
@@ -2843,6 +2887,7 @@ async def _run_bot(settings: Settings, pid_lock: PidLock) -> None:
             trade_db=trade_db,
             interval=2.0,
             hedge_manager=hedge_manager,
+            risk_manager=risk_manager,
         ),
     )
 
@@ -2864,6 +2909,7 @@ async def _run_bot(settings: Settings, pid_lock: PidLock) -> None:
             trade_db=trade_db,
             interval=15.0,  # Check every 15 seconds
             hedge_manager=hedge_manager,
+            risk_manager=risk_manager,
         ),
     )
 

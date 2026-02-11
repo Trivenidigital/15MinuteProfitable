@@ -228,8 +228,14 @@ class Settings(BaseSettings):
     market_intervals: list[str] = ["15m"]  # Future: add "1h", "4h" for hourly markets
     market_slug_override: str = ""
 
+    # Strategy Cooldown (per-strategy consecutive loss protection)
+    strategy_cooldown_consecutive_losses: int = 4
+    strategy_cooldown_duration: float = 10800.0  # 3 hours
+
     # Risk Limits (AGGRESSIVE MODE)
     disable_circuit_breaker: bool = False  # skip circuit breaker (useful in DRY_RUN)
+    strategy_cooldown_consecutive_losses: int = 4
+    strategy_cooldown_duration: float = 10800.0  # 3 hours
     max_entries_per_market: int = 10  # limit accumulation; 10 * $50 = $500 max per market
     max_entries_per_strategy_per_market: int = 5  # max entries per strategy per market window
     max_position_per_market: float = 1000.0  # aggressive for learning mode
@@ -267,7 +273,7 @@ class Settings(BaseSettings):
     kelly_fraction: float = 0.25
 
     # Process Management
-    pid_lock_path: str = "btc15minutebot.pid"
+    pid_lock_path: str = "15minuteprofitable.pid"
     state_snapshot_path: str = "state_snapshot.json"
 
     # Dashboard

@@ -1,0 +1,28 @@
+[Unit]
+Description=BTC 15-Minute Polymarket Trading Bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/opt/15minuteprofitable
+EnvironmentFile=/opt/15minuteprofitable/.env
+EnvironmentFile=-/opt/15minuteprofitable/.vault-password.env
+ExecStart=/opt/15minuteprofitable/.venv/bin/python -m src.main
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=30
+KillSignal=SIGTERM
+StandardOutput=append:/var/log/15minuteprofitable/bot.log
+StandardError=append:/var/log/15minuteprofitable/error.log
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/opt/15minuteprofitable /var/log/15minuteprofitable
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

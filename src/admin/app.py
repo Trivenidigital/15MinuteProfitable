@@ -67,7 +67,7 @@ def verify_admin(
 # Helpers
 # ---------------------------------------------------------------------------
 
-_SERVICE_NAME = "btc15minutebot"
+_SERVICE_NAME = "15minuteprofitable"
 
 
 def _env_path() -> Path:
@@ -183,7 +183,7 @@ def _run_systemctl(action: str) -> tuple[bool, str]:
 def create_admin_app() -> FastAPI:
     """Create the admin dashboard FastAPI application."""
     app = FastAPI(
-        title="BTC15MinuteBot Admin",
+        title="15MinuteProfitable Admin",
         version="1.0.0",
     )
 

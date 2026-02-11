@@ -594,3 +594,117 @@ class TestMaxEntriesPerMarket:
         approved, reason = rm.check_opportunity(opp)
         assert approved is False
         assert "max entries" in reason
+
+
+# ---------------------------------------------------------------------------
+# Per-strategy consecutive loss cooldown
+# ---------------------------------------------------------------------------
+
+
+class TestStrategyCooldown:
+    def test_no_cooldown_by_default(self, settings: Settings) -> None:
+        rm = RiskManager(settings, MockState())
+        assert rm.is_strategy_cooling_down(StrategyType.PRICE_LAG) is False
+
+    def test_win_resets_loss_counter(self, settings: Settings) -> None:
+        rm = RiskManager(settings, MockState())
+        rm.record_trade_outcome(StrategyType.PRICE_LAG, is_win=False)
+        rm.record_trade_outcome(StrategyType.PRICE_LAG, is_win=False)
+        rm.record_trade_outcome(StrategyType.PRICE_LAG, is_win=True)
+        assert rm._strategy_consecutive_losses.get("price_lag", 0) == 0
+
+    def test_consecutive_losses_triggers_cooldown(self, settings: Settings) -> None:
+        settings.strategy_cooldown_consecutive_losses = 4
+        rm = RiskManager(settings, MockState())
+        for _ in range(4):
+            rm.record_trade_outcome(StrategyType.PRICE_LAG, is_win=False)
+        assert rm.is_strategy_cooling_down(StrategyType.PRICE_LAG) is True
+
+    def test_cooldown_only_affects_target_strategy(self, settings: Settings) -> None:
+        settings.strategy_cooldown_consecutive_losses = 4
+        rm = RiskManager(settings, MockState())
+        for _ in range(4):
+            rm.record_trade_outcome(StrategyType.PRICE_LAG, is_win=False)
+        assert rm.is_strategy_cooling_down(StrategyType.PRICE_LAG) is True
+        assert rm.is_strategy_cooling_down(StrategyType.FADE_PANIC) is False
+
+    def test_check_opportunity_rejects_cooled_down_strategy(
+        self, settings: Settings,
+    ) -> None:
+        settings.strategy_cooldown_consecutive_losses = 4
+        rm = RiskManager(settings, MockState())
+        for _ in range(4):
+            rm.record_trade_outcome(StrategyType.PRICE_LAG, is_win=False)
+        opp = _make_opportunity(strategy=StrategyType.PRICE_LAG)
+        approved, reason = rm.check_opportunity(opp)
+        assert approved is False
+        assert "strategy cooldown" in reason
+
+    def test_check_opportunity_approves_other_strategies(
+        self, settings: Settings,
+    ) -> None:
+        settings.strategy_cooldown_consecutive_losses = 4
+        rm = RiskManager(settings, MockState())
+        for _ in range(4):
+            rm.record_trade_outcome(StrategyType.PRICE_LAG, is_win=False)
+        opp = _make_opportunity(strategy=StrategyType.ARBITRAGE)
+        approved, _ = rm.check_opportunity(opp)
+        assert approved is True
+
+    @patch("src.risk.manager.time.time")
+    def test_cooldown_auto_expires(self, mock_time, settings: Settings) -> None:
+        settings.strategy_cooldown_consecutive_losses = 4
+        settings.strategy_cooldown_duration = 100.0
+        mock_time.return_value = 1000.0
+        rm = RiskManager(settings, MockState())
+        for _ in range(4):
+            rm.record_trade_outcome(StrategyType.PRICE_LAG, is_win=False)
+        assert rm.is_strategy_cooling_down(StrategyType.PRICE_LAG) is True
+        # Advance past cooldown duration
+        mock_time.return_value = 1101.0
+        assert rm.is_strategy_cooling_down(StrategyType.PRICE_LAG) is False
+
+    @patch("src.risk.manager.time.time")
+    def test_loss_counter_resets_after_cooldown_expires(
+        self, mock_time, settings: Settings,
+    ) -> None:
+        settings.strategy_cooldown_consecutive_losses = 4
+        settings.strategy_cooldown_duration = 100.0
+        mock_time.return_value = 1000.0
+        rm = RiskManager(settings, MockState())
+        for _ in range(4):
+            rm.record_trade_outcome(StrategyType.PRICE_LAG, is_win=False)
+        # Advance past cooldown
+        mock_time.return_value = 1101.0
+        rm.is_strategy_cooling_down(StrategyType.PRICE_LAG)  # triggers auto-clear
+        assert rm._strategy_consecutive_losses.get("price_lag", 0) == 0
+
+    def test_3_losses_does_not_trigger_cooldown(self, settings: Settings) -> None:
+        settings.strategy_cooldown_consecutive_losses = 4
+        rm = RiskManager(settings, MockState())
+        for _ in range(3):
+            rm.record_trade_outcome(StrategyType.PRICE_LAG, is_win=False)
+        assert rm.is_strategy_cooling_down(StrategyType.PRICE_LAG) is False
+
+    def test_disable_circuit_breaker_skips_cooldown_check(
+        self, settings: Settings,
+    ) -> None:
+        settings.disable_circuit_breaker = True
+        settings.strategy_cooldown_consecutive_losses = 4
+        rm = RiskManager(settings, MockState())
+        for _ in range(4):
+            rm.record_trade_outcome(StrategyType.PRICE_LAG, is_win=False)
+        opp = _make_opportunity(strategy=StrategyType.PRICE_LAG)
+        approved, _ = rm.check_opportunity(opp)
+        assert approved is True
+
+    def test_independent_counters_per_strategy(self, settings: Settings) -> None:
+        settings.strategy_cooldown_consecutive_losses = 4
+        rm = RiskManager(settings, MockState())
+        for _ in range(3):
+            rm.record_trade_outcome(StrategyType.PRICE_LAG, is_win=False)
+        for _ in range(4):
+            rm.record_trade_outcome(StrategyType.FADE_PANIC, is_win=False)
+        assert rm.is_strategy_cooling_down(StrategyType.PRICE_LAG) is False
+        assert rm.is_strategy_cooling_down(StrategyType.FADE_PANIC) is True
+        assert rm._strategy_consecutive_losses.get("price_lag", 0) == 3

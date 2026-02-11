@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import time
 from typing import Protocol
 
@@ -96,6 +97,10 @@ class RiskManager:
         # Optional persistence
         self._trade_db: object | None = None
 
+        # Per-strategy consecutive loss cooldown
+        self._strategy_consecutive_losses: dict[str, int] = {}
+        self._strategy_cooldown_until: dict[str, float] = {}
+
     def set_trade_db(self, trade_db: object) -> None:
         """Attach a TradeDatabase for persisting circuit breaker state."""
         self._trade_db = trade_db
@@ -127,6 +132,16 @@ class RiskManager:
             if self.is_circuit_breaker_active():
                 reason = f"circuit breaker active: {self._circuit_breaker_reason}"
                 self._log.warning("risk_rejected", check="circuit_breaker", reason=reason)
+                return False, reason
+
+            # 1b. Per-strategy cooldown
+            if self.is_strategy_cooling_down(opp.strategy):
+                remaining = self._strategy_cooldown_until.get(opp.strategy.value, 0.0) - time.time()
+                reason = (
+                    f"strategy cooldown active: {opp.strategy.value} "
+                    f"({remaining:.0f}s remaining)"
+                )
+                self._log.warning("risk_rejected", check="strategy_cooldown", reason=reason)
                 return False, reason
 
             # 2. Daily loss limit — also auto-trips circuit breaker for 24h
@@ -381,6 +396,74 @@ class RiskManager:
         self._persist_circuit_breaker()
 
     # ------------------------------------------------------------------
+    # Per-strategy consecutive loss cooldown
+    # ------------------------------------------------------------------
+
+    def record_trade_outcome(self, strategy: StrategyType, is_win: bool) -> None:
+        """Record a trade outcome for per-strategy cooldown tracking.
+
+        On win: resets the consecutive loss counter to 0.
+        On loss: increments the counter; if it reaches the threshold,
+        activates a cooldown for that strategy.
+        """
+        key = strategy.value
+        if is_win:
+            self._strategy_consecutive_losses[key] = 0
+            self._log.debug("strategy_loss_counter_reset", strategy=key)
+        else:
+            count = self._strategy_consecutive_losses.get(key, 0) + 1
+            self._strategy_consecutive_losses[key] = count
+            self._log.info(
+                "strategy_consecutive_loss",
+                strategy=key,
+                consecutive_losses=count,
+                threshold=self._settings.strategy_cooldown_consecutive_losses,
+            )
+            if count >= self._settings.strategy_cooldown_consecutive_losses:
+                duration = self._settings.strategy_cooldown_duration
+                self._strategy_cooldown_until[key] = time.time() + duration
+                self._log.warning(
+                    "strategy_cooldown_activated",
+                    strategy=key,
+                    consecutive_losses=count,
+                    duration_seconds=duration,
+                )
+                self._persist_strategy_cooldowns()
+
+    def is_strategy_cooling_down(self, strategy: StrategyType) -> bool:
+        """Check whether a strategy is in cooldown due to consecutive losses.
+
+        Auto-clears expired cooldowns and resets the loss counter.
+        """
+        key = strategy.value
+        until = self._strategy_cooldown_until.get(key)
+        if until is None:
+            return False
+
+        if time.time() >= until:
+            # Cooldown expired — clear state
+            del self._strategy_cooldown_until[key]
+            self._strategy_consecutive_losses[key] = 0
+            self._log.info("strategy_cooldown_expired", strategy=key)
+            self._persist_strategy_cooldowns()
+            return False
+
+        return True
+
+    def _persist_strategy_cooldowns(self) -> None:
+        """Save strategy cooldown state to the database."""
+        if self._trade_db is None:
+            return
+        try:
+            state = {
+                "consecutive_losses": self._strategy_consecutive_losses,
+                "cooldown_until": self._strategy_cooldown_until,
+            }
+            self._trade_db.save_strategy_cooldown_state(json.dumps(state))  # type: ignore[attr-defined]
+        except Exception as exc:
+            self._log.warning("strategy_cooldown_persist_failed", error=str(exc))
+
+    # ------------------------------------------------------------------
     # Disconnect tracking
     # ------------------------------------------------------------------
 
@@ -432,6 +515,37 @@ class RiskManager:
                 self._trade_db.save_circuit_breaker_state(False, "", 0.0)  # type: ignore[attr-defined]
         except Exception as exc:
             self._log.warning("circuit_breaker_restore_failed", error=str(exc))
+
+        # Restore strategy cooldown state
+        try:
+            cooldown_state = self._trade_db.load_strategy_cooldown_state()  # type: ignore[attr-defined]
+            if cooldown_state is not None:
+                now = time.time()
+                losses = cooldown_state.get("consecutive_losses", {})
+                cooldowns = cooldown_state.get("cooldown_until", {})
+                # Only restore non-expired cooldowns
+                for key, until_ts in cooldowns.items():
+                    if float(until_ts) > now:
+                        self._strategy_cooldown_until[key] = float(until_ts)
+                        self._strategy_consecutive_losses[key] = int(losses.get(key, 0))
+                        remaining = float(until_ts) - now
+                        self._log.warning(
+                            "strategy_cooldown_restored",
+                            strategy=key,
+                            remaining_seconds=round(remaining, 0),
+                        )
+                    else:
+                        # Expired — don't restore
+                        self._log.info(
+                            "strategy_cooldown_expired_on_load",
+                            strategy=key,
+                        )
+                # Restore loss counters for strategies without active cooldowns too
+                for key, count in losses.items():
+                    if key not in self._strategy_consecutive_losses:
+                        self._strategy_consecutive_losses[key] = int(count)
+        except Exception as exc:
+            self._log.warning("strategy_cooldown_restore_failed", error=str(exc))
 
     def _persist_circuit_breaker(self) -> None:
         """Save current circuit breaker state to the database."""

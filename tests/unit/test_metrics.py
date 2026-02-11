@@ -90,9 +90,21 @@ class TestComputeDashboard:
             "net_profit", "gross_profit", "total_fees", "max_drawdown",
             "sim_balance", "trades", "win_count", "loss_count",
             "opportunities_seen", "opportunities_taken",
-            "avg_win", "avg_loss",
+            "avg_win", "avg_loss", "lifetime_net_profit",
         }
         assert set(d.keys()) == expected_keys
+
+    def test_lifetime_net_profit_passed_through(self, collector: MetricsCollector) -> None:
+        pnl = DailyPnL(date="2024-01-01", net_profit=45.0)
+        d = collector.compute_dashboard(pnl, sim_balance=1000.0, lifetime_net_profit=1158.0)
+        assert d["lifetime_net_profit"] == pytest.approx(1158.0)
+        # Daily net_profit is separate from lifetime
+        assert d["net_profit"] == pytest.approx(45.0)
+
+    def test_lifetime_net_profit_defaults_to_zero(self, collector: MetricsCollector) -> None:
+        pnl = DailyPnL(date="2024-01-01")
+        d = collector.compute_dashboard(pnl, sim_balance=500.0)
+        assert d["lifetime_net_profit"] == 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -118,13 +130,15 @@ class TestFormatDailySummary:
             "opportunities_seen": 100.0,
             "opportunities_taken": 10.0,
             "sim_balance": 1000.0,
+            "lifetime_net_profit": 500.0,
         }
         text = collector.format_daily_summary(dashboard)
 
         assert "Trades: 10" in text
         assert "Win/Loss: 7/3" in text
         assert "Win Rate: 70.0%" in text
-        assert "Net Profit: $45.00" in text
+        assert "Net Profit (Today): $45.00" in text
+        assert "Net Profit (Lifetime): $500.00" in text
         assert "Balance: $1000.00" in text
 
     def test_format_zero_state(self, collector: MetricsCollector) -> None:
@@ -144,6 +158,7 @@ class TestFormatDailySummary:
             "opportunities_seen": 0.0,
             "opportunities_taken": 0.0,
             "sim_balance": 500.0,
+            "lifetime_net_profit": 0.0,
         }
         text = collector.format_daily_summary(dashboard)
         assert "Trades: 0" in text
@@ -166,9 +181,10 @@ class TestFormatDailySummary:
             "opportunities_seen": 10.0,
             "opportunities_taken": 5.0,
             "sim_balance": 475.0,
+            "lifetime_net_profit": -100.0,
         }
         text = collector.format_daily_summary(dashboard)
-        assert "Net Profit: $-25.00" in text
+        assert "Net Profit (Today): $-25.00" in text
         assert "Max Drawdown: $-30.00" in text
 
     def test_format_returns_multiline_string(self, collector: MetricsCollector) -> None:

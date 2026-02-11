@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "btc15minutebot"
+name = "15minuteprofitable"
 version = "0.1.0"
 description = "Polymarket 15-minute crypto trading bot"
 requires-python = ">=3.11"

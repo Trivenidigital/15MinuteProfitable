@@ -183,7 +183,7 @@ Claude Code (Windows, local)                    Hetzner VPS (46.62.206.192)
 
  Analysis Agent                                  Bot Process (systemctl)
  +------------------+                            +-------------------------+
- | 1. SSH in        |-------- SSH -------------->| /opt/btc15minutebot/    |
+ | 1. SSH in        |-------- SSH -------------->| /opt/15minuteprofitable/    |
  | 2. Pull data     |<--- trades.db, logs -------| data/trades.db          |
  | 3. Analyze       |                            | .env (config)           |
  | 4. Decide change |                            | src/ (code, read-only)  |
@@ -263,7 +263,7 @@ Claude Code (Windows, local)                    Hetzner VPS (46.62.206.192)
     <p>Pick the highest-leverage parameter for the diagnosed bottleneck. State the hypothesis clearly before changing.</p>
 
     <h4>Step 5: Apply Change</h4>
-    <p>SSH &rarr; update <code>/opt/btc15minutebot/.env</code> &rarr; <code>systemctl restart btc15minutebot</code></p>
+    <p>SSH &rarr; update <code>/opt/15minuteprofitable/.env</code> &rarr; <code>systemctl restart 15minuteprofitable</code></p>
 
     <h4>Step 6: Document (in this file)</h4>
     <p>Add an entry to the Experiment Log below with: timestamp, parameter changed, old&rarr;new value, hypothesis, baseline metrics.</p>

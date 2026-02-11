@@ -1,1 +1,1 @@
-"""Admin dashboard package for BTC15MinuteBot."""
+"""Admin dashboard package for 15MinuteProfitable."""

@@ -664,22 +664,22 @@ class TestShouldExit:
         strategy: PriceLagStrategy,
         book_manager: MockOrderBookManager,
     ) -> None:
-        """Positions down >70% should NOT be sold at time exit.
+        """Near-worthless positions (<5% value) should NOT be sold at time exit.
 
-        Selling recovers little while holding preserves the chance of
-        full recovery if the market resolves favorably.
+        Selling recovers almost nothing while holding preserves the chance
+        of full recovery if the market resolves favorably.
         """
         # Market ends in 30 seconds -- time_exit_seconds is 60
         market = _make_market(start_offset=-870.0, end_offset=30.0)
-        # Cost basis = 23.0, bid = 0.10 -> value = 50 * 0.10 = 5.0
-        # value_ratio = 5.0 / 23.0 = 0.217 -> below 30% threshold
+        # Cost basis = 23.0, bid = 0.02 -> value = 50 * 0.02 = 1.0
+        # value_ratio = 1.0 / 23.0 = 0.043 -> below 5% threshold
         position = Position(
             market=market,
             yes_shares=50.0,
             yes_cost_basis=23.0,
             strategy=StrategyType.PRICE_LAG,
         )
-        book_manager.yes_book = _make_orderbook("YES_TOKEN", best_bid=0.10)
+        book_manager.yes_book = _make_orderbook("YES_TOKEN", best_bid=0.02)
 
         assert strategy.should_exit(position, market) is False
 
@@ -688,10 +688,10 @@ class TestShouldExit:
         strategy: PriceLagStrategy,
         book_manager: MockOrderBookManager,
     ) -> None:
-        """Positions retaining >30% value should still time-exit normally."""
+        """Positions retaining >5% value should still time-exit normally."""
         market = _make_market(start_offset=-870.0, end_offset=30.0)
         # Cost basis = 23.0, bid = 0.16 -> value = 50 * 0.16 = 8.0
-        # value_ratio = 8.0 / 23.0 = 0.348 -> above 30% threshold
+        # value_ratio = 8.0 / 23.0 = 0.348 -> above 5% threshold
         position = Position(
             market=market,
             yes_shares=50.0,
@@ -1121,7 +1121,7 @@ class TestDynamicTakeProfit:
         strategy: PriceLagStrategy,
         book_manager: MockOrderBookManager,
     ) -> None:
-        """In middle third, take-profit threshold lowers to 6% (base * 0.6).
+        """In middle third, take-profit threshold widens to 20% (base * 2).
         A 3% profit should NOT trigger exit."""
         # progress = 450/900 = 0.50 (middle third)
         market = _make_market(start_offset=-450.0, end_offset=450.0)
@@ -1131,17 +1131,17 @@ class TestDynamicTakeProfit:
             yes_cost_basis=23.0,
             strategy=StrategyType.PRICE_LAG,
         )
-        # value = 50 * 0.474 = 23.7, pnl_pct = (23.7-23)/23 = 0.0304 < 6%
+        # value = 50 * 0.474 = 23.7, pnl_pct = (23.7-23)/23 = 0.0304 < 20%
         book_manager.yes_book = _make_orderbook("YES_TOKEN", best_bid=0.474)
 
         assert strategy.should_exit(position, market) is False
 
-    def test_middle_third_triggers_at_lowered_threshold(
+    def test_middle_third_triggers_at_widened_threshold(
         self,
         strategy: PriceLagStrategy,
         book_manager: MockOrderBookManager,
     ) -> None:
-        """In middle third, profit above 6% (base * 0.6) should trigger exit."""
+        """In middle third, profit above 20% (base * 2) should trigger exit."""
         market = _make_market(start_offset=-450.0, end_offset=450.0)
         position = Position(
             market=market,
@@ -1149,8 +1149,8 @@ class TestDynamicTakeProfit:
             yes_cost_basis=23.0,
             strategy=StrategyType.PRICE_LAG,
         )
-        # value = 50 * 0.50 = 25.0, pnl_pct = (25-23)/23 = 0.0870 > 6%
-        book_manager.yes_book = _make_orderbook("YES_TOKEN", best_bid=0.50)
+        # value = 50 * 0.56 = 28.0, pnl_pct = (28-23)/23 = 0.2174 > 20%
+        book_manager.yes_book = _make_orderbook("YES_TOKEN", best_bid=0.56)
 
         assert strategy.should_exit(position, market) is True
 

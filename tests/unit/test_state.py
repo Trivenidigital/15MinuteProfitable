@@ -1449,3 +1449,113 @@ class TestPerStrategyPositions:
         assert restored.yes_shares == 100
         # Should also be findable via get_position_by_key
         assert new_state.get_position_by_key("cond_old_fmt", StrategyType.PRICE_LAG) is restored
+
+
+# ---------------------------------------------------------------------------
+# lifetime_net_profit (trade_results ground truth)
+# ---------------------------------------------------------------------------
+
+
+class TestLifetimeNetProfit:
+    """Tests for lifetime_net_profit using trade_results as ground truth."""
+
+    def test_no_db_falls_back_to_in_memory(self, state: StateManager) -> None:
+        """Without trade_db, falls back to in-memory daily P&L sums."""
+        state.record_fee(5.0, "test")
+        assert state.lifetime_net_profit == pytest.approx(-5.0)
+
+    def test_with_db_uses_trade_results(self, state: StateManager) -> None:
+        """With trade_db attached, returns SUM(net_profit) from trade_results."""
+        from src.data.trade_db import TradeDatabase, TradeResult
+
+        db = TradeDatabase(":memory:")
+        state.set_trade_db(db)
+
+        db.save_trade_result(TradeResult(
+            timestamp=1000.0, condition_id="c1", net_profit=100.0,
+        ))
+        db.save_trade_result(TradeResult(
+            timestamp=1001.0, condition_id="c2", net_profit=58.0,
+        ))
+        assert state.lifetime_net_profit == pytest.approx(158.0)
+        db.close()
+
+    def test_with_db_empty_returns_zero(self, state: StateManager) -> None:
+        """With trade_db attached but no results, returns 0."""
+        from src.data.trade_db import TradeDatabase
+
+        db = TradeDatabase(":memory:")
+        state.set_trade_db(db)
+        assert state.lifetime_net_profit == pytest.approx(0.0)
+        db.close()
+
+
+# ---------------------------------------------------------------------------
+# reconcile_sim_balance
+# ---------------------------------------------------------------------------
+
+
+class TestReconcileSimBalance:
+    """Tests for reconcile_sim_balance correcting drifted balance."""
+
+    def test_no_db_returns_zero(self, state: StateManager) -> None:
+        """Without trade_db, reconciliation is a no-op."""
+        delta = state.reconcile_sim_balance()
+        assert delta == pytest.approx(0.0)
+
+    def test_corrects_drifted_balance(self, state: StateManager) -> None:
+        """When sim_balance drifts from reality, reconciliation corrects it."""
+        from src.data.trade_db import TradeDatabase, TradeResult
+
+        db = TradeDatabase(":memory:")
+        state.set_trade_db(db)
+
+        # Simulate drift: manually lower sim_balance
+        state._sim_balance_value = 900.0
+
+        # DB says we made $200 profit
+        db.save_trade_result(TradeResult(
+            timestamp=1000.0, condition_id="c1", net_profit=200.0,
+        ))
+
+        # Expected balance = starting (1000) + profit (200) = 1200
+        # Current balance = 900, so delta should be +300
+        delta = state.reconcile_sim_balance()
+        assert delta == pytest.approx(300.0)
+        assert state.sim_balance == pytest.approx(1200.0)
+        db.close()
+
+    def test_no_correction_when_accurate(self, state: StateManager) -> None:
+        """When sim_balance matches reality, no correction is applied."""
+        from src.data.trade_db import TradeDatabase
+
+        db = TradeDatabase(":memory:")
+        state.set_trade_db(db)
+
+        # DB says $0 profit, balance should be starting balance (1000)
+        # sim_balance is already 1000 (default)
+        delta = state.reconcile_sim_balance()
+        assert abs(delta) <= 0.01
+        assert state.sim_balance == pytest.approx(1000.0)
+        db.close()
+
+    def test_handles_negative_profit(self, state: StateManager) -> None:
+        """Reconciliation works with net losses too."""
+        from src.data.trade_db import TradeDatabase, TradeResult
+
+        db = TradeDatabase(":memory:")
+        state.set_trade_db(db)
+
+        # Simulate: balance was inflated
+        state._sim_balance_value = 1100.0
+
+        # DB says we lost $50
+        db.save_trade_result(TradeResult(
+            timestamp=1000.0, condition_id="c1", net_profit=-50.0,
+        ))
+
+        # Expected: 1000 + (-50) = 950. Delta = 950 - 1100 = -150
+        delta = state.reconcile_sim_balance()
+        assert delta == pytest.approx(-150.0)
+        assert state.sim_balance == pytest.approx(950.0)
+        db.close()

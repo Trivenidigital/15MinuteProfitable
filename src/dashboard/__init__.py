@@ -1,1 +1,1 @@
-"""FastAPI dashboard for the BTC15MinuteBot Polymarket trading bot."""
+"""FastAPI dashboard for the 15MinuteProfitable Polymarket trading bot."""

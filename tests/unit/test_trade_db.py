@@ -486,6 +486,22 @@ class TestGetTradeResultCount:
         assert db.get_trade_result_count() == 5
 
 
+class TestGetLifetimeNetProfitFromResults:
+    def test_empty_returns_zero(self, db: TradeDatabase) -> None:
+        assert db.get_lifetime_net_profit_from_results() == pytest.approx(0.0)
+
+    def test_sums_all_results(self, db: TradeDatabase) -> None:
+        db.save_trade_result(_make_trade_result(net_profit=10.0, condition_id="a"))
+        db.save_trade_result(_make_trade_result(net_profit=25.0, condition_id="b"))
+        db.save_trade_result(_make_trade_result(net_profit=-5.0, condition_id="c"))
+        assert db.get_lifetime_net_profit_from_results() == pytest.approx(30.0)
+
+    def test_handles_negative_totals(self, db: TradeDatabase) -> None:
+        db.save_trade_result(_make_trade_result(net_profit=-50.0, condition_id="a"))
+        db.save_trade_result(_make_trade_result(net_profit=10.0, condition_id="b"))
+        assert db.get_lifetime_net_profit_from_results() == pytest.approx(-40.0)
+
+
 # ---------------------------------------------------------------------------
 # Database lifecycle
 # ---------------------------------------------------------------------------

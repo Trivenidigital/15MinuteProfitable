@@ -16,7 +16,7 @@ An advanced trading bot for Polymarket's 15-minute cryptocurrency UP/DOWN market
 ```bash
 # Clone and setup
 git clone <repo-url>
-cd BTC15MinuteBot
+cd 15MinuteProfitable
 python -m venv .venv
 source .venv/bin/activate  # or .venv\Scripts\activate on Windows
 pip install -r requirements.txt
