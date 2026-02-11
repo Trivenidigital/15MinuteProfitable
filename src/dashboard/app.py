@@ -478,6 +478,14 @@ def create_app() -> FastAPI:
         state: StateManager = app.state.state_manager
         pnl = state.daily_pnl()
         dashboard = metrics_collector.compute_dashboard(pnl, state.sim_balance)
+
+        # Override in-memory metrics with DB source of truth
+        trade_db: Optional[TradeDatabase] = getattr(app.state, "trade_db", None)
+        if trade_db is not None:
+            db_metrics = trade_db.get_aggregate_metrics()
+            dashboard.update(db_metrics)
+            dashboard["net_profit"] = state.lifetime_net_profit
+
         return JSONResponse(dashboard)
 
     # ------------------------------------------------------------------

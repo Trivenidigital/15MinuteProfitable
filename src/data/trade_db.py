@@ -948,6 +948,46 @@ class TradeDatabase:
         ).fetchall()
         return [self._row_to_trade_result(r) for r in rows]
 
+    def get_aggregate_metrics(self) -> dict[str, float]:
+        """Compute aggregate win/loss metrics from trade_results (source of truth)."""
+        row = self._conn.execute(
+            """SELECT
+                   COUNT(*)                                          AS trades,
+                   SUM(CASE WHEN net_profit > 0 THEN 1 ELSE 0 END)  AS win_count,
+                   SUM(CASE WHEN net_profit <= 0 THEN 1 ELSE 0 END) AS loss_count,
+                   SUM(CASE WHEN net_profit > 0 THEN net_profit ELSE 0 END)  AS total_win_amount,
+                   SUM(CASE WHEN net_profit <= 0 THEN net_profit ELSE 0 END) AS total_loss_amount,
+                   SUM(net_profit)                                   AS net_profit,
+                   SUM(gross_payout - investment)                    AS gross_profit,
+                   SUM((gross_payout - investment) - net_profit)     AS total_fees
+               FROM trade_results"""
+        ).fetchone()
+
+        trades = int(row["trades"] or 0)
+        win_count = int(row["win_count"] or 0)
+        loss_count = int(row["loss_count"] or 0)
+        total_win_amount = float(row["total_win_amount"] or 0.0)
+        total_loss_amount = float(row["total_loss_amount"] or 0.0)
+        net_profit = float(row["net_profit"] or 0.0)
+        gross_profit = float(row["gross_profit"] or 0.0)
+        total_fees = float(row["total_fees"] or 0.0)
+
+        win_rate = (win_count / trades) if trades > 0 else 0.0
+        avg_win = (total_win_amount / win_count) if win_count > 0 else 0.0
+        avg_loss = (total_loss_amount / loss_count) if loss_count > 0 else 0.0
+
+        return {
+            "trades": float(trades),
+            "win_count": float(win_count),
+            "loss_count": float(loss_count),
+            "win_rate": win_rate,
+            "avg_win": avg_win,
+            "avg_loss": avg_loss,
+            "net_profit": net_profit,
+            "gross_profit": gross_profit,
+            "total_fees": total_fees,
+        }
+
     # ------------------------------------------------------------------
     # Analytics
     # ------------------------------------------------------------------
