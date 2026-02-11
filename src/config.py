@@ -94,7 +94,7 @@ class Settings(BaseSettings):
     binance_ws_url: str = "wss://stream.binance.com:9443/ws"
 
     # Trading Parameters (ANALYSIS MODE — small sizes to observe all strategies)
-    order_size: float = 10.0  # reduced — price_lag is a losing strategy
+    order_size: float = 25.0
     order_type: str = "FOK"
     target_pair_cost: float = 0.94
     min_profit_margin: float = 0.003  # lowered from 0.005
@@ -239,12 +239,12 @@ class Settings(BaseSettings):
     disable_circuit_breaker: bool = True  # circuit breaker disabled until manual re-enable
     strategy_cooldown_consecutive_losses: int = 4
     strategy_cooldown_duration: float = 10800.0  # 3 hours
-    max_entries_per_market: int = 10  # limit accumulation; 10 * $50 = $500 max per market
+    max_entries_per_market: int = 3
     max_entries_per_strategy_per_market: int = 5  # max entries per strategy per market window
-    max_position_per_market: float = 1000.0  # aggressive for learning mode
-    max_total_position: float = 4000.0  # paper money — let strategies play
-    max_daily_loss: float = 250.0  # safety valve
-    max_unhedged_exposure: float = 800.0  # aggressive for fade_panic learning
+    max_position_per_market: float = 100.0
+    max_total_position: float = 500.0
+    max_daily_loss: float = 50.0
+    max_unhedged_exposure: float = 100.0
 
     # Signal Inversion (contrarian paper test)
     invert_signals: bool = False  # Flip all directional signals: YES→NO, NO→YES
@@ -273,7 +273,7 @@ class Settings(BaseSettings):
     neg_risk: bool = True
 
     # Risk Sizing
-    kelly_fraction: float = 0.25
+    kelly_fraction: float = 0.10
 
     # Process Management
     pid_lock_path: str = "15minuteprofitable.pid"
