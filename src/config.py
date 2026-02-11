@@ -231,7 +231,7 @@ class Settings(BaseSettings):
     spot_buffer_window: int = 900             # Max age of spot prices in buffer (15 min)
 
     # Markets (only assets with 15-min up/down markets on Polymarket)
-    markets: list[str] = ["BTC", "ETH", "SOL", "XRP"]
+    markets: list[str] = ["BTC", "SOL", "XRP"]
     market_intervals: list[str] = ["15m"]  # Future: add "1h", "4h" for hourly markets
     market_slug_override: str = ""
 
