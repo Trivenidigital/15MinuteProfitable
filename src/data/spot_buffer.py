@@ -56,6 +56,7 @@ class SpotBuffer:
         self._window_seconds = window_seconds
         self._max_size = max_size
         self._buffers: dict[str, deque[tuple[float, float]]] = {}  # symbol -> deque of (ts, price)
+        self._last_update_epoch: dict[str, float] = {}  # symbol -> monotonic time
         self._log = get_logger("spot_buffer")
 
     def add(self, update: SpotPriceUpdate) -> None:
@@ -67,6 +68,7 @@ class SpotBuffer:
             self._buffers[update.symbol] = deque(maxlen=self._max_size)
 
         self._buffers[update.symbol].append((update.timestamp, update.price))
+        self._last_update_epoch[update.symbol] = time.monotonic()
         self._prune(update.symbol)
 
     def get_price(self, symbol: str) -> Optional[float]:
@@ -140,6 +142,17 @@ class SpotBuffer:
             window_seconds=window_seconds,
             timestamp=time.time(),
         )
+
+    def is_stale(self, symbol: str, threshold_s: float = 30.0) -> bool:
+        """Return True if no update received for *symbol* within *threshold_s*."""
+        epoch = self._last_update_epoch.get(symbol, 0.0)
+        if epoch == 0.0:
+            return True
+        return (time.monotonic() - epoch) > threshold_s
+
+    def mark_all_stale(self) -> None:
+        """Reset all update timestamps, forcing staleness."""
+        self._last_update_epoch.clear()
 
     def has_data(self, symbol: str) -> bool:
         """Check if any data exists for symbol."""

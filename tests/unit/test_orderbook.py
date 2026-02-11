@@ -377,6 +377,21 @@ class TestPriceValidation:
 class TestCachedOrderbook:
     """Tests for orderbook caching and invalidation on delta."""
 
+    def test_cached_orderbook_invalidated_on_mark_stale(self) -> None:
+        """mark_all_stale clears the cached orderbook."""
+        book = L2BookState(TOKEN_ID)
+        book.apply_snapshot(SAMPLE_BIDS, SAMPLE_ASKS)
+
+        ob1 = book.to_orderbook()
+        assert ob1 is book.to_orderbook()  # cached
+
+        # Simulate manager-level stale marking
+        book._last_update_epoch = 0.0
+        book._cached_orderbook = None
+
+        ob2 = book.to_orderbook()
+        assert ob2 is not ob1
+
     def test_cached_orderbook_invalidated_on_delta(self) -> None:
         """get_book called twice without changes should return the same object;
         after a delta it should return a new object."""
@@ -398,3 +413,45 @@ class TestCachedOrderbook:
         assert ob3 is not ob1
         # Verify the delta is reflected
         assert len(ob3.bids) == 4
+
+
+# ---------------------------------------------------------------------------
+# mark_all_stale
+# ---------------------------------------------------------------------------
+
+
+class TestMarkAllStale:
+    """Tests for OrderBookManager.mark_all_stale()."""
+
+    def test_mark_all_stale_makes_books_stale(self) -> None:
+        """All books should appear stale after mark_all_stale()."""
+        mgr = OrderBookManager()
+        s1 = mgr.ensure_book("token_1")
+        s2 = mgr.ensure_book("token_2")
+        s1.apply_snapshot(SAMPLE_BIDS, SAMPLE_ASKS)
+        s2.apply_snapshot(SAMPLE_BIDS, SAMPLE_ASKS)
+
+        assert not mgr.is_stale("token_1")
+        assert not mgr.is_stale("token_2")
+
+        count = mgr.mark_all_stale()
+        assert count == 2
+        assert mgr.is_stale("token_1")
+        assert mgr.is_stale("token_2")
+
+    def test_mark_all_stale_empty_manager(self) -> None:
+        """mark_all_stale on an empty manager returns 0."""
+        mgr = OrderBookManager()
+        assert mgr.mark_all_stale() == 0
+
+    def test_books_recover_after_mark_stale(self) -> None:
+        """A fresh snapshot after mark_all_stale recovers the book."""
+        mgr = OrderBookManager()
+        s1 = mgr.ensure_book("token_1")
+        s1.apply_snapshot(SAMPLE_BIDS, SAMPLE_ASKS)
+        mgr.mark_all_stale()
+        assert mgr.is_stale("token_1")
+
+        # Fresh snapshot recovers the book
+        s1.apply_snapshot(SAMPLE_BIDS, SAMPLE_ASKS)
+        assert not mgr.is_stale("token_1")

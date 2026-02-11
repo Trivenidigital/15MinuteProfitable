@@ -231,6 +231,20 @@ class OrderBookManager:
             return True
         return state.is_stale(threshold_s)
 
+    def mark_all_stale(self) -> int:
+        """Reset update timestamps on all books, forcing them to appear stale.
+
+        Call this when the data feed disconnects so strategies reject
+        opportunities until fresh snapshots arrive.  Returns the number
+        of books marked.
+        """
+        count = 0
+        for state in self._books.values():
+            state._last_update_epoch = 0.0
+            state._cached_orderbook = None
+            count += 1
+        return count
+
     def remove_stale_books(self, threshold_s: float = 120.0) -> int:
         """Remove books that haven't been updated within *threshold_s* seconds.
 

@@ -96,6 +96,7 @@ class BinanceWebSocket:
 
             except (websockets.ConnectionClosed, ConnectionError, OSError) as exc:
                 self._ws = None
+                self._spot_buffer.mark_all_stale()
                 if not self._running:
                     break
                 self._log.warning(
@@ -108,6 +109,7 @@ class BinanceWebSocket:
 
             except Exception as exc:
                 self._ws = None
+                self._spot_buffer.mark_all_stale()
                 self._log.error("binance_unexpected_error", error=str(exc))
                 if not self._running:
                     break

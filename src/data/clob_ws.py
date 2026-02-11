@@ -111,6 +111,7 @@ class ClobWebSocket:
 
             except (websockets.ConnectionClosed, ConnectionError, OSError) as exc:
                 self._ws = None
+                self._book_manager.mark_all_stale()
                 if not self._running:
                     break
                 self._log.warning(
@@ -121,6 +122,7 @@ class ClobWebSocket:
 
             except Exception as exc:
                 self._ws = None
+                self._book_manager.mark_all_stale()
                 self._log.error("unexpected_error", error=str(exc))
                 if not self._running:
                     break
@@ -140,6 +142,7 @@ class ClobWebSocket:
         """
         if self._ws is not None:
             self._log.info("reconnect_requested")
+            self._book_manager.mark_all_stale()
             try:
                 await self._ws.close()
             except Exception:
@@ -167,6 +170,14 @@ class ClobWebSocket:
 
         After processing, call self._on_update(asset_id, event_type) if set.
         """
+        if isinstance(raw, bytes):
+            try:
+                raw = raw.decode("utf-8")
+            except UnicodeDecodeError:
+                return
+        if not raw or not raw.strip():
+            return
+
         try:
             data = json.loads(raw)
         except (json.JSONDecodeError, TypeError) as exc:

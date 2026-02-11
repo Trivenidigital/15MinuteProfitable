@@ -444,3 +444,54 @@ class TestSpotBufferMaxSize:
         buf.add(SpotPriceUpdate(symbol="BTCUSDT", price=44000.0, timestamp=now + 1))
         assert buf.get_price("BTCUSDT") == 44000.0
         assert len(buf.get_price_history("BTCUSDT")) == 1
+
+
+# ---------------------------------------------------------------------------
+# SpotBuffer staleness tracking
+# ---------------------------------------------------------------------------
+
+
+class TestSpotBufferStaleness:
+    """Tests for is_stale() and mark_all_stale()."""
+
+    def test_is_stale_when_no_data(self) -> None:
+        """is_stale returns True for unknown symbol."""
+        buf = SpotBuffer()
+        assert buf.is_stale("BTCUSDT") is True
+
+    def test_not_stale_after_add(self) -> None:
+        """is_stale returns False right after adding data."""
+        buf = SpotBuffer()
+        buf.add(SpotPriceUpdate(symbol="BTCUSDT", price=100000.0, timestamp=time.time()))
+        assert buf.is_stale("BTCUSDT") is False
+
+    def test_mark_all_stale(self) -> None:
+        """mark_all_stale makes all symbols stale."""
+        buf = SpotBuffer()
+        buf.add(SpotPriceUpdate(symbol="BTCUSDT", price=100000.0, timestamp=time.time()))
+        buf.add(SpotPriceUpdate(symbol="ETHUSDT", price=3500.0, timestamp=time.time()))
+        assert buf.is_stale("BTCUSDT") is False
+        assert buf.is_stale("ETHUSDT") is False
+
+        buf.mark_all_stale()
+        assert buf.is_stale("BTCUSDT") is True
+        assert buf.is_stale("ETHUSDT") is True
+
+    def test_recovers_after_mark_stale(self) -> None:
+        """Adding data after mark_all_stale recovers freshness."""
+        buf = SpotBuffer()
+        buf.add(SpotPriceUpdate(symbol="BTCUSDT", price=100000.0, timestamp=time.time()))
+        buf.mark_all_stale()
+        assert buf.is_stale("BTCUSDT") is True
+
+        buf.add(SpotPriceUpdate(symbol="BTCUSDT", price=100100.0, timestamp=time.time()))
+        assert buf.is_stale("BTCUSDT") is False
+
+    def test_mark_all_stale_does_not_clear_price_data(self) -> None:
+        """mark_all_stale resets timestamps but preserves buffered prices."""
+        buf = SpotBuffer()
+        buf.add(SpotPriceUpdate(symbol="BTCUSDT", price=100000.0, timestamp=time.time()))
+        buf.mark_all_stale()
+        # Price data should still be accessible
+        assert buf.get_price("BTCUSDT") == 100000.0
+        assert buf.has_data("BTCUSDT") is True
