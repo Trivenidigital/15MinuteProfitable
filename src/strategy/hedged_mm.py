@@ -237,7 +237,7 @@ class HedgedMMStrategy(BaseStrategy):
 
         # Check combined cost
         combined = yes_limit + no_limit
-        if combined >= settings.hmm_max_combined_cost:
+        if combined > settings.hmm_max_combined_cost:
             self._log.debug(
                 "hmm_combined_too_high",
                 market=market.slug,
