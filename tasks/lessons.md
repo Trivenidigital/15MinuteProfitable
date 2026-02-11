@@ -241,6 +241,10 @@ The window controls BOTH when the strategy activates AND when it records odds da
 - **Multi-tranche position accumulation compounds losses.** Sniper's 3-tranche system meant a losing market got 3x the exposure. Single-tranche (max_tranches=1) limits damage on wrong calls.
 - **Per-strategy signal inversion doesn't work for CDF-based strategies.** Experiment #37 (invert sniper) failed because the underlying model is miscalibrated — inverting a broken signal is still a broken signal. Fix the model first, then consider inversion.
 
+## Planned Risk Rules
+
+- **4 consecutive losses → 3-hour strategy cooldown.** If any single strategy accumulates 4 consecutive losses, that strategy enters a 3-hour cooldown (no new entries). Other strategies continue trading. Counter resets on any win. Rationale: prevents a strategy from bleeding capital during an unfavorable market regime. Implementation pending.
+
 ## Common Mistakes
 
 - **Heredoc in SSH:** Copy-pasting heredocs (`cat << 'EOF'`) over SSH often fails. Use multiple `printf` or `echo` commands instead.

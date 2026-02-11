@@ -1466,6 +1466,15 @@
     <p><strong>Discovered:</strong> 2026-02-09 overnight | Memory grew 131&rarr;138&rarr;145 MB over 30 minutes before an auto-restart at 00:50 UTC reset it to 72 MB. Growth rate is ~7 MB per 15 min (~28 MB/hour). At this rate, the 3.7 GB server can run for days, but a slow memory leak may exist. Systemd auto-restarts mitigate the risk.</p>
 </div>
 
+<div class="card">
+    <div class="card-header">
+        <h3>Consecutive loss cooldown needed per strategy</h3>
+        <span class="badge badge-pending">PLANNED</span>
+    </div>
+    <p><strong>Rule:</strong> If any strategy accumulates 4 consecutive losses, impose a 3-hour cooldown on that strategy. The cooldown should be per-strategy (not global) so other profitable strategies continue trading. After the cooldown expires, the strategy resumes normal operation. This prevents a tilting strategy from draining capital during an unfavorable regime while allowing automatic recovery when conditions change.</p>
+    <p><strong>Implementation:</strong> Pending &mdash; track consecutive loss count per strategy in RiskManager, reject opportunities from cooled-down strategies with a log entry, reset counter on any win.</p>
+</div>
+
 <!-- ============================================================ -->
 <!-- DAILY PERFORMANCE LOG                                         -->
 <!-- ============================================================ -->
@@ -1674,6 +1683,7 @@
 <div class="card">
     <h4>Short-term (this week)</h4>
     <ul>
+        <li><strong>Consecutive loss cooldown:</strong> If any strategy hits 4 consecutive losses, impose a 3-hour cooldown on that strategy. Per-strategy (not global), resets on any win. Prevents regime-mismatch capital drain.</li>
         <li><strong>Per-asset allocation:</strong> AllocationManager groups by strategy only; TradeResult has asset field that's unused. High-value enhancement.</li>
         <li><strong>Kalshi cross-platform arb:</strong> Scan Kalshi for equivalent BTC up/down markets, arb between Kalshi and Polymarket</li>
         <li><strong>CEX perp hedging:</strong> Hedge fade_panic directional risk with Binance futures short. Requires Binance Futures API integration.</li>
