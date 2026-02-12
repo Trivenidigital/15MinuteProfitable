@@ -235,12 +235,12 @@ class Settings(BaseSettings):
     market_intervals: list[str] = ["15m"]  # Future: add "1h", "4h" for hourly markets
     market_slug_override: str = ""
 
-    # Risk Limits (AGGRESSIVE MODE)
-    disable_circuit_breaker: bool = True  # circuit breaker disabled until manual re-enable
-    strategy_cooldown_consecutive_losses: int = 4
+    # Risk Limits (PRODUCTION-SAFE defaults — override via .env for analysis mode)
+    disable_circuit_breaker: bool = False  # circuit breaker ON by default for safety
+    strategy_cooldown_consecutive_losses: int = 3  # 3 consecutive losses → cooldown
     strategy_cooldown_duration: float = 10800.0  # 3 hours
-    max_entries_per_market: int = 10
-    max_entries_per_strategy_per_market: int = 10  # max entries per strategy per market window
+    max_entries_per_market: int = 3  # prevent position accumulation
+    max_entries_per_strategy_per_market: int = 3  # same, per-strategy
     max_position_per_market: float = 500.0
     max_total_position: float = 2000.0
     max_daily_loss: float = 300.0
@@ -414,5 +414,30 @@ class Settings(BaseSettings):
                     f"order_size={self.order_size} exceeds 15% of bankroll "
                     f"(${bankroll:.0f} × 0.15 = ${bankroll * 0.15:.0f})"
                 )
+
+        # Loose risk parameter warnings
+        if self.strategy_cooldown_consecutive_losses > 5:
+            warnings.append(
+                f"strategy_cooldown_consecutive_losses={self.strategy_cooldown_consecutive_losses} "
+                "is very loose — losing strategies can bleed capital before cooldown"
+            )
+
+        if self.max_entries_per_market > 5:
+            warnings.append(
+                f"max_entries_per_market={self.max_entries_per_market} "
+                "risks position accumulation in a single market"
+            )
+
+        if self.max_entries_per_strategy_per_market > 5:
+            warnings.append(
+                f"max_entries_per_strategy_per_market={self.max_entries_per_strategy_per_market} "
+                "risks position accumulation per strategy"
+            )
+
+        if not self.funder:
+            warnings.append(
+                "funder is empty — live orders with signature_type=1 (Magic.Link) "
+                "will fail. Set BOT_FUNDER to your Polymarket proxy wallet address"
+            )
 
         return warnings

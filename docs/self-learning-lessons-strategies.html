@@ -1540,6 +1540,22 @@
 
 <div class="card">
     <div class="card-header">
+        <h3>Production readiness hardening (Round 2)</h3>
+        <span class="badge badge-active">IMPLEMENTED</span>
+    </div>
+    <p><strong>Date:</strong> 2026-02-12 ~01:00 UTC | <strong>Files:</strong> <code>src/config.py</code> (4 default changes + 4 new validation warnings), <code>tests/unit/test_executor.py</code> (+7 live signing path tests), <code>tasks/lessons.md</code> (wallet architecture docs), <code>scripts/preflight_test.py</code> (new)</p>
+    <p><strong>Changes:</strong></p>
+    <ul>
+        <li><strong>Tightened defaults:</strong> <code>disable_circuit_breaker</code> True&rarr;False, <code>max_entries_per_market</code> 10&rarr;3, <code>max_entries_per_strategy_per_market</code> 10&rarr;3, <code>strategy_cooldown_consecutive_losses</code> 4&rarr;3. Old defaults were analysis-mode unsafe for new deployments.</li>
+        <li><strong>Extended validate_live_mode():</strong> Warns on loose cooldown (&gt;5), high entry caps (&gt;5), high per-strategy caps (&gt;5), and empty funder (breaks sig_type=1).</li>
+        <li><strong>Live signing integration tests:</strong> 7 new tests mock py_clob_client SDK to verify: API cred derivation, funder passthrough, OrderArgs typing, PartialCreateOrderOptions typing, neg_risk from settings, success/error status handling.</li>
+        <li><strong>Preflight test script:</strong> Standalone <code>scripts/preflight_test.py</code> validates credentials, API creds, Gamma API connectivity, USDC balance, order signing, and optionally posts+cancels a $0.01 test order. Supports <code>--dry</code> for sign-only mode.</li>
+    </ul>
+    <p><strong>Impact:</strong> Server uses explicit .env overrides for all changed defaults &mdash; no impact on running bot. Protects new deployments from dangerous defaults.</p>
+</div>
+
+<div class="card">
+    <div class="card-header">
         <h3>External Alpha Signals (Funding Rate, OI Delta, Vol Regime)</h3>
         <span class="badge badge-active">IMPLEMENTED</span>
     </div>
@@ -1796,7 +1812,7 @@
 
 <hr class="separator">
 <p class="muted" style="text-align: center; font-size: 0.8rem;">
-    This document is auto-maintained by the Claude analysis agent. Last updated: 2026-02-12 00:37 UTC.
+    This document is auto-maintained by the Claude analysis agent. Last updated: 2026-02-12 01:15 UTC.
 </p>
 
 </body>

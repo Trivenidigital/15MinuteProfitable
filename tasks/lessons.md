@@ -13,6 +13,11 @@
 - **Token prices/sizes in OrderBookSummary are strings**, not floats. Must cast explicitly.
 - **USDC balance from API is in wei (6 decimals).** Divide by 1,000,000 for USD.
 - **Magic.link accounts (signature_type=1):** The `funder` address must be the Polymarket proxy wallet, NOT the signer address. This is the #1 cause of "invalid signature" errors.
+- **Every Polymarket account has THREE addresses:** (1) Login wallet (MetaMask/email address), (2) Magic.Link EOA (the signing key from your private key), (3) Proxy wallet (the "funder", holds USDC, shown in Settings > Profile > Address). The private key derives the EOA, but orders execute through the proxy wallet.
+- **`funder` is ALWAYS the proxy wallet address** (the deposit address shown in your Polymarket profile), NOT the address derived from the private key. Getting this wrong causes "invalid signature" on every order.
+- **`signature_type=1`** for all Magic.Link/email-based accounts; `signature_type=0` for MetaMask/EOA-connected accounts. Most accounts are type 1.
+- **"invalid signature" is a catch-all error** from the CLOB API. It can mean: wrong private key, wrong funder address, wrong neg_risk value, wrong signature_type, or missing API creds. Debugging requires testing each independently.
+- **Test a $0.01 limit order before going live.** A single tiny GTC limit order at $0.01 (will never fill) validates the entire signing pipeline: key, funder, sig_type, neg_risk, API creds. Would have caught all Feb 12 issues instantly.
 
 ## Fee Structure
 

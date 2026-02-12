@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 os.environ.setdefault("BOT_PRIVATE_KEY", "0x" + "ab" * 32)
 
@@ -317,3 +317,240 @@ class TestExecuteArbPartialFill:
         assert no_r.status == OrderStatus.CANCELLED
         assert yes_r.fill_size == 0.0
         assert no_r.fill_size == 0.0
+
+
+# ---------------------------------------------------------------------------
+# Live signing path (non-dry-run) — mocked SDK
+# ---------------------------------------------------------------------------
+
+
+class TestLiveSigningPath:
+    """Tests that verify the live (non-dry-run) signing path uses correct SDK types.
+
+    These tests mock py_clob_client so no real signing occurs, but they verify
+    the executor passes the right types (OrderArgs, PartialCreateOrderOptions)
+    to client.create_order(), derives API creds, and reads neg_risk from settings.
+
+    py_clob_client may not be installed in the test environment (it's only on
+    the server), so we inject mock modules into sys.modules.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _mock_clob_sdk(self) -> None:
+        """Inject fake py_clob_client modules into sys.modules.
+
+        This lets the lazy ``from py_clob_client.client import ClobClient``
+        inside executor.py resolve without the real package installed.
+        We define real-ish OrderArgs / PartialCreateOrderOptions dataclasses
+        so isinstance() checks work.
+        """
+        import sys
+        import types
+        from dataclasses import dataclass
+
+        # Real-ish typed stubs so executor code works identically to prod
+        @dataclass
+        class OrderArgs:
+            token_id: str = ""
+            price: float = 0.0
+            size: float = 0.0
+            side: str = ""
+
+        @dataclass
+        class PartialCreateOrderOptions:
+            tick_size: str = "0.01"
+            neg_risk: bool = False
+
+        # Build module tree
+        pkg = types.ModuleType("py_clob_client")
+        client_mod = types.ModuleType("py_clob_client.client")
+        clob_types_mod = types.ModuleType("py_clob_client.clob_types")
+        order_builder_mod = types.ModuleType("py_clob_client.order_builder")
+        constants_mod = types.ModuleType("py_clob_client.order_builder.constants")
+
+        # Assign types
+        self._OrderArgs = OrderArgs
+        self._PartialCreateOrderOptions = PartialCreateOrderOptions
+        self._MockClobClient = MagicMock  # placeholder — overridden per-test
+
+        client_mod.ClobClient = MagicMock  # will be replaced per test
+        clob_types_mod.OrderArgs = OrderArgs
+        clob_types_mod.PartialCreateOrderOptions = PartialCreateOrderOptions
+        constants_mod.BUY = "BUY"
+        constants_mod.SELL = "SELL"
+
+        # Stash originals for cleanup
+        saved = {}
+        mod_names = [
+            "py_clob_client",
+            "py_clob_client.client",
+            "py_clob_client.clob_types",
+            "py_clob_client.order_builder",
+            "py_clob_client.order_builder.constants",
+        ]
+        for name in mod_names:
+            saved[name] = sys.modules.get(name)
+
+        sys.modules["py_clob_client"] = pkg
+        sys.modules["py_clob_client.client"] = client_mod
+        sys.modules["py_clob_client.clob_types"] = clob_types_mod
+        sys.modules["py_clob_client.order_builder"] = order_builder_mod
+        sys.modules["py_clob_client.order_builder.constants"] = constants_mod
+
+        self._client_mod = client_mod
+
+        yield
+
+        # Restore
+        for name in mod_names:
+            if saved[name] is None:
+                sys.modules.pop(name, None)
+            else:
+                sys.modules[name] = saved[name]
+
+    @pytest.fixture()
+    def live_settings(self) -> Settings:
+        return Settings(
+            private_key="0x" + "ab" * 32,
+            dry_run=False,
+            sim_balance=1000.0,
+        )
+
+    def _set_mock_client(self, mock_instance: MagicMock) -> MagicMock:
+        """Replace ClobClient in the fake module with a constructor returning mock_instance."""
+        mock_cls = MagicMock(return_value=mock_instance)
+        self._client_mod.ClobClient = mock_cls
+        return mock_cls
+
+    def test_get_client_derives_api_creds(self, live_settings: Settings) -> None:
+        """ClobClient should have create_or_derive_api_creds() and set_api_creds() called."""
+        mock_client_instance = MagicMock()
+        mock_client_instance.create_or_derive_api_creds.return_value = {"apiKey": "test"}
+        MockClient = self._set_mock_client(mock_client_instance)
+
+        executor = OrderExecutor(live_settings)
+        client = executor._get_client()
+
+        # Verify ClobClient was constructed with correct args
+        MockClient.assert_called_once_with(
+            host=live_settings.clob_host,
+            key=live_settings.private_key.get_secret_value(),
+            chain_id=137,
+            signature_type=int(live_settings.signature_type),
+            funder=None,  # empty funder → None
+        )
+
+        # Verify API creds were derived and set
+        mock_client_instance.create_or_derive_api_creds.assert_called_once()
+        mock_client_instance.set_api_creds.assert_called_once_with({"apiKey": "test"})
+
+        assert client is mock_client_instance
+
+    def test_get_client_passes_funder_when_set(self) -> None:
+        """ClobClient should receive the funder address when configured."""
+        settings = Settings(
+            private_key="0x" + "ab" * 32,
+            dry_run=False,
+            sim_balance=1000.0,
+            funder="0x" + "cc" * 20,
+        )
+        mock_client_instance = MagicMock()
+        mock_client_instance.create_or_derive_api_creds.return_value = {}
+        MockClient = self._set_mock_client(mock_client_instance)
+
+        executor = OrderExecutor(settings)
+        executor._get_client()
+
+        MockClient.assert_called_once()
+        call_kwargs = MockClient.call_args
+        assert call_kwargs.kwargs.get("funder") == "0x" + "cc" * 20
+
+    def test_sign_order_uses_typed_order_args(self, live_settings: Settings) -> None:
+        """create_order() should receive OrderArgs, not a plain dict."""
+        mock_client_instance = MagicMock()
+        mock_client_instance.create_or_derive_api_creds.return_value = {}
+        mock_client_instance.create_order.return_value = {"signed": True}
+        self._set_mock_client(mock_client_instance)
+
+        executor = OrderExecutor(live_settings)
+        order = _make_order()
+        executor._sign_order_sync(order, tick_size=0.01)
+
+        mock_client_instance.create_order.assert_called_once()
+        args, _kwargs = mock_client_instance.create_order.call_args
+        assert isinstance(args[0], self._OrderArgs)
+
+    def test_sign_order_uses_typed_options(self, live_settings: Settings) -> None:
+        """create_order() should receive PartialCreateOrderOptions, not a plain dict."""
+        mock_client_instance = MagicMock()
+        mock_client_instance.create_or_derive_api_creds.return_value = {}
+        mock_client_instance.create_order.return_value = {"signed": True}
+        self._set_mock_client(mock_client_instance)
+
+        executor = OrderExecutor(live_settings)
+        order = _make_order()
+        executor._sign_order_sync(order, tick_size=0.01)
+
+        args, _kwargs = mock_client_instance.create_order.call_args
+        assert isinstance(args[1], self._PartialCreateOrderOptions)
+
+    def test_neg_risk_reads_from_settings(self, live_settings: Settings) -> None:
+        """neg_risk in PartialCreateOrderOptions should come from settings, not hardcoded."""
+        mock_client_instance = MagicMock()
+        mock_client_instance.create_or_derive_api_creds.return_value = {}
+        mock_client_instance.create_order.return_value = {"signed": True}
+        self._set_mock_client(mock_client_instance)
+
+        # Test with neg_risk=False (default for 15-min crypto)
+        executor = OrderExecutor(live_settings)
+        order = _make_order()
+        executor._sign_order_sync(order, tick_size=0.01)
+
+        args, _kwargs = mock_client_instance.create_order.call_args
+        options = args[1]
+        assert options.neg_risk is False
+
+        # Test with neg_risk=True
+        live_settings_neg = Settings(
+            private_key="0x" + "ab" * 32,
+            dry_run=False,
+            sim_balance=1000.0,
+            neg_risk=True,
+        )
+        mock_client_instance.reset_mock()
+        mock_client_instance.create_or_derive_api_creds.return_value = {}
+        mock_client_instance.create_order.return_value = {"signed": True}
+        self._set_mock_client(mock_client_instance)
+
+        executor2 = OrderExecutor(live_settings_neg)
+        order2 = _make_order()
+        executor2._sign_order_sync(order2, tick_size=0.01)
+
+        args2, _kwargs2 = mock_client_instance.create_order.call_args
+        options2 = args2[1]
+        assert options2.neg_risk is True
+
+    def test_sign_order_sets_status_on_success(self, live_settings: Settings) -> None:
+        """Successful signing should set status to SIGNED."""
+        mock_client_instance = MagicMock()
+        mock_client_instance.create_or_derive_api_creds.return_value = {}
+        mock_client_instance.create_order.return_value = {"signed": True}
+        self._set_mock_client(mock_client_instance)
+
+        executor = OrderExecutor(live_settings)
+        order = _make_order()
+        result = executor._sign_order_sync(order, tick_size=0.01)
+        assert result.status == OrderStatus.SIGNED
+        assert result.signed_order == {"signed": True}
+
+    def test_sign_order_sets_rejected_on_error(self, live_settings: Settings) -> None:
+        """Failed signing should set status to REJECTED."""
+        mock_client_instance = MagicMock()
+        mock_client_instance.create_or_derive_api_creds.return_value = {}
+        mock_client_instance.create_order.side_effect = RuntimeError("invalid signature")
+        self._set_mock_client(mock_client_instance)
+
+        executor = OrderExecutor(live_settings)
+        order = _make_order()
+        result = executor._sign_order_sync(order, tick_size=0.01)
+        assert result.status == OrderStatus.REJECTED
