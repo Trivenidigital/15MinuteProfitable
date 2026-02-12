@@ -245,6 +245,23 @@ The window controls BOTH when the strategy activates AND when it records odds da
 
 - **4 consecutive losses → 3-hour strategy cooldown.** If any single strategy accumulates 4 consecutive losses, that strategy enters a 3-hour cooldown (no new entries). Other strategies continue trading. Counter resets on any win. Rationale: prevents a strategy from bleeding capital during an unfavorable market regime. Implementation pending.
 
+## Vault / Secrets Management
+
+- **VAULT_PASSWORD and VAULT_PATH must NOT go in .env with BOT_ prefix settings.** Pydantic BaseSettings with `env_prefix="BOT_"` and `extra="forbid"` will reject any env var without the BOT_ prefix if loaded from the same env file. Solution: put vault config in a separate `.vault-password.env` loaded via a second systemd `EnvironmentFile=` directive.
+- **Shell escaping of special chars in passwords.** Bash `!` expands in double-quoted strings and sometimes even in single-quoted heredocs depending on context. Avoid special characters in vault passwords, or write the file using Python (`python3 -c "open(...).write(...)"`) to bypass shell escaping entirely.
+- **VaultSettingsSource priority is lower than env vars.** If both `.env` has `BOT_PRIVATE_KEY` and the vault has `private_key`, the env var wins. Must fully remove the env var for vault to take effect.
+
+## Server Migration
+
+- **Cross-contamination between bots sharing a server is hard to fully clean.** When two bots share a VPS, git remotes, systemd service files, cron jobs, and env files can reference the wrong bot. The nuclear option (new server) is often faster and cleaner than surgical cleanup.
+- **Hetzner kernel upgrades can hang the server.** `apt upgrade` on Ubuntu 24.04 can install a new linux-image that requires reboot. The server may become unresponsive — power cycle from Hetzner Cloud console.
+- **SCP between two remote servers from Windows doesn't work directly.** Use pipe relay: `ssh server1 "cat file" | ssh server2 "cat > file"` to transfer files via the local machine.
+
+## Test Environment Pollution
+
+- **`os.environ` mutations bypass monkeypatch cleanup.** If application code does `os.environ["KEY"] = value` (e.g., admin save settings handler), monkeypatch won't restore it unless you pre-register the key with `monkeypatch.delenv("KEY", raising=False)`. This caused 5 test failures where `BOT_DRY_RUN=true` leaked from admin tests into risk manager tests.
+- **Test execution order matters for env pollution.** Tests pass individually but fail in suite when earlier test modules pollute `os.environ`. Always run the full suite (`pytest tests/`) to catch this, not just individual files.
+
 ## Common Mistakes
 
 - **Heredoc in SSH:** Copy-pasting heredocs (`cat << 'EOF'`) over SSH often fails. Use multiple `printf` or `echo` commands instead.

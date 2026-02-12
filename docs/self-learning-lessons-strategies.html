@@ -1664,6 +1664,94 @@
 </div>
 
 <!-- ============================================================ -->
+<!-- SESSION 2026-02-11: Server migration + Vault + Config         -->
+<!-- ============================================================ -->
+
+<div class="card">
+    <div class="card-header">
+        <h3>New dedicated server deployment (Helsinki)</h3>
+        <span class="badge badge-active">IMPLEMENTED</span>
+    </div>
+    <p><strong>Date:</strong> 2026-02-11 ~20:00 UTC | <strong>Server:</strong> 89.167.55.176 (Hetzner CPX22, Helsinki)</p>
+    <p><strong>Reason:</strong> Old server (46.62.206.192) had cross-contamination with BTC15MinuteBot &mdash; systemd service files, git remotes, and cron jobs kept referencing the wrong bot. Deployed to a completely clean server to eliminate all conflicts.</p>
+    <p><strong>Setup:</strong> Python 3.11, venv, systemd service, UFW firewall (22 + 8081), logrotate. Migrated .env and trades.db from old server. Deep audit confirmed zero btc15minutebot references.</p>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3>Aggressive risk settings</h3>
+        <span class="badge badge-active">IMPLEMENTED</span>
+    </div>
+    <p><strong>Date:</strong> 2026-02-11 | <strong>Files:</strong> config.py</p>
+    <p><strong>Changes:</strong> max_daily_loss: $50&rarr;$300, max_total_position: $500&rarr;$2000, max_position_per_market: $100&rarr;$500, max_unhedged_exposure: $100&rarr;$500, max_entries_per_market: 3&rarr;10, max_entries_per_strategy_per_market: 5&rarr;10, kelly_fraction: 0.10&rarr;0.25.</p>
+    <p><strong>Rationale:</strong> Conservative limits were preventing the bot from taking meaningful positions. Wider limits allow more aggressive sizing while still having guardrails.</p>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3>ETH trading disabled</h3>
+        <span class="badge badge-active">IMPLEMENTED</span>
+    </div>
+    <p><strong>Date:</strong> 2026-02-11 | <strong>Files:</strong> config.py, .env on server</p>
+    <p><strong>Change:</strong> Removed ETH from markets list: <code>["BTC","ETH","SOL","XRP"]</code> &rarr; <code>["BTC","SOL","XRP"]</code></p>
+    <p><strong>Evidence:</strong> ETH was consistently unprofitable: -$3,784 across 288 trades. No strategy showed positive expectation on ETH markets.</p>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3>Resolution sniper disabled</h3>
+        <span class="badge badge-active">IMPLEMENTED</span>
+    </div>
+    <p><strong>Date:</strong> 2026-02-11 | <strong>Files:</strong> .env on server</p>
+    <p><strong>Change:</strong> <code>BOT_ENABLE_RESOLUTION_SNIPER=false</code> (was overriding code default of <code>False</code>)</p>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3>Encrypted vault for private key (AES-256-GCM)</h3>
+        <span class="badge badge-active">IMPLEMENTED</span>
+    </div>
+    <p><strong>Date:</strong> 2026-02-11 ~00:31 UTC | <strong>Files:</strong> config.py (VaultSettingsSource), utils/vault.py, systemd service</p>
+    <p><strong>Change:</strong> Private key and funder moved from plaintext <code>.env</code> into AES-256-GCM encrypted vault at <code>data/secrets.vault</code>. Vault password stored in separate <code>.vault-password.env</code> loaded by systemd <code>EnvironmentFile</code> directive. PBKDF2-HMAC-SHA256 key derivation with 100K iterations.</p>
+    <p><strong>Gotcha:</strong> VAULT_PASSWORD/VAULT_PATH don't use BOT_ prefix, so putting them in .env causes Pydantic "extra inputs not permitted". Must use separate env file.</p>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3>Test suite fixes (7 pre-existing failures)</h3>
+        <span class="badge badge-active">IMPLEMENTED</span>
+    </div>
+    <p><strong>Date:</strong> 2026-02-11 | <strong>Files:</strong> test_admin_app.py, test_risk_manager.py, test_asymmetric.py</p>
+    <p><strong>Root causes:</strong> (1) <code>test_admin_app.py</code> polluted <code>os.environ["BOT_DRY_RUN"]</code> bypassing monkeypatch, causing 5 risk manager circuit breaker tests to fail. (2) Asymmetric tests had wrong fixture config for <code>require_hedge</code> and lottery ticket logic mismatch.</p>
+    <p><strong>Lesson:</strong> Always use <code>monkeypatch.delenv()</code> for env vars that admin save handlers write via <code>os.environ</code> directly.</p>
+</div>
+
+<!-- ============================================================ -->
+<!-- CURRENT CONFIG ON SERVER (89.167.55.176)                      -->
+<!-- ============================================================ -->
+
+<h2>Current Server Config (89.167.55.176)</h2>
+
+<div class="card">
+    <table>
+        <tr><td><strong>Server</strong></td><td>89.167.55.176 (Hetzner CPX22, Helsinki)</td></tr>
+        <tr><td><strong>Branch</strong></td><td>feat/risk-manager</td></tr>
+        <tr><td><strong>DRY_RUN</strong></td><td>true</td></tr>
+        <tr><td><strong>Markets</strong></td><td>BTC, SOL, XRP</td></tr>
+        <tr><td><strong>Order size</strong></td><td>$250</td></tr>
+        <tr><td><strong>Max daily loss</strong></td><td>$300</td></tr>
+        <tr><td><strong>Max total position</strong></td><td>$2,000</td></tr>
+        <tr><td><strong>Max per market</strong></td><td>$500</td></tr>
+        <tr><td><strong>Max unhedged</strong></td><td>$500</td></tr>
+        <tr><td><strong>Kelly fraction</strong></td><td>0.25</td></tr>
+        <tr><td><strong>Strategies</strong></td><td>arbitrage, price_lag, maker_arbitrage, dip_buyer, fade_panic</td></tr>
+        <tr><td><strong>Disabled</strong></td><td>asymmetric, resolution_sniper, cross_asset</td></tr>
+        <tr><td><strong>Private key</strong></td><td>Encrypted vault (AES-256-GCM)</td></tr>
+        <tr><td><strong>Dashboard</strong></td><td>:8081</td></tr>
+    </table>
+</div>
+
+<!-- ============================================================ -->
 <!-- NEXT STEPS                                                    -->
 <!-- ============================================================ -->
 
@@ -1708,7 +1796,7 @@
 
 <hr class="separator">
 <p class="muted" style="text-align: center; font-size: 0.8rem;">
-    This document is auto-maintained by the Claude analysis agent. Last updated: 2026-02-10 17:56 UTC.
+    This document is auto-maintained by the Claude analysis agent. Last updated: 2026-02-12 00:37 UTC.
 </p>
 
 </body>
