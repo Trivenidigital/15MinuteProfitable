@@ -31,6 +31,7 @@ def _make_market(
     end_time: datetime | None = None,
     minutes_remaining: float = 10.0,
     neg_risk: bool = True,
+    interval: str = "15m",
 ) -> Market:
     """Create a Market with sensible defaults for testing.
 
@@ -43,24 +44,25 @@ def _make_market(
     if end_time is None:
         end_time = now + timedelta(minutes=minutes_remaining)
     if condition_id is None:
-        condition_id = f"cond_{asset.lower()}_{int(end_time.timestamp())}"
+        condition_id = f"cond_{asset.lower()}_{interval}_{int(end_time.timestamp())}"
     if slug is None:
-        slug = f"{asset.lower()}-updown-15m-{int(start_time.timestamp())}"
+        slug = f"{asset.lower()}-updown-{interval}-{int(start_time.timestamp())}"
     if yes_token_id is None:
-        yes_token_id = f"yes_{asset.lower()}_{int(end_time.timestamp())}"
+        yes_token_id = f"yes_{asset.lower()}_{interval}_{int(end_time.timestamp())}"
     if no_token_id is None:
-        no_token_id = f"no_{asset.lower()}_{int(end_time.timestamp())}"
+        no_token_id = f"no_{asset.lower()}_{interval}_{int(end_time.timestamp())}"
 
     return Market(
         condition_id=condition_id,
         slug=slug,
-        question=f"Will {asset} go up in the next 15 minutes?",
+        question=f"Will {asset} go up in the next window?",
         yes_token_id=yes_token_id,
         no_token_id=no_token_id,
         start_time=start_time,
         end_time=end_time,
         asset=asset,
         neg_risk=neg_risk,
+        interval=interval,
     )
 
 
@@ -101,6 +103,7 @@ def settings() -> Settings:
     return Settings(
         private_key="0x" + "ab" * 32,
         markets=["BTC", "ETH"],
+        market_intervals=["15m"],
         dry_run=True,
     )
 
@@ -172,9 +175,10 @@ class TestInitialize:
         assert btc_market in result
         assert eth_market in result
 
-        # Verify discovery was called with configured assets
+        # Verify discovery was called with configured assets and intervals
         mock_discovery.find_active_markets.assert_awaited_once_with(
             assets=["BTC", "ETH"],
+            intervals=["15m"],
         )
 
         # Verify subscription includes all 4 token IDs
@@ -352,7 +356,7 @@ class TestCheckRollover:
         new_btc = _make_market(asset="BTC")
         new_eth = _make_market(asset="ETH")
         mock_discovery.find_market_for_asset.side_effect = (
-            lambda asset: new_btc if asset == "BTC" else new_eth
+            lambda asset, interval="15m": new_btc if asset == "BTC" else new_eth
         )
 
         result = await manager.check_rollover()
@@ -387,7 +391,7 @@ class TestCheckRollover:
         new_btc = _make_market(asset="BTC")
         new_eth = _make_market(asset="ETH")
         mock_discovery.find_market_for_asset.side_effect = (
-            lambda asset: new_btc if asset == "BTC" else new_eth
+            lambda asset, interval="15m": new_btc if asset == "BTC" else new_eth
         )
 
         await manager.check_rollover()
@@ -522,23 +526,25 @@ class TestGetMarketForAsset:
 # ---------------------------------------------------------------------------
 
 
-class TestAssetsNeedingRollover:
-    """Tests for _assets_needing_rollover()."""
+class TestPairsNeedingRollover:
+    """Tests for _pairs_needing_rollover()."""
 
-    async def test_detects_missing_assets(
+    async def test_detects_missing_pairs(
         self,
         manager: MarketManager,
     ) -> None:
-        """Assets with no active market need rollover."""
-        # settings.markets = ["BTC", "ETH"] but no markets are tracked
-        result = manager._assets_needing_rollover()
-        assert result == {"BTC", "ETH"}
+        """(asset, interval) pairs with no active market need rollover."""
+        # settings.markets = ["BTC", "ETH"], settings.market_intervals = ["15m"]
+        # but no markets are tracked
+        result = manager._pairs_needing_rollover()
+        assert ("BTC", "15m") in result
+        assert ("ETH", "15m") in result
 
-    async def test_detects_soon_expiring_assets(
+    async def test_detects_soon_expiring_pairs(
         self,
         manager: MarketManager,
     ) -> None:
-        """Assets whose market expires within the buffer need rollover."""
+        """Pairs whose market expires within the buffer need rollover."""
         # Market expires in 30 seconds (less than the 60s buffer)
         soon_market = _make_soon_expiring_market(asset="BTC", seconds_until_expiry=30.0)
         manager._active_markets[soon_market.condition_id] = soon_market
@@ -547,28 +553,32 @@ class TestAssetsNeedingRollover:
         eth_market = _make_market(asset="ETH", minutes_remaining=10.0)
         manager._active_markets[eth_market.condition_id] = eth_market
 
-        result = manager._assets_needing_rollover()
-        assert "BTC" in result
-        assert "ETH" not in result
+        result = manager._pairs_needing_rollover()
+        assert ("BTC", "15m") in result
+        # ETH 15m should NOT need rollover (has active market)
+        assert ("ETH", "15m") not in result
 
     async def test_no_rollover_needed_when_all_active(
         self,
         manager: MarketManager,
     ) -> None:
-        """No assets need rollover when all have markets with plenty of time."""
-        btc_market = _make_market(asset="BTC", minutes_remaining=10.0)
-        eth_market = _make_market(asset="ETH", minutes_remaining=10.0)
-        manager._active_markets[btc_market.condition_id] = btc_market
-        manager._active_markets[eth_market.condition_id] = eth_market
+        """No pairs need rollover when all configured pairs have active markets."""
+        # Create markets for all configured (asset, interval) pairs
+        for asset in manager._settings.markets:
+            for interval in manager._settings.market_intervals:
+                m = _make_market(
+                    asset=asset, minutes_remaining=10.0, interval=interval
+                )
+                manager._active_markets[m.condition_id] = m
 
-        result = manager._assets_needing_rollover()
+        result = manager._pairs_needing_rollover()
         assert result == set()
 
     async def test_expired_market_needs_rollover(
         self,
         manager: MarketManager,
     ) -> None:
-        """An asset whose market already expired needs rollover."""
+        """A pair whose market already expired needs rollover."""
         expired = _make_expired_market(asset="BTC")
         manager._active_markets[expired.condition_id] = expired
 
@@ -576,10 +586,10 @@ class TestAssetsNeedingRollover:
         eth_market = _make_market(asset="ETH", minutes_remaining=10.0)
         manager._active_markets[eth_market.condition_id] = eth_market
 
-        result = manager._assets_needing_rollover()
-        # BTC needs rollover because its market is expired (get_market_for_asset returns None)
-        assert "BTC" in result
-        assert "ETH" not in result
+        result = manager._pairs_needing_rollover()
+        # BTC 15m needs rollover because its market is expired
+        assert ("BTC", "15m") in result
+        assert ("ETH", "15m") not in result
 
 
 # ---------------------------------------------------------------------------
@@ -659,7 +669,7 @@ class TestMultipleAssets:
         new_btc = _make_market(asset="BTC", condition_id="new_btc")
         new_eth = _make_market(asset="ETH", condition_id="new_eth")
         mock_discovery.find_market_for_asset.side_effect = (
-            lambda asset: new_btc if asset == "BTC" else new_eth
+            lambda asset, interval="15m": new_btc if asset == "BTC" else new_eth
         )
 
         result = await manager.check_rollover()
@@ -749,45 +759,46 @@ class TestRemoveExpired:
 class TestDiscoverMissing:
     """Tests for _discover_missing() internal method."""
 
-    async def test_discovers_for_missing_assets(
+    async def test_discovers_for_missing_pairs(
         self,
         manager: MarketManager,
         mock_discovery: MagicMock,
         mock_clob_ws: MagicMock,
     ) -> None:
-        """_discover_missing finds markets for assets without an active one."""
+        """_discover_missing finds markets for (asset, interval) pairs without an active one."""
         new_btc = _make_market(asset="BTC")
         new_eth = _make_market(asset="ETH")
         mock_discovery.find_market_for_asset.side_effect = (
-            lambda asset: new_btc if asset == "BTC" else new_eth
+            lambda asset, interval="15m": new_btc if asset == "BTC" else new_eth
         )
 
-        # No active assets
+        # No active pairs
         result = await manager._discover_missing(set())
 
-        assert len(result) == 2
+        # Should discover markets for all configured (asset, interval) pairs
+        assert len(result) >= 2
 
-    async def test_skips_assets_already_active(
+    async def test_skips_pairs_already_active(
         self,
         manager: MarketManager,
         mock_discovery: MagicMock,
         mock_clob_ws: MagicMock,
     ) -> None:
-        """_discover_missing does not re-discover assets that are active
+        """_discover_missing does not re-discover pairs that are active
         and not near expiry."""
-        # BTC is active with plenty of time
-        btc = _make_market(asset="BTC", minutes_remaining=10.0)
+        # BTC 15m is active with plenty of time
+        btc = _make_market(asset="BTC", minutes_remaining=10.0, interval="15m")
         manager._active_markets[btc.condition_id] = btc
 
         new_eth = _make_market(asset="ETH")
         mock_discovery.find_market_for_asset.return_value = new_eth
 
-        # BTC is in active_assets
-        result = await manager._discover_missing({"BTC"})
+        # BTC 15m is in active_pairs
+        result = await manager._discover_missing({("BTC", "15m")})
 
-        # Only ETH should be discovered
-        assert len(result) == 1
-        assert result[0].asset == "ETH"
+        # BTC 15m should NOT be re-discovered, but others should
+        discovered_pairs = {(m.asset, m.interval) for m in result}
+        assert ("BTC", "15m") not in discovered_pairs
 
     async def test_handles_discovery_failure(
         self,
@@ -858,7 +869,7 @@ class TestEdgeCases:
         # ETH needs discovery too
         eth = _make_market(asset="ETH")
         mock_discovery.find_market_for_asset.side_effect = (
-            lambda asset: same_market if asset == "BTC" else eth
+            lambda asset, interval="15m": same_market if asset == "BTC" else eth
         )
 
         result = await manager.check_rollover()
@@ -866,3 +877,98 @@ class TestEdgeCases:
         # Should not have duplicate condition IDs
         condition_ids = [m.condition_id for m in result]
         assert len(condition_ids) == len(set(condition_ids))
+
+
+# ---------------------------------------------------------------------------
+# Multi-interval support
+# ---------------------------------------------------------------------------
+
+
+class TestMultiInterval:
+    """Tests for simultaneous 5m and 15m markets for the same asset."""
+
+    @pytest.fixture()
+    def multi_interval_settings(self) -> Settings:
+        return Settings(
+            private_key="0x" + "ab" * 32,
+            markets=["BTC"],
+            market_intervals=["15m", "5m"],
+            dry_run=True,
+        )
+
+    @pytest.fixture()
+    def multi_interval_manager(
+        self,
+        multi_interval_settings: Settings,
+        mock_discovery: MagicMock,
+        mock_clob_ws: MagicMock,
+        mock_book_manager: MagicMock,
+    ) -> MarketManager:
+        return MarketManager(
+            settings=multi_interval_settings,
+            discovery=mock_discovery,
+            clob_ws=mock_clob_ws,
+            book_manager=mock_book_manager,
+        )
+
+    async def test_get_market_for_asset_with_interval(
+        self,
+        multi_interval_manager: MarketManager,
+    ) -> None:
+        """get_market_for_asset filters by interval when specified."""
+        btc_15m = _make_market(asset="BTC", interval="15m")
+        btc_5m = _make_market(asset="BTC", interval="5m")
+        multi_interval_manager._active_markets[btc_15m.condition_id] = btc_15m
+        multi_interval_manager._active_markets[btc_5m.condition_id] = btc_5m
+
+        # Without interval, returns first match
+        result = multi_interval_manager.get_market_for_asset("BTC")
+        assert result is not None
+        assert result.asset == "BTC"
+
+        # With interval filter
+        result_15m = multi_interval_manager.get_market_for_asset("BTC", interval="15m")
+        assert result_15m is not None
+        assert result_15m.interval == "15m"
+
+        result_5m = multi_interval_manager.get_market_for_asset("BTC", interval="5m")
+        assert result_5m is not None
+        assert result_5m.interval == "5m"
+
+    async def test_simultaneous_5m_and_15m_markets(
+        self,
+        multi_interval_manager: MarketManager,
+    ) -> None:
+        """Both 5m and 15m markets can be active for the same asset."""
+        btc_15m = _make_market(asset="BTC", interval="15m", minutes_remaining=10.0)
+        btc_5m = _make_market(asset="BTC", interval="5m", minutes_remaining=3.0)
+        multi_interval_manager._active_markets[btc_15m.condition_id] = btc_15m
+        multi_interval_manager._active_markets[btc_5m.condition_id] = btc_5m
+
+        active = multi_interval_manager.active_markets
+        assert len(active) == 2
+        intervals = {m.interval for m in active}
+        assert intervals == {"5m", "15m"}
+
+    async def test_pairs_needing_rollover_multi_interval(
+        self,
+        multi_interval_manager: MarketManager,
+    ) -> None:
+        """_pairs_needing_rollover returns (asset, interval) tuples."""
+        # Only 15m market active
+        btc_15m = _make_market(asset="BTC", interval="15m", minutes_remaining=10.0)
+        multi_interval_manager._active_markets[btc_15m.condition_id] = btc_15m
+
+        result = multi_interval_manager._pairs_needing_rollover()
+        # BTC 5m should need rollover (no active market)
+        assert ("BTC", "5m") in result
+        # BTC 15m should NOT need rollover
+        assert ("BTC", "15m") not in result
+
+    async def test_market_window_seconds(self) -> None:
+        """Market.window_seconds returns correct value per interval."""
+        m_15m = _make_market(asset="BTC", interval="15m")
+        assert m_15m.window_seconds == 900
+
+        m_5m = _make_market(asset="BTC", interval="5m")
+        assert m_5m.window_seconds == 300

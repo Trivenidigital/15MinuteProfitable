@@ -1,4 +1,4 @@
-"""Manages 15-minute market lifecycle: discovery, rollover, subscriptions.
+"""Manages multi-interval market lifecycle: discovery, rollover, subscriptions.
 
 Responsible for maintaining a list of currently active markets, detecting
 when markets expire, discovering next-window markets proactively, and
@@ -19,10 +19,10 @@ from src.monitoring.logger import get_logger
 
 
 class MarketManager:
-    """Manages 15-minute market lifecycle: discovery, rollover, subscriptions.
+    """Manages multi-interval market lifecycle: discovery, rollover, subscriptions.
 
     Responsible for:
-    - Maintaining a list of currently active markets
+    - Maintaining a list of currently active markets (across intervals)
     - Detecting when markets expire
     - Discovering next-window markets proactively
     - Managing WebSocket subscribe/unsubscribe for token IDs
@@ -66,13 +66,16 @@ class MarketManager:
     async def initialize(self) -> list[Market]:
         """Initial market discovery. Called once at startup.
 
-        Discovers markets for all configured assets, subscribes to their
-        token IDs on the WebSocket, returns the discovered markets.
+        Discovers markets for all configured assets and intervals, subscribes
+        to their token IDs on the WebSocket, returns the discovered markets.
         """
         assets = self._settings.markets
-        self._log.info("initializing", assets=assets)
+        intervals = self._settings.market_intervals
+        self._log.info("initializing", assets=assets, intervals=intervals)
 
-        markets = await self._discovery.find_active_markets(assets=assets)
+        markets = await self._discovery.find_active_markets(
+            assets=assets, intervals=intervals
+        )
 
         if not markets:
             self._log.warning("no_markets_found", assets=assets)
@@ -106,7 +109,7 @@ class MarketManager:
         """Check for expired markets and discover replacements.
 
         1. Remove any markets that have expired (end_time <= now)
-        2. For assets with no active market, discover the next one
+        2. For (asset, interval) pairs with no active market, discover the next one
         3. Subscribe new token IDs, unsubscribe expired ones
         4. Return the current list of active markets
 
@@ -115,11 +118,14 @@ class MarketManager:
         # Step 1: Remove expired markets (also unsubscribes their tokens)
         expired = await self._remove_expired()
 
-        # Step 2: Determine which configured assets currently have active markets
-        active_assets = {m.asset for m in self._active_markets.values()}
+        # Step 2: Determine which (asset, interval) pairs currently have active markets
+        active_pairs = {
+            (m.asset, m.interval) for m in self._active_markets.values()
+            if m.end_time > datetime.now(tz=timezone.utc)
+        }
 
-        # Step 3: Discover markets for any assets that are missing or need rollover
-        new_markets = await self._discover_missing(active_assets)
+        # Step 3: Discover markets for any pairs that are missing or need rollover
+        new_markets = await self._discover_missing(active_pairs)
 
         # Prune stale orderbook entries from expired markets
         pruned = self._book_manager.remove_stale_books(threshold_s=120.0)
@@ -175,31 +181,41 @@ class MarketManager:
 
         return expired
 
-    async def _discover_missing(self, active_assets: set[str]) -> list[Market]:
-        """Discover markets for assets that don't have an active market.
+    async def _discover_missing(
+        self, active_pairs: set[tuple[str, str]]
+    ) -> list[Market]:
+        """Discover markets for (asset, interval) pairs without an active market.
 
         Returns the list of newly discovered markets.
         Subscribes their token IDs to the WebSocket.
         """
-        configured_assets = set(self._settings.markets)
-        missing_assets = configured_assets - active_assets
+        configured_pairs = {
+            (asset, interval)
+            for asset in self._settings.markets
+            for interval in self._settings.market_intervals
+        }
+        missing_pairs = configured_pairs - active_pairs
 
-        # Also include assets whose markets are about to expire
-        assets_needing_rollover = self._assets_needing_rollover()
-        all_missing = missing_assets | assets_needing_rollover
+        # Also include pairs whose markets are about to expire
+        pairs_needing_rollover = self._pairs_needing_rollover()
+        all_missing = missing_pairs | pairs_needing_rollover
 
         if not all_missing:
             return []
 
-        self._log.info("discovering_missing", assets=sorted(all_missing))
+        self._log.info("discovering_missing", pairs=sorted(all_missing))
 
         new_markets: list[Market] = []
         token_ids_to_subscribe: list[str] = []
 
-        for asset in all_missing:
-            market = await self._discovery.find_market_for_asset(asset)
+        for asset, interval in all_missing:
+            market = await self._discovery.find_market_for_asset(
+                asset, interval=interval
+            )
             if market is None:
-                self._log.warning("discovery_failed", asset=asset)
+                self._log.warning(
+                    "discovery_failed", asset=asset, interval=interval
+                )
                 continue
 
             # Skip if we already track this exact market (avoid duplicates
@@ -214,6 +230,7 @@ class MarketManager:
             self._log.info(
                 "market_discovered",
                 asset=market.asset,
+                interval=market.interval,
                 condition_id=market.condition_id,
                 slug=market.slug,
                 end_time=market.end_time.isoformat(),
@@ -229,31 +246,44 @@ class MarketManager:
 
         return new_markets
 
-    def get_market_for_asset(self, asset: str) -> Market | None:
-        """Get the active market for a specific asset, if any."""
+    def get_market_for_asset(
+        self, asset: str, interval: str | None = None
+    ) -> Market | None:
+        """Get the active market for a specific asset (and optional interval).
+
+        If *interval* is ``None``, returns the first active match for the
+        asset (backward compatible).  If specified, filters by interval too.
+        """
         now = datetime.now(tz=timezone.utc)
         for market in self._active_markets.values():
-            if market.asset == asset and market.end_time > now:
-                return market
+            if market.asset != asset or market.end_time <= now:
+                continue
+            if interval is not None and market.interval != interval:
+                continue
+            return market
         return None
 
-    def _assets_needing_rollover(self) -> set[str]:
-        """Return set of configured assets that need a new market.
+    def _pairs_needing_rollover(self) -> set[tuple[str, str]]:
+        """Return (asset, interval) pairs that need a new market.
 
-        An asset needs rollover if:
+        A pair needs rollover if:
         - It has no active market, OR
         - Its active market expires within rollover_buffer_seconds
         """
         now = time.time()
-        configured_assets = set(self._settings.markets)
-        needs_rollover: set[str] = set()
+        configured_pairs = {
+            (asset, interval)
+            for asset in self._settings.markets
+            for interval in self._settings.market_intervals
+        }
+        needs_rollover: set[tuple[str, str]] = set()
 
-        for asset in configured_assets:
-            market = self.get_market_for_asset(asset)
+        for asset, interval in configured_pairs:
+            market = self.get_market_for_asset(asset, interval=interval)
             if market is None:
-                needs_rollover.add(asset)
+                needs_rollover.add((asset, interval))
             elif market.end_time.timestamp() - now <= self._rollover_buffer_seconds:
-                needs_rollover.add(asset)
+                needs_rollover.add((asset, interval))
 
         return needs_rollover
 

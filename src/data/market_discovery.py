@@ -1,4 +1,4 @@
-"""Discover active 15-minute crypto markets on Polymarket.
+"""Discover active crypto markets on Polymarket (multi-interval).
 
 Uses a 3-tier fallback strategy:
 1. Computed slugs (derived from the current timestamp)
@@ -18,7 +18,7 @@ import httpx
 
 from src.core.models import Market
 from src.monitoring.logger import get_logger
-from src.utils.time_utils import WINDOW_SECONDS, align_to_window, compute_slug
+from src.utils.time_utils import INTERVAL_SECONDS, align_to_interval, compute_slug
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -35,7 +35,7 @@ _SLUG_LOOKAHEAD = 7  # current window + next 6
 
 
 class MarketDiscovery:
-    """Locate active 15-minute Up/Down markets via the Polymarket Gamma API."""
+    """Locate active Up/Down markets via the Polymarket Gamma API."""
 
     def __init__(
         self,
@@ -57,63 +57,77 @@ class MarketDiscovery:
     async def find_active_markets(
         self,
         assets: list[str] | None = None,
+        intervals: list[str] | None = None,
     ) -> list[Market]:
-        """Find all active 15-minute markets for the given assets.
+        """Find all active markets for the given assets and intervals.
 
-        Defaults to ``["BTC"]`` if *assets* is ``None``.  Each asset is
+        Defaults to ``["BTC"]`` if *assets* is ``None`` and ``["15m"]``
+        if *intervals* is ``None``.  Each ``(asset, interval)`` pair is
         queried concurrently; results are collected into a flat list.
 
         Returns:
-            A list of :class:`Market` objects for every asset with an
-            active market.  May be empty if no markets are found.
+            A list of :class:`Market` objects for every ``(asset, interval)``
+            with an active market.  May be empty if no markets are found.
         """
         if assets is None:
             assets = ["BTC"]
+        if intervals is None:
+            intervals = ["15m"]
 
         results = await asyncio.gather(
-            *(self.find_market_for_asset(asset) for asset in assets),
+            *(
+                self.find_market_for_asset(asset, interval=interval)
+                for asset in assets
+                for interval in intervals
+            ),
         )
 
         return [market for market in results if market is not None]
 
-    async def find_market_for_asset(self, asset: str) -> Market | None:
-        """Find the current active market for a single *asset*.
+    async def find_market_for_asset(
+        self, asset: str, interval: str = "15m"
+    ) -> Market | None:
+        """Find the current active market for a single *asset* and *interval*.
 
         Tries computed slugs first (fast, deterministic) and falls back
         to a broader Gamma API search if slug lookup fails.
         """
-        market = await self._try_computed_slugs(asset)
+        market = await self._try_computed_slugs(asset, interval)
         if market is not None:
             return market
 
         self._log.info(
             "computed_slug_miss",
             asset=asset,
+            interval=interval,
             msg="Falling back to Gamma API search",
         )
-        return await self._try_gamma_api(asset)
+        return await self._try_gamma_api(asset, interval)
 
     # -- tier 1: computed slugs ---------------------------------------------
 
-    async def _try_computed_slugs(self, asset: str) -> Market | None:
+    async def _try_computed_slugs(
+        self, asset: str, interval: str = "15m"
+    ) -> Market | None:
         """Try up to ``_SLUG_LOOKAHEAD`` computed slugs.
 
-        Starts from the current 15-minute window and checks successive
-        future windows.  Returns the first market whose window is still
-        open (i.e. ``end_time`` is in the future).
+        Starts from the current window and checks successive future windows.
+        Returns the first market whose window is still open.
         """
         now = time.time()
-        base_ts = align_to_window(now)
+        step = INTERVAL_SECONDS[interval]
+        base_ts = align_to_interval(now, interval)
 
         for i in range(_SLUG_LOOKAHEAD):
-            window_ts = base_ts + i * WINDOW_SECONDS
-            slug = compute_slug(asset, window_ts)
+            window_ts = base_ts + i * step
+            slug = compute_slug(asset, window_ts, interval)
             market = await self._fetch_market_by_slug(slug)
             if market is not None and market.end_time.timestamp() > now:
                 self._log.debug(
                     "computed_slug_hit",
                     slug=slug,
                     asset=asset,
+                    interval=interval,
                 )
                 return market
 
@@ -121,16 +135,18 @@ class MarketDiscovery:
 
     # -- tier 2: gamma API search -------------------------------------------
 
-    async def _try_gamma_api(self, asset: str) -> Market | None:
-        """Query the Gamma API for open markets matching *asset*.
+    async def _try_gamma_api(
+        self, asset: str, interval: str = "15m"
+    ) -> Market | None:
+        """Query the Gamma API for open markets matching *asset* and *interval*.
 
         Fetches up to 100 non-closed markets and filters them by a slug
-        pattern like ``btc-updown-15m-<timestamp>``.  Returns the market
-        with the latest start timestamp that is still open.
+        pattern like ``btc-updown-{interval}-<timestamp>``.  Returns the
+        market with the latest start timestamp that is still open.
         """
         url = f"{self._gamma_api_url}/markets"
         params = {"closed": "false", "limit": "100"}
-        pattern = re.compile(rf"^{asset.lower()}-updown-15m-(\d+)$")
+        pattern = re.compile(rf"^{asset.lower()}-updown-{interval}-(\d+)$")
 
         try:
             resp = await self._client.get(url, params=params)
@@ -140,12 +156,15 @@ class MarketDiscovery:
             self._log.warning(
                 "gamma_api_search_failed",
                 asset=asset,
+                interval=interval,
                 error=str(exc),
             )
             return None
 
         if not isinstance(data, list):
-            self._log.warning("gamma_api_unexpected_response", asset=asset)
+            self._log.warning(
+                "gamma_api_unexpected_response", asset=asset, interval=interval
+            )
             return None
 
         now = time.time()
@@ -175,6 +194,7 @@ class MarketDiscovery:
                 "gamma_api_hit",
                 slug=best.slug,
                 asset=asset,
+                interval=interval,
             )
 
         return best
@@ -255,8 +275,14 @@ class MarketDiscovery:
                 data["endDate"].replace("Z", "+00:00"),
             )
 
-            # Determine asset from the slug (e.g. "btc-updown-15m-..." -> "BTC")
-            asset = slug.split("-")[0].upper() if "-" in slug else "BTC"
+            # Determine asset and interval from slug
+            # e.g. "btc-updown-15m-..." -> asset="BTC", interval="15m"
+            # e.g. "btc-updown-5m-..."  -> asset="BTC", interval="5m"
+            slug_parts = slug.split("-") if "-" in slug else []
+            asset = slug_parts[0].upper() if slug_parts else "BTC"
+            interval = "15m"  # default
+            if len(slug_parts) >= 3 and slug_parts[2] in INTERVAL_SECONDS:
+                interval = slug_parts[2]
 
             return Market(
                 condition_id=condition_id,
@@ -267,6 +293,7 @@ class MarketDiscovery:
                 start_time=start_time,
                 end_time=end_time,
                 asset=asset,
+                interval=interval,
             )
 
         except (KeyError, ValueError, IndexError, TypeError) as exc:

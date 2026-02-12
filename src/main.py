@@ -45,8 +45,6 @@ from src.strategy.scanner import MarketScanner
 from src.utils.fee_verifier import verify_fees
 from src.utils.pid_lock import PidLock
 from src.utils.rate_limiter import RateLimiter
-from src.utils.time_utils import WINDOW_SECONDS
-
 from src.dashboard.app import configure_dashboard, create_app, start_dashboard
 from src.data.decision_logger import DecisionLogger
 from src.data.trade_db import (
@@ -2073,7 +2071,7 @@ def resolve_outcome(
     # Derive actual 15-min window start from end_time (not market.start_time
     # which is Gamma API's startDate, ~24h before the actual window)
     end_ts = pos.market.end_time.timestamp()
-    start_ts = end_ts - WINDOW_SECONDS  # 900s, actual window start
+    start_ts = end_ts - pos.market.window_seconds  # actual window start
 
     asset = pos.market.asset
     symbol = f"{asset}USDT"
@@ -2395,9 +2393,9 @@ async def _market_outcome_loop(
 
                 symbol = f"{market.asset}USDT"
 
-                # Correct window start: end_time - 900s (not market.start_time
-                # which is Gamma API's startDate, ~24h before the window)
-                window_start = market.end_time.timestamp() - WINDOW_SECONDS
+                # Correct window start: end_time - window_seconds (not
+                # market.start_time which is Gamma API's startDate)
+                window_start = market.end_time.timestamp() - market.window_seconds
 
                 # Use DB for open price (reliable 5s snapshots)
                 open_price = (

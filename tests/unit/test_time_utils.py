@@ -8,13 +8,16 @@ from unittest.mock import patch
 import pytest
 
 from src.utils.time_utils import (
+    INTERVAL_SECONDS,
     WINDOW_SECONDS,
+    align_to_interval,
     align_to_window,
     compute_slug,
-    time_remaining_seconds,
-    is_in_dead_zone,
     current_window_timestamps,
+    is_in_dead_zone,
     next_window_timestamps,
+    time_remaining_seconds,
+    window_seconds_for_interval,
 )
 
 # ---------------------------------------------------------------------------
@@ -57,12 +60,50 @@ class TestAlignToWindow:
 
 
 # ---------------------------------------------------------------------------
+# align_to_interval
+# ---------------------------------------------------------------------------
+
+
+class TestAlignToInterval:
+    """Tests for align_to_interval(unix_ts, interval)."""
+
+    def test_5m_boundary(self) -> None:
+        """5-minute alignment rounds to 300-second boundaries."""
+        ts = 600.0 + 150.0  # 750, mid-window
+        assert align_to_interval(ts, "5m") == 600
+
+    def test_5m_exact(self) -> None:
+        """Exact 5m boundary stays unchanged."""
+        assert align_to_interval(300.0, "5m") == 300
+
+    def test_15m_matches_align_to_window(self) -> None:
+        """15m interval should match align_to_window behavior."""
+        ts = 90_450.0
+        assert align_to_interval(ts, "15m") == align_to_window(ts)
+
+    def test_1h_boundary(self) -> None:
+        """1-hour alignment rounds to 3600-second boundaries."""
+        ts = 3600.0 + 1800.0  # 5400, mid-window
+        assert align_to_interval(ts, "1h") == 3600
+
+    def test_default_is_15m(self) -> None:
+        """Default interval is 15m."""
+        ts = 90_450.0
+        assert align_to_interval(ts) == align_to_interval(ts, "15m")
+
+    def test_invalid_interval_raises(self) -> None:
+        """Unknown interval should raise KeyError."""
+        with pytest.raises(KeyError):
+            align_to_interval(1000.0, "2m")
+
+
+# ---------------------------------------------------------------------------
 # compute_slug
 # ---------------------------------------------------------------------------
 
 
 class TestComputeSlug:
-    """Tests for compute_slug(asset, unix_ts)."""
+    """Tests for compute_slug(asset, unix_ts, interval)."""
 
     def test_format(self) -> None:
         """Slug must follow the expected pattern."""
@@ -84,6 +125,44 @@ class TestComputeSlug:
         """Exact boundary timestamp appears directly."""
         slug = compute_slug("btc", 1800.0)
         assert slug == "btc-updown-15m-1800"
+
+    def test_5m_slug(self) -> None:
+        """5-minute slug uses 300-second alignment and '5m' label."""
+        slug = compute_slug("BTC", 750.0, "5m")
+        # 750 // 300 = 2, aligned = 600
+        assert slug == "btc-updown-5m-600"
+
+    def test_5m_exact_boundary(self) -> None:
+        """Exact 5m boundary in slug."""
+        slug = compute_slug("SOL", 300.0, "5m")
+        assert slug == "sol-updown-5m-300"
+
+    def test_1h_slug(self) -> None:
+        """1-hour slug uses 3600-second alignment."""
+        slug = compute_slug("BTC", 5400.0, "1h")
+        assert slug == "btc-updown-1h-3600"
+
+
+# ---------------------------------------------------------------------------
+# window_seconds_for_interval
+# ---------------------------------------------------------------------------
+
+
+class TestWindowSecondsForInterval:
+    """Tests for window_seconds_for_interval()."""
+
+    def test_5m(self) -> None:
+        assert window_seconds_for_interval("5m") == 300
+
+    def test_15m(self) -> None:
+        assert window_seconds_for_interval("15m") == 900
+
+    def test_1h(self) -> None:
+        assert window_seconds_for_interval("1h") == 3600
+
+    def test_invalid_raises(self) -> None:
+        with pytest.raises(KeyError):
+            window_seconds_for_interval("2m")
 
 
 # ---------------------------------------------------------------------------
@@ -214,3 +293,31 @@ class TestWindowTimestamps:
         start, end = next_window_timestamps()
         assert start == 90_900
         assert end == 91_800
+
+    # -- interval-aware tests -----------------------------------------------
+
+    def test_current_window_5m(self) -> None:
+        """5-minute current window spans 300 seconds."""
+        start, end = current_window_timestamps("5m")
+        assert end - start == 300
+
+    def test_next_window_5m(self) -> None:
+        """5-minute next window starts 300s after current."""
+        c_start, _ = current_window_timestamps("5m")
+        n_start, n_end = next_window_timestamps("5m")
+        assert n_start == c_start + 300
+        assert n_end - n_start == 300
+
+    @patch("src.utils.time_utils.time.time", return_value=750.0)
+    def test_deterministic_5m_window(self, mock_time) -> None:
+        """With mocked time at 750, 5m current window is [600, 900)."""
+        start, end = current_window_timestamps("5m")
+        assert start == 600
+        assert end == 900
+
+    @patch("src.utils.time_utils.time.time", return_value=750.0)
+    def test_deterministic_5m_next_window(self, mock_time) -> None:
+        """With mocked time at 750, 5m next window is [900, 1200)."""
+        start, end = next_window_timestamps("5m")
+        assert start == 900
+        assert end == 1200

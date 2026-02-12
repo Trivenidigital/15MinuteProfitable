@@ -128,7 +128,7 @@ class SpotSnapshot:
 
 @dataclass
 class MarketOutcome:
-    """Outcome of a 15-minute market window (traded or not)."""
+    """Outcome of a market window (traded or not)."""
 
     id: int | None = None
     timestamp: float = 0.0  # when recorded
@@ -142,6 +142,7 @@ class MarketOutcome:
     spot_close: float = 0.0
     price_change_pct: float = 0.0  # (close - open) / open * 100
     was_traded: bool = False
+    interval: str = "15m"
 
 
 # ---------------------------------------------------------------------------
@@ -350,6 +351,16 @@ class TradeDatabase:
             )
             self._conn.commit()
             logger.info("migration_applied", migration="add_dry_run_to_trades")
+
+        # Migration: add interval column to market_outcomes if missing
+        cursor = self._conn.execute("PRAGMA table_info(market_outcomes)")
+        outcome_columns = {row[1] for row in cursor.fetchall()}
+        if "interval" not in outcome_columns:
+            self._conn.execute(
+                "ALTER TABLE market_outcomes ADD COLUMN interval TEXT NOT NULL DEFAULT '15m'"
+            )
+            self._conn.commit()
+            logger.info("migration_applied", migration="add_interval_to_market_outcomes")
 
     def close(self) -> None:
         """Close the database connection."""
@@ -804,8 +815,8 @@ class TradeDatabase:
                 """INSERT OR REPLACE INTO market_outcomes
                    (timestamp, condition_id, asset, market_slug, window_start,
                     window_end, outcome, spot_open, spot_close,
-                    price_change_pct, was_traded)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    price_change_pct, was_traded, interval)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     o.timestamp,
                     o.condition_id,
@@ -818,6 +829,7 @@ class TradeDatabase:
                     o.spot_close,
                     o.price_change_pct,
                     1 if o.was_traded else 0,
+                    o.interval,
                 ),
             )
             self._conn.commit()
@@ -1251,6 +1263,7 @@ class TradeDatabase:
             spot_close=row["spot_close"],
             price_change_pct=row["price_change_pct"],
             was_traded=bool(row["was_traded"]),
+            interval=row["interval"] if "interval" in row.keys() else "15m",
         )
 
     @staticmethod

@@ -55,6 +55,14 @@ class Market:
     end_time: datetime
     asset: str
     neg_risk: bool = True
+    interval: str = "15m"
+
+    @property
+    def window_seconds(self) -> int:
+        """Duration of this market's window in seconds."""
+        from src.utils.time_utils import INTERVAL_SECONDS
+
+        return INTERVAL_SECONDS.get(self.interval, 900)
 
 
 # ---------------------------------------------------------------------------
