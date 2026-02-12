@@ -44,6 +44,7 @@ class TradeRecord:
     fees: float = 0.0
     expected_profit: float = 0.0
     metadata_json: str = "{}"
+    dry_run: bool = False
 
 
 @dataclass
@@ -165,7 +166,8 @@ CREATE TABLE IF NOT EXISTS trades (
     status TEXT NOT NULL DEFAULT '',
     fees REAL NOT NULL DEFAULT 0.0,
     expected_profit REAL NOT NULL DEFAULT 0.0,
-    metadata_json TEXT NOT NULL DEFAULT '{}'
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    dry_run INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE INDEX IF NOT EXISTS idx_trades_timestamp ON trades(timestamp DESC);
@@ -335,6 +337,19 @@ class TradeDatabase:
         """Create tables and indexes if they don't exist."""
         self._conn.executescript(_SCHEMA)
         self._conn.commit()
+        self._migrate_schema()
+
+    def _migrate_schema(self) -> None:
+        """Apply incremental schema migrations for existing databases."""
+        # Migration: add dry_run column to trades table if missing
+        cursor = self._conn.execute("PRAGMA table_info(trades)")
+        columns = {row[1] for row in cursor.fetchall()}
+        if "dry_run" not in columns:
+            self._conn.execute(
+                "ALTER TABLE trades ADD COLUMN dry_run INTEGER NOT NULL DEFAULT 0"
+            )
+            self._conn.commit()
+            logger.info("migration_applied", migration="add_dry_run_to_trades")
 
     def close(self) -> None:
         """Close the database connection."""
@@ -351,8 +366,8 @@ class TradeDatabase:
                 """INSERT INTO trades
                    (timestamp, condition_id, market_slug, asset, strategy, side,
                     token_side, price, size, cost, order_type, order_id, status,
-                    fees, expected_profit, metadata_json)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    fees, expected_profit, metadata_json, dry_run)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     trade.timestamp,
                     trade.condition_id,
@@ -370,6 +385,7 @@ class TradeDatabase:
                     trade.fees,
                     trade.expected_profit,
                     trade.metadata_json,
+                    1 if trade.dry_run else 0,
                 ),
             )
             self._conn.commit()
@@ -1172,6 +1188,7 @@ class TradeDatabase:
             fees=row["fees"],
             expected_profit=row["expected_profit"],
             metadata_json=row["metadata_json"],
+            dry_run=bool(row["dry_run"]),
         )
 
     @staticmethod

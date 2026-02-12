@@ -431,6 +431,7 @@ class StateManager:
                 fees=per_order_fee,
                 expected_profit=opportunity.expected_profit,
                 metadata_json=json.dumps(opportunity.metadata),
+                dry_run=self._settings.dry_run,
             )
             try:
                 self._trade_db.save_trade(record)

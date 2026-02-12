@@ -7,7 +7,7 @@
 
 ## Polymarket API Quirks
 
-- **neg_risk auto-detection is broken** for BTC 15-min markets. The `/neg-risk` endpoint returns "Invalid token id". Always hardcode `neg_risk=True` in `PartialCreateOrderOptions`.
+- **neg_risk auto-detection is broken** for BTC 15-min markets. The `/neg-risk` endpoint returns "Invalid token id". Always pre-provide `neg_risk` via `PartialCreateOrderOptions` read from config (`BOT_NEG_RISK`). Default is `False` — 15-min crypto markets return `neg_risk=false` from the CLOB API. Wrong neg_risk = invalid EIP-712 signature domain.
 - **py-clob-client is synchronous only.** Must wrap with `asyncio.to_thread()` for async usage. Not thread-safe — one client instance per thread is safest.
 - **Order signing latency (~1s)** is dominated by HTTP calls for tick_size and neg_risk. Pre-providing both in `PartialCreateOrderOptions` reduces signing to ~50ms.
 - **Token prices/sizes in OrderBookSummary are strings**, not floats. Must cast explicitly.
@@ -77,7 +77,7 @@
 
 ## Server/Deploy
 
-- **SSH key auth is set up.** `~/.ssh/id_ed25519` → `root@46.62.206.192`. No more password prompts.
+- **SSH key auth is set up.** `~/.ssh/id_ed25519` → `root@89.167.55.176`. No more password prompts.
 - **Server may have local changes.** When deploying, if `git checkout` fails with "local changes would be overwritten", run `git stash` first.
 - **Server lacks `pgrep`.** Use `pidof python` or `systemctl status 15minuteprofitable` instead of `pgrep -f src.main` for process checks.
 - **Large log file queries hang.** Don't `grep` the entire bot.log (3.5M+ lines). Use `tail -N` to limit input, or `awk '/timestamp/,0'` to scope to a time range.
@@ -261,6 +261,13 @@ The window controls BOTH when the strategy activates AND when it records odds da
 
 - **`os.environ` mutations bypass monkeypatch cleanup.** If application code does `os.environ["KEY"] = value` (e.g., admin save settings handler), monkeypatch won't restore it unless you pre-register the key with `monkeypatch.delenv("KEY", raising=False)`. This caused 5 test failures where `BOT_DRY_RUN=true` leaked from admin tests into risk manager tests.
 - **Test execution order matters for env pollution.** Tests pass individually but fail in suite when earlier test modules pollute `os.environ`. Always run the full suite (`pytest tests/`) to catch this, not just individual files.
+
+## Live Trading Pre-Flight (Feb 12, 2026)
+
+- **py-clob-client expects typed objects, not dicts.** `create_order()` expects `OrderArgs` and `PartialCreateOrderOptions` dataclasses (attribute access like `order_args.token_id`), not plain dicts (dict access like `order_args["token_id"]`). Using dicts causes `AttributeError` on first live order.
+- **ClobClient needs `create_or_derive_api_creds()` + `set_api_creds()` after construction.** Without this, all authenticated API requests fail. The `scripts/setup_api_key.py` does it correctly but the executor didn't.
+- **Risk limits must be proportional to bankroll.** Absolute limits ($500 daily loss, $10k position) are meaningless for a $132 bankroll. Added bankroll-proportional validation: max_daily_loss < 15% bankroll, max_total_position < 50%, max_position_per_market < 25%, max_unhedged_exposure < 25%, order_size < 15%.
+- **Trades table needs dry_run column.** Without it, dry-run data contaminates live metrics. Added `dry_run INTEGER NOT NULL DEFAULT 0` with migration for existing DBs.
 
 ## Common Mistakes
 

@@ -50,6 +50,9 @@ class OrderExecutor:
                 signature_type=int(self._settings.signature_type),
                 funder=self._settings.funder or None,
             )
+            # Derive and set API credentials (HMAC keys for authenticated endpoints)
+            creds = self._client.create_or_derive_api_creds()
+            self._client.set_api_creds(creds)
             self._log.info("clob_client_initialized", host=self._settings.clob_host)
         return self._client
 
@@ -95,23 +98,24 @@ class OrderExecutor:
         self, order: TradeOrder, tick_size: float
     ) -> TradeOrder:
         """Synchronous signing via py-clob-client (runs in thread)."""
+        from py_clob_client.clob_types import OrderArgs, PartialCreateOrderOptions
         from py_clob_client.order_builder.constants import BUY, SELL
 
         client = self._get_client()
 
-        order_args = {
-            "token_id": order.token_id,
-            "price": order.price,
-            "size": order.size,
-            "side": BUY if order.side == Side.BUY else SELL,
-        }
+        order_args = OrderArgs(
+            token_id=order.token_id,
+            price=order.price,
+            size=order.size,
+            side=BUY if order.side == Side.BUY else SELL,
+        )
 
         # Pre-provide tick_size and neg_risk to skip HTTP lookups.
-        # neg_risk MUST be True for all BTC/ETH/SOL/XRP 15-min markets.
-        options = {
-            "tick_size": str(tick_size),
-            "neg_risk": True,
-        }
+        # neg_risk read from config (15-min crypto markets use neg_risk=False).
+        options = PartialCreateOrderOptions(
+            tick_size=str(tick_size),
+            neg_risk=self._settings.neg_risk,
+        )
 
         try:
             signed = client.create_order(order_args, options)

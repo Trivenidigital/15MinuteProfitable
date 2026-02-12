@@ -270,7 +270,7 @@ class Settings(BaseSettings):
     # Operational
     log_level: str = "INFO"
     log_format: str = "json"
-    neg_risk: bool = True
+    neg_risk: bool = False
 
     # Risk Sizing
     kelly_fraction: float = 0.25
@@ -385,5 +385,34 @@ class Settings(BaseSettings):
 
         if self.dashboard_enabled and self.dashboard_password.get_secret_value() == "":
             warnings.append("dashboard is enabled without password protection")
+
+        # Bankroll-proportional safety checks
+        bankroll = self.sim_balance
+        if bankroll > 0:
+            if self.max_daily_loss > bankroll * 0.15:
+                warnings.append(
+                    f"max_daily_loss={self.max_daily_loss} exceeds 15% of bankroll "
+                    f"(${bankroll:.0f} × 0.15 = ${bankroll * 0.15:.0f})"
+                )
+            if self.max_total_position > bankroll * 0.50:
+                warnings.append(
+                    f"max_total_position={self.max_total_position} exceeds 50% of bankroll "
+                    f"(${bankroll:.0f} × 0.50 = ${bankroll * 0.50:.0f})"
+                )
+            if self.max_position_per_market > bankroll * 0.25:
+                warnings.append(
+                    f"max_position_per_market={self.max_position_per_market} exceeds 25% of bankroll "
+                    f"(${bankroll:.0f} × 0.25 = ${bankroll * 0.25:.0f})"
+                )
+            if self.max_unhedged_exposure > bankroll * 0.25:
+                warnings.append(
+                    f"max_unhedged_exposure={self.max_unhedged_exposure} exceeds 25% of bankroll "
+                    f"(${bankroll:.0f} × 0.25 = ${bankroll * 0.25:.0f})"
+                )
+            if self.order_size > bankroll * 0.15:
+                warnings.append(
+                    f"order_size={self.order_size} exceeds 15% of bankroll "
+                    f"(${bankroll:.0f} × 0.15 = ${bankroll * 0.15:.0f})"
+                )
 
         return warnings

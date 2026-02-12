@@ -9,8 +9,8 @@
 - **Collateral:** USDC.e (`0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174`)
 
 ## Cloud Server
-- **IP:** `46.62.206.192` (Hetzner VPS, Helsinki)
-- **SSH:** `ssh root@46.62.206.192` (key-based auth, no password needed)
+- **IP:** `89.167.55.176` (Hetzner VPS, Helsinki)
+- **SSH:** `ssh root@89.167.55.176` (key-based auth, no password needed)
 - **SSH Key:** `~/.ssh/id_ed25519` (ed25519, configured via ssh-copy-id)
 - **Bot path:** `/opt/15minuteprofitable/`
 - **Config:** `/opt/15minuteprofitable/.env`
@@ -18,7 +18,7 @@
 - **Service:** `systemctl {start|stop|restart|status} 15minuteprofitable`
 - **Logs:** `/var/log/15minuteprofitable/bot.log` (stdout) and `error.log` (stderr)
 - **Database:** `/opt/15minuteprofitable/data/trades.db` (SQLite)
-- **Dashboard:** `http://46.62.206.192:8080`
+- **Dashboard:** `http://89.167.55.176:8080`
 - **Note:** Server does not have `pgrep` installed — use `pidof` or `systemctl` for process checks
 
 ## Key Commands
@@ -102,7 +102,7 @@ IMPORTANT: Create feature branch before any implementation work
 IMPORTANT: All fees (taker + winner) must be accounted for in profit calculations
 IMPORTANT: Never leave positions unhedged unless explicitly in directional strategy
 IMPORTANT: Order signing takes ~1s; always pre-sign in parallel where possible
-IMPORTANT: neg_risk=True must be hardcoded for BTC/ETH/SOL 15-min markets
+IMPORTANT: neg_risk default is False; 15-min crypto markets use neg_risk=False (read from config via BOT_NEG_RISK)
 NEVER: Commit directly to main
 NEVER: Use `Any` type in Python (use proper typing)
 NEVER: Skip error handling on WebSocket reconnections
