@@ -52,6 +52,10 @@
 ## Exit Logic
 
 - **Never sell near-worthless positions for dust.** When a position has lost >95% of value, the salvage from selling is negligible but the upside of holding to expiry could be full recovery. A $31.50 position sold for $0.30 saves $0.30 max downside but forfeits the chance of $31.50 payout. Even 1% win probability makes holding +EV. Time-based exits must check value ratio before dumping.
+- **Deep loss guard (stop_loss_floor_ratio=0.30) is defense layer 1.** Strategy-level `should_exit()` blocks all exits when `current_value / cost_basis < 0.30`. This prevents SL, time exit, and TP from selling positions that have lost >70% of value. Holding to resolution gives better EV than selling for $0.01/share.
+- **Dust bid check (min_exit_bid=0.03) is defense layer 2.** Execution-level `_execute_exit()` refuses to sell when the best orderbook bid is below $0.03. Even if the strategy says "exit", the executor won't submit a sell into a dead market. This is defense-in-depth with the strategy-level guard.
+- **7 catastrophic exits (<5% recovery) cost -$22.48 in one session.** Positions sold at $0.01/share into dead markets near expiry. The two guards above prevent this class of loss entirely.
+- **fade_panic has 25.8% win rate — disable it.** While barely positive at resolution (+$5.63 on 64 trades), 2 catastrophic early exits wiped that out (-$5.25). The thesis (late-game odds shifts = panic) doesn't hold — they're actual price discovery.
 
 ## Strategy Co-location vs Separate Bots
 

@@ -265,8 +265,8 @@
 <h2>3. Current Configuration State</h2>
 
 <p>
-    Current parameter values on the server. Updated 2026-02-10 16:40 UTC.
-    <span class="badge badge-active">DATA-DRIVEN PRUNING</span> = disabled losers, tightened filters, scaled winners.
+    Current parameter values on the server. Updated 2026-02-13 11:49 UTC.
+    <span class="badge badge-active">STOP THE BLEEDING</span> = deep loss guard, dust bid check, parameter reset, fade_panic disabled.
 </p>
 
 <div class="card">
@@ -279,7 +279,7 @@
         <tr><td><code>asymmetric_require_hedge</code></td><td class="green"><strong>true</strong></td><td>N/A (new)</td><td>Feb 9 01:00 (forced hedging)</td></tr>
         <tr><td><code>enable_maker_arbitrage</code></td><td class="red"><strong>false</strong></td><td>false</td><td>Feb 10 17:56 (Exp #40: disabled)</td></tr>
         <tr><td><code>enable_dip_buyer</code></td><td class="red"><strong>false</strong></td><td>N/A (new)</td><td>Feb 10 17:56 (Exp #40: disabled)</td></tr>
-        <tr><td><code>enable_fade_panic</code></td><td class="red"><strong>false</strong></td><td>N/A (new)</td><td>Feb 10 17:56 (Exp #40: -$1,433 lifetime)</td></tr>
+        <tr><td><code>enable_fade_panic</code></td><td class="red"><strong>false</strong></td><td>N/A (new)</td><td>Feb 13 11:49 (Exp #41: 25.8% WR, thesis broken)</td></tr>
         <tr><td><code>enable_resolution_sniper</code></td><td class="red"><strong>false</strong></td><td>false</td><td>Feb 10 17:56 (Exp #40: -$540 lifetime)</td></tr>
         <tr><td><code>enable_parallel_strategies</code></td><td class="green">true</td><td>false</td><td>Feb 8 ~18:00</td></tr>
         <tr><td><code>enable_dynamic_allocation</code></td><td class="green"><strong>true</strong></td><td>N/A (new)</td><td>Feb 9 01:14 (auto-rebalance)</td></tr>
@@ -310,8 +310,9 @@
     <h4>Risk Limits</h4>
     <table>
         <tr><th>Parameter</th><th>Current Value</th><th>Previous</th><th>Last Changed</th></tr>
-        <tr><td><code>max_entries_per_market</code></td><td class="green"><strong>20</strong></td><td>50</td><td>Feb 10 14:20 (tighter global cap)</td></tr>
-        <tr><td><code>max_entries_per_strategy_per_market</code></td><td class="green"><strong>5</strong></td><td>N/A (new)</td><td>Feb 10 14:20 (anti-stacking)</td></tr>
+        <tr><td><code>max_entries_per_market</code></td><td class="green"><strong>3</strong></td><td>5</td><td>Feb 13 11:49 (Exp #41: reduce stacking)</td></tr>
+        <tr><td><code>max_entries_per_strategy_per_market</code></td><td class="green"><strong>2</strong></td><td>4</td><td>Feb 13 11:49 (Exp #41: reduce per-strategy stacking)</td></tr>
+        <tr><td><code>strategy_cooldown_consecutive_losses</code></td><td class="green"><strong>5</strong></td><td>999</td><td>Feb 13 11:49 (Exp #41: enable cooldown after 5 losses)</td></tr>
         <tr><td><code>max_position_per_market</code></td><td class="green"><strong>$2,000</strong></td><td>$1,000</td><td>Feb 9 18:44 (aggressive)</td></tr>
         <tr><td><code>max_total_position</code></td><td class="green"><strong>$8,000</strong></td><td>$4,000</td><td>Feb 9 18:44 (aggressive)</td></tr>
         <tr><td><code>max_unhedged_exposure</code></td><td>$800</td><td>$500</td><td>Feb 9</td></tr>
@@ -338,12 +339,16 @@
         <tr><td><code>spot_move_threshold</code></td><td>0.0005</td><td>0.0005</td><td>&mdash;</td></tr>
         <tr><td><code>odds_lag_threshold</code></td><td>0.01</td><td>0.01</td><td>&mdash;</td></tr>
         <tr><td><code>lag_confirmations</code></td><td>1</td><td>1</td><td>&mdash;</td></tr>
-        <tr><td><code>stop_loss_pct</code></td><td>0.08</td><td>0.08</td><td>&mdash;</td></tr>
-        <tr><td><code>take_profit_pct</code></td><td>0.15</td><td>0.15</td><td>&mdash;</td></tr>
-        <tr><td><code>time_exit_seconds</code></td><td>45.0</td><td>45.0</td><td>&mdash;</td></tr>
-        <tr><td><code>stop_loss_time_decay</code></td><td>true</td><td>true</td><td>&mdash;</td></tr>
+        <tr><td><code>stop_loss_pct</code></td><td class="green"><strong>0.10</strong></td><td>0.20</td><td>Feb 13 11:49 (Exp #41: 20% was too wide, cut to 10%)</td></tr>
+        <tr><td><code>take_profit_pct</code></td><td>0.05</td><td>0.15</td><td>Feb 13 (server .env)</td></tr>
+        <tr><td><code>time_exit_seconds</code></td><td>0</td><td>45.0</td><td>Feb 12 (disabled on server)</td></tr>
+        <tr><td><code>stop_loss_time_decay</code></td><td class="red"><strong>false</strong></td><td>true</td><td>Feb 13 11:49 (Exp #41: was widening to 40% late-game)</td></tr>
         <tr><td><code>take_profit_time_decay</code></td><td>true (0.6x mid)</td><td>true (2x mid, broken)</td><td>Feb 8 17:25 (code fix)</td></tr>
-        <tr><td><code>stop_loss_confirmations</code></td><td>3</td><td>3</td><td>&mdash;</td></tr>
+        <tr><td><code>stop_loss_confirmations</code></td><td>1</td><td>3</td><td>Feb 12 (immediate SL)</td></tr>
+        <tr><td><code>trailing_tp_activation_pct</code></td><td class="green"><strong>0.05</strong></td><td>0.30</td><td>Feb 13 11:49 (Exp #41: 30% unreachable in 15-min)</td></tr>
+        <tr><td><code>trailing_tp_pct</code></td><td class="green"><strong>0.05</strong></td><td>0.15</td><td>Feb 13 11:49 (Exp #41: captures gains before reversal)</td></tr>
+        <tr><td><code>stop_loss_floor_ratio</code></td><td class="green"><strong>0.30</strong></td><td>N/A (new)</td><td>Feb 13 11:49 (Exp #41: deep loss guard)</td></tr>
+        <tr><td><code>min_exit_bid</code></td><td class="green"><strong>0.03</strong></td><td>N/A (new)</td><td>Feb 13 11:49 (Exp #41: dust bid check)</td></tr>
         <tr><td><code>lag_enable_ta_filter</code></td><td>true</td><td>N/A (new)</td><td>Feb 8</td></tr>
     </table>
 </div>
@@ -383,6 +388,40 @@
 <h2>4. Experiment Timeline</h2>
 
 <p>Chronological record of every parameter change. Newest entries at the top.</p>
+
+<!-- Experiment #41 -->
+<div class="timeline-entry kept" style="border-left-color: #ef4444;">
+    <div class="timeline-date">2026-02-13 11:49 UTC &mdash; Experiment #41</div>
+    <div class="timeline-title">
+        STOP THE BLEEDING: Deep Loss Guard + Dust Bid Check + Parameter Reset + Disable fade_panic
+    </div>
+    <p><strong>Context:</strong> Bot lost ~$60 in a session. Forensic analysis of trade data identified 3 root causes:</p>
+    <ul>
+        <li><strong>7 catastrophic exits (-$22.48, 37% of losses):</strong> Stop-loss sold positions at $0.01/share into dead orderbooks near expiry. Recovery was &lt;5% of cost basis.</li>
+        <li><strong>Server .env overrides were terrible:</strong> SL at 20% (doubles to 40% with time decay!), trailing TP activation at 30% (impossible in 15-min markets).</li>
+        <li><strong>fade_panic has 25.8% win rate:</strong> Barely positive at resolution (+$5.63 on 64 trades), but 2 catastrophic early exits wiped gains (-$5.25). The thesis (late odds shifts = panic) doesn't hold.</li>
+    </ul>
+    <p><strong>Code changes (4 files):</strong></p>
+    <ul>
+        <li><code>stop_loss_floor_ratio=0.30</code>: New config param. Strategy-level guard blocks ALL exits (SL, time, TP) when position value &lt; 30% of cost. Holding to resolution gives better EV.</li>
+        <li><code>min_exit_bid=0.03</code>: Execution-level guard refuses to sell when best orderbook bid &lt; $0.03. Defense-in-depth with the strategy guard.</li>
+        <li>Guards added to both <code>price_lag.should_exit()</code> and <code>fade_panic.should_exit()</code>.</li>
+        <li>6 new unit tests covering deep loss guard behavior, boundary cases, and config override.</li>
+    </ul>
+    <p><strong>Server parameter changes (8 params):</strong></p>
+    <ul>
+        <li><code>stop_loss_pct</code>: 0.20 &rarr; <strong>0.10</strong> (20% was way too wide)</li>
+        <li><code>stop_loss_time_decay</code>: true &rarr; <strong>false</strong> (was widening to 40% late-game)</li>
+        <li><code>trailing_tp_activation_pct</code>: 0.30 &rarr; <strong>0.05</strong> (30% unreachable in 15-min markets)</li>
+        <li><code>trailing_tp_pct</code>: 0.15 &rarr; <strong>0.05</strong> (15% trail too wide)</li>
+        <li><code>enable_fade_panic</code>: true &rarr; <strong>false</strong> (25.8% WR, thesis broken)</li>
+        <li><code>strategy_cooldown_consecutive_losses</code>: 999 &rarr; <strong>5</strong> (was effectively disabled)</li>
+        <li><code>max_entries_per_market</code>: 5 &rarr; <strong>3</strong></li>
+        <li><code>max_entries_per_strategy_per_market</code>: 4 &rarr; <strong>2</strong></li>
+    </ul>
+    <p><strong>Expected impact:</strong> +$20-30 saved per session from eliminated catastrophic exits. Tighter SL catches losses at -10% instead of -20%. Working trailing TP (5% activation) captures gains before reversal.</p>
+    <p><strong>Verdict:</strong> <span class="badge badge-pending">PENDING</span> &mdash; monitoring first market cycles for <code>exit_skipped_deep_loss</code> and <code>exit_skipped_dust_bid</code> log events.</p>
+</div>
 
 <!-- Experiment #40 -->
 <div class="timeline-entry kept" style="border-left-color: #ef4444;">
@@ -1812,7 +1851,7 @@
 
 <hr class="separator">
 <p class="muted" style="text-align: center; font-size: 0.8rem;">
-    This document is auto-maintained by the Claude analysis agent. Last updated: 2026-02-12 01:15 UTC.
+    This document is auto-maintained by the Claude analysis agent. Last updated: 2026-02-13 11:49 UTC.
 </p>
 
 </body>
