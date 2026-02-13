@@ -170,13 +170,14 @@ class Settings(BaseSettings):
     enable_fade_panic: bool = True
     fade_panic_window_seconds: float = 120.0   # Only active in last 120s
     fade_panic_hard_stop_seconds: float = 10.0 # Stop buying at T-10s (was 15s — more aggressive)
-    fade_panic_odds_shift_threshold: float = 0.15  # 15% odds shift to trigger (raised from 8% — low shifts had 20% WR)
+    fade_panic_odds_shift_threshold: float = 0.15  # 15% odds shift to trigger
     fade_panic_spot_max_change: float = 0.0005 # Max spot change for "no movement" (0.05%)
     fade_panic_odds_window_seconds: int = 60   # Window for measuring odds shift
-    fade_panic_order_size: float = 50.0        # Doubled back — 35% WR at 15% threshold with 3.6:1 win/loss ratio is profitable
+    fade_panic_order_size: float = 50.0        # Size per fade_panic entry
     fade_panic_max_entry_price: float = 0.92   # Don't buy above this price
     fade_panic_spot_vs_open_max_change: float = 0.003  # 0.3% max spot move from window open
     fade_panic_max_per_market: float = 10.0  # Max $ per market (anti-spam)
+    fade_panic_cooldown_after_entry: float = 60.0  # Skip market for 60s after entry
 
     # Hedged Market Maker Strategy Parameters
     enable_hedged_mm: bool = False
@@ -194,20 +195,20 @@ class Settings(BaseSettings):
     # Resolution Sniper Strategy Parameters
     enable_resolution_sniper: bool = False
     sniper_order_size: float = 30.0           # Must be >= 3 * MIN_TRADE_SIZE (3 tranches)
-    sniper_min_confidence: float = 0.75       # Min win probability to enter (calibrated via vol_multiplier)
+    sniper_min_confidence: float = 0.75       # Min win probability to enter
     sniper_window_seconds: float = 120.0      # Activate at T-120s
     sniper_hard_stop_seconds: float = 15.0    # Stop buying at T-15s
     sniper_min_entry_price: float = 0.20      # Reject fills below this (0% win rate historically)
     sniper_max_entry_price: float = 0.97      # Reject fills above this
     sniper_exit_confidence_floor: float = 0.0 # Emergency exit threshold (0 = disabled)
     sniper_min_vol_data_points: int = 10      # Min data points for vol calc
-    sniper_vol_floor: float = 0.0005          # Min sigma floor (0.05%/min) — prevents overconfident CDF in quiet markets
+    sniper_vol_floor: float = 0.0005          # Min sigma floor (0.05%/min)
     sniper_vol_window_seconds: int = 600      # Seconds of spot data for vol calc (10 min)
-    sniper_vol_multiplier: float = 3.0        # Inflate sigma to correct overconfident CDF (fat tails + mean reversion)
+    sniper_vol_multiplier: float = 3.0        # Inflate sigma for fat tails
     sniper_momentum_window_seconds: int = 30  # Seconds of recent prices for momentum check
     sniper_high_confidence_threshold: float = 0.90  # Win prob above this gets boosted size
     sniper_high_confidence_multiplier: float = 3.0  # Tranche size multiplier for high confidence
-    sniper_max_tranches: int = 3              # Max tranches per market (1 = single entry, no doubling down)
+    sniper_max_tranches: int = 3              # Max tranches per market
     invert_sniper: bool = False  # Contrarian mode: flip sniper signals (buy NO when signal says UP)
 
     # Chainlink Oracle Validation
@@ -401,8 +402,9 @@ class Settings(BaseSettings):
                 )
             if self.max_position_per_market > bankroll * 0.25:
                 warnings.append(
-                    f"max_position_per_market={self.max_position_per_market} exceeds 25% of bankroll "
-                    f"(${bankroll:.0f} × 0.25 = ${bankroll * 0.25:.0f})"
+                    f"max_position_per_market={self.max_position_per_market}"
+                    f" exceeds 25% of bankroll"
+                    f" (${bankroll:.0f} × 0.25 = ${bankroll * 0.25:.0f})"
                 )
             if self.max_unhedged_exposure > bankroll * 0.25:
                 warnings.append(

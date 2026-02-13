@@ -5,7 +5,7 @@ sharply (>8% shift) but the actual spot price hasn't moved proportionally.
 This means someone is panic-buying/selling on the market, creating a
 mispricing. We fade (bet against) the panic.
 
-Holds to resolution — never exits early (same as resolution sniper).
+Supports early exit via stop-loss, trailing take-profit, and static take-profit.
 """
 
 from __future__ import annotations
@@ -53,6 +53,11 @@ class FadePanicStrategy(BaseStrategy):
         self._window_open_prices: dict[str, tuple[float, float]] = {}
         # condition_id -> total $ invested (prevents machine-gunning)
         self._market_investment: dict[str, float] = {}
+        # Early exit state tracking
+        self._stop_loss_counts: dict[str, int] = {}
+        self._peak_pnl: dict[str, float] = {}
+        # Per-market cooldown: condition_id -> cooldown_until_timestamp
+        self._market_cooldown: dict[str, float] = {}
 
     @property
     def name(self) -> str:
@@ -91,8 +96,12 @@ class FadePanicStrategy(BaseStrategy):
         if time_remaining < self._settings.fade_panic_hard_stop_seconds:
             return None
 
-        # Per-market position cap — prevent machine-gunning
+        # Per-market cooldown check
         cid = market.condition_id
+        if self._market_cooldown.get(cid, 0) > now_ts:
+            return None
+
+        # Per-market position cap — prevent machine-gunning
         invested = self._market_investment.get(cid, 0.0)
         if invested >= self._settings.fade_panic_max_per_market:
             return None
@@ -211,10 +220,7 @@ class FadePanicStrategy(BaseStrategy):
         # 5. Mispricing detected — fade the panic
         # If YES odds spiked UP (someone panic-bought YES), buy NO
         # If YES odds crashed DOWN (someone panic-sold YES), buy YES
-        if odds_shift > 0:
-            raw_direction = "DOWN"
-        else:
-            raw_direction = "UP"
+        raw_direction = "DOWN" if odds_shift > 0 else "UP"
 
         direction, target_token_id = self._maybe_invert(
             raw_direction, market,
@@ -234,7 +240,11 @@ class FadePanicStrategy(BaseStrategy):
 
         # Reject if fill price too cheap (lottery tickets)
         if fill.vwap < self._settings.min_entry_price:
-            self._log.debug("fade_panic_price_floor_rejected", market=market.slug, vwap=round(fill.vwap, 4))
+            self._log.debug(
+                "fade_panic_price_floor_rejected",
+                market=market.slug,
+                vwap=round(fill.vwap, 4),
+            )
             return None
 
         # Reject if fill price too expensive
@@ -345,7 +355,11 @@ class FadePanicStrategy(BaseStrategy):
                 "time_remaining": round(time_remaining, 1),
                 "binance_symbol": binance_symbol,
                 **({"oracle_price": round(oracle_price, 2)} if oracle_price else {}),
-                **({"oracle_divergence_pct": round(oracle_divergence * 100, 4)} if oracle_divergence is not None else {}),
+                **(
+                    {"oracle_divergence_pct": round(oracle_divergence * 100, 4)}
+                    if oracle_divergence is not None
+                    else {}
+                ),
                 **kl_meta,
                 **alpha_meta,
             },
@@ -353,6 +367,9 @@ class FadePanicStrategy(BaseStrategy):
 
         # Track investment for per-market cap
         self._market_investment[cid] = invested + fill.vwap * size
+
+        # Set per-market cooldown
+        self._market_cooldown[cid] = now_ts + self._settings.fade_panic_cooldown_after_entry
 
         self._log.info(
             "fade_panic_opportunity",
@@ -369,10 +386,107 @@ class FadePanicStrategy(BaseStrategy):
         return opp
 
     def should_exit(self, position: Position, market: Market) -> bool:
-        """Hold to resolution — never exit early.
+        """Check if a fade_panic position should be exited early.
 
-        Fade Panic positions are late-game bets held to resolution.
+        Exit conditions:
+        1. Stop-loss (smart): cheap contract bypass, confirmation counter
+        2. Trailing take-profit: track peak P&L, exit on drawdown from peak
+        3. Static take-profit: exit when P&L exceeds threshold
         """
+        cid = market.condition_id
+
+        # Compute current value from orderbook bids
+        cost_basis = position.total_investment
+        if cost_basis <= 0:
+            return False
+
+        current_value = 0.0
+        total_shares = position.yes_shares + position.no_shares
+
+        if position.yes_shares > 0:
+            yes_book = self._book_manager.get_book(market.yes_token_id)
+            if yes_book and yes_book.best_bid is not None:
+                current_value += position.yes_shares * yes_book.best_bid
+
+        if position.no_shares > 0:
+            no_book = self._book_manager.get_book(market.no_token_id)
+            if no_book and no_book.best_bid is not None:
+                current_value += position.no_shares * no_book.best_bid
+
+        if current_value <= 0:
+            return False
+
+        pnl_pct = (current_value - cost_basis) / cost_basis
+
+        # 1. Stop-loss (no time decay — fade_panic is already late-game)
+        # Skip cheap contracts
+        if total_shares > 0:
+            avg_entry_price = cost_basis / total_shares
+            if avg_entry_price < self._settings.stop_loss_cheap_threshold:
+                self._stop_loss_counts.pop(cid, None)
+            elif pnl_pct <= -self._settings.stop_loss_pct:
+                count = self._stop_loss_counts.get(cid, 0) + 1
+                self._stop_loss_counts[cid] = count
+
+                if count >= self._settings.stop_loss_confirmations:
+                    self._log.info(
+                        "stop_loss_triggered",
+                        strategy="fade_panic",
+                        market=market.slug,
+                        pnl_pct=round(pnl_pct * 100, 2),
+                        confirmations=count,
+                        threshold=round(self._settings.stop_loss_pct * 100, 2),
+                    )
+                    self._stop_loss_counts.pop(cid, None)
+                    return True
+
+                self._log.info(
+                    "stop_loss_pending_confirmation",
+                    strategy="fade_panic",
+                    market=market.slug,
+                    pnl_pct=round(pnl_pct * 100, 2),
+                    confirmations=count,
+                    required=self._settings.stop_loss_confirmations,
+                )
+                return False
+            else:
+                # Not in stop-loss territory — reset counter
+                self._stop_loss_counts.pop(cid, None)
+
+        # 2. Trailing take-profit
+        if self._settings.trailing_tp_enabled:
+            peak = self._peak_pnl.get(cid, 0.0)
+            if pnl_pct > peak:
+                self._peak_pnl[cid] = pnl_pct
+                peak = pnl_pct
+
+            if peak >= self._settings.trailing_tp_activation_pct:
+                drawdown_from_peak = peak - pnl_pct
+                if drawdown_from_peak >= self._settings.trailing_tp_pct:
+                    self._log.info(
+                        "trailing_tp_triggered",
+                        strategy="fade_panic",
+                        market=market.slug,
+                        peak_pnl_pct=round(peak * 100, 2),
+                        current_pnl_pct=round(pnl_pct * 100, 2),
+                        drawdown_from_peak=round(drawdown_from_peak * 100, 2),
+                    )
+                    self._stop_loss_counts.pop(cid, None)
+                    self._peak_pnl.pop(cid, None)
+                    return True
+
+        # 3. Static take-profit
+        if pnl_pct >= self._settings.take_profit_pct:
+            self._log.info(
+                "take_profit_triggered",
+                strategy="fade_panic",
+                market=market.slug,
+                pnl_pct=round(pnl_pct * 100, 2),
+                threshold=round(self._settings.take_profit_pct * 100, 2),
+            )
+            self._stop_loss_counts.pop(cid, None)
+            return True
+
         return False
 
     def cleanup_market(self, condition_id: str) -> None:
@@ -380,6 +494,9 @@ class FadePanicStrategy(BaseStrategy):
         self._odds_history.pop(condition_id, None)
         self._window_open_prices.pop(condition_id, None)
         self._market_investment.pop(condition_id, None)
+        self._stop_loss_counts.pop(condition_id, None)
+        self._peak_pnl.pop(condition_id, None)
+        self._market_cooldown.pop(condition_id, None)
 
     # ------------------------------------------------------------------
     # Internal helpers

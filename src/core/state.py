@@ -6,7 +6,7 @@ import asyncio
 import json
 from collections.abc import Callable
 from dataclasses import asdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -299,10 +299,7 @@ class StateManager:
         total = 0.0
         for pos in self._positions.values():
             total_shares = pos.yes_shares + pos.no_shares
-            if total_shares > 0:
-                avg_price = pos.total_investment / total_shares
-            else:
-                avg_price = 0.0
+            avg_price = pos.total_investment / total_shares if total_shares > 0 else 0.0
 
             if book_manager is not None:
                 mid = self._get_market_mid_price(pos, book_manager)
@@ -332,6 +329,7 @@ class StateManager:
             filled_orders = [
                 o for o in orders
                 if o.status in (OrderStatus.FILLED, OrderStatus.PARTIALLY_FILLED)
+                and o.fill_size > 0
             ]
             if not filled_orders:
                 return
@@ -463,7 +461,7 @@ class StateManager:
 
     def _get_or_create_daily_pnl(self) -> DailyPnL:
         """Get or lazily create today's DailyPnL record (UTC-based)."""
-        today = datetime.now(timezone.utc).date().isoformat()
+        today = datetime.now(UTC).date().isoformat()
         if today not in self._daily_pnl:
             self._daily_pnl[today] = DailyPnL(date=today)
             # Prune entries older than 30 days to prevent unbounded growth
@@ -603,12 +601,8 @@ class StateManager:
                 strategy=strategy,
                 opened_at=datetime.fromisoformat(opened) if opened else None,
             )
-            # Backward compat: old snapshots use plain condition_id as key;
-            # convert to compound format.
-            if ":" not in raw_key:
-                key = _pos_key(mdata["condition_id"], strategy)
-            else:
-                key = raw_key
+            # Backward compat: old snapshots use plain condition_id as key
+            key = _pos_key(mdata["condition_id"], strategy) if ":" not in raw_key else raw_key
             self._positions[key] = pos
 
         self._daily_pnl = {}
@@ -655,14 +649,14 @@ class StateManager:
         outcome_resolver: Callable[[Position], float | None] | None = None,
     ) -> list[dict[str, Any]]:
         """Inner implementation of resolve_expired_positions (caller holds lock)."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         resolved: list[dict[str, Any]] = []
 
         def _is_expired(pos: Position) -> bool:
             """Check if position's market has expired, handling tz-naive datetimes."""
             end_time = pos.market.end_time
             if end_time.tzinfo is None:
-                end_time = end_time.replace(tzinfo=timezone.utc)
+                end_time = end_time.replace(tzinfo=UTC)
             return end_time <= now
 
         # Find expired positions (keys are compound: "cid:strategy")
@@ -873,14 +867,14 @@ class StateManager:
             return report
 
         # Detect orphaned positions whose markets have already expired
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         orphaned_keys: list[str] = []
         orphaned_cids: list[str] = []
         for key, pos in list(self._positions.items()):
             # Handle both naive and aware datetimes
             end_time = pos.market.end_time
             if end_time.tzinfo is None:
-                end_time = end_time.replace(tzinfo=timezone.utc)
+                end_time = end_time.replace(tzinfo=UTC)
             if end_time < now:
                 orphaned_keys.append(key)
                 cid = pos.market.condition_id
@@ -944,8 +938,8 @@ class StateManager:
         if self._trade_db is None:
             return 0.0
 
-        today = datetime.now(timezone.utc).date()
-        start_of_today = datetime(today.year, today.month, today.day, tzinfo=timezone.utc)
+        today = datetime.now(UTC).date()
+        start_of_today = datetime(today.year, today.month, today.day, tzinfo=UTC)
         start_ts = start_of_today.timestamp()
 
         results = self._trade_db.get_trade_results_since(start_ts)
