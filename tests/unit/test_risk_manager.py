@@ -710,3 +710,141 @@ class TestStrategyCooldown:
         assert rm.is_strategy_cooling_down(StrategyType.PRICE_LAG) is False
         assert rm.is_strategy_cooling_down(StrategyType.FADE_PANIC) is True
         assert rm._strategy_consecutive_losses.get("price_lag", 0) == 3
+
+
+# ---------------------------------------------------------------------------
+# Exit-blocked market tracking
+# ---------------------------------------------------------------------------
+
+
+class TestExitBlocked:
+    """Tests for the exit-blocked gate that prevents new entries when exits fail."""
+
+    def test_mark_adds_to_set_and_increments_count(self, settings: Settings) -> None:
+        rm = RiskManager(settings, MockState())
+        count = rm.mark_exit_blocked("cond_abc")
+        assert count == 1
+        assert rm.is_exit_blocked("cond_abc") is True
+        assert rm.exit_rejection_count("cond_abc") == 1
+
+    def test_mark_increments_on_repeated_calls(self, settings: Settings) -> None:
+        rm = RiskManager(settings, MockState())
+        rm.mark_exit_blocked("cond_abc")
+        count = rm.mark_exit_blocked("cond_abc")
+        assert count == 2
+        assert rm.exit_rejection_count("cond_abc") == 2
+
+    def test_clear_removes_flag_and_resets_count(self, settings: Settings) -> None:
+        rm = RiskManager(settings, MockState())
+        rm.mark_exit_blocked("cond_abc")
+        rm.mark_exit_blocked("cond_abc")
+        rm.clear_exit_blocked("cond_abc")
+        assert rm.is_exit_blocked("cond_abc") is False
+        assert rm.exit_rejection_count("cond_abc") == 0
+
+    def test_clear_is_idempotent(self, settings: Settings) -> None:
+        """Clearing an unknown condition_id should not raise."""
+        rm = RiskManager(settings, MockState())
+        rm.clear_exit_blocked("unknown_id")  # no error
+        assert rm.is_exit_blocked("unknown_id") is False
+
+    def test_check_opportunity_rejects_exit_blocked(self, settings: Settings) -> None:
+        rm = RiskManager(settings, MockState())
+        rm.mark_exit_blocked("cond_123")
+        opp = _make_opportunity()
+        approved, reason = rm.check_opportunity(opp)
+        assert approved is False
+        assert "exit orders failing" in reason
+        assert "1 rejections" in reason
+
+    def test_check_opportunity_approves_after_clear(self, settings: Settings) -> None:
+        rm = RiskManager(settings, MockState())
+        rm.mark_exit_blocked("cond_123")
+        rm.clear_exit_blocked("cond_123")
+        opp = _make_opportunity()
+        approved, reason = rm.check_opportunity(opp)
+        assert approved is True
+        assert reason == "approved"
+
+    def test_different_market_not_affected(self, settings: Settings) -> None:
+        rm = RiskManager(settings, MockState())
+        rm.mark_exit_blocked("cond_other")
+        opp = _make_opportunity()  # uses cond_123
+        approved, reason = rm.check_opportunity(opp)
+        assert approved is True
+        assert reason == "approved"
+
+    def test_exit_blocked_runs_even_in_dry_run(self) -> None:
+        """Exit-blocked gate must run unconditionally (before skip_breaker)."""
+        dry_settings = Settings(
+            private_key="0x" + "ab" * 32,
+            max_position_per_market=500.0,
+            max_total_position=2000.0,
+            max_daily_loss=50.0,
+            max_unhedged_exposure=100.0,
+            cooldown_seconds=5.0,
+            dry_run=True,
+        )
+        rm = RiskManager(dry_settings, MockState())
+        rm.mark_exit_blocked("cond_123")
+        opp = _make_opportunity()
+        approved, reason = rm.check_opportunity(opp)
+        assert approved is False
+        assert "exit orders failing" in reason
+
+    @patch("src.risk.manager.time.time")
+    def test_should_retry_exit_respects_backoff(
+        self, mock_time, settings: Settings,
+    ) -> None:
+        mock_time.return_value = 1000.0
+        rm = RiskManager(settings, MockState())
+        rm.mark_exit_blocked("cond_abc")  # 1st rejection → 4s backoff
+        # Immediately after: should NOT retry
+        assert rm.should_retry_exit("cond_abc") is False
+        # Advance 3s: still waiting
+        mock_time.return_value = 1003.0
+        assert rm.should_retry_exit("cond_abc") is False
+        # Advance past 4s backoff
+        mock_time.return_value = 1004.1
+        assert rm.should_retry_exit("cond_abc") is True
+
+    @patch("src.risk.manager.time.time")
+    def test_backoff_escalates_with_rejections(
+        self, mock_time, settings: Settings,
+    ) -> None:
+        mock_time.return_value = 1000.0
+        rm = RiskManager(settings, MockState())
+        rm.mark_exit_blocked("cond_abc")  # 1st → 4s
+        rm.mark_exit_blocked("cond_abc")  # 2nd → 8s
+        rm.mark_exit_blocked("cond_abc")  # 3rd → 16s
+        # At 1000 + 15s: not yet (need 16s)
+        mock_time.return_value = 1015.0
+        assert rm.should_retry_exit("cond_abc") is False
+        # At 1000 + 16.1s: ready
+        mock_time.return_value = 1016.1
+        assert rm.should_retry_exit("cond_abc") is True
+
+    @patch("src.risk.manager.time.time")
+    def test_backoff_caps_at_60s(
+        self, mock_time, settings: Settings,
+    ) -> None:
+        mock_time.return_value = 1000.0
+        rm = RiskManager(settings, MockState())
+        # 10 rejections: 4, 8, 16, 32, 60, 60, 60, 60, 60, 60
+        for _ in range(10):
+            rm.mark_exit_blocked("cond_abc")
+        # Backoff should be capped at 60s from last mark
+        mock_time.return_value = 1060.1
+        assert rm.should_retry_exit("cond_abc") is True
+
+    def test_clear_resets_backoff(self, settings: Settings) -> None:
+        rm = RiskManager(settings, MockState())
+        rm.mark_exit_blocked("cond_abc")
+        rm.clear_exit_blocked("cond_abc")
+        # After clear, should_retry_exit returns True (no backoff timer)
+        assert rm.should_retry_exit("cond_abc") is True
+
+    def test_should_retry_unknown_market_returns_true(self, settings: Settings) -> None:
+        """Markets with no exit history should always allow retry."""
+        rm = RiskManager(settings, MockState())
+        assert rm.should_retry_exit("never_seen") is True

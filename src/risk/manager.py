@@ -104,6 +104,11 @@ class RiskManager:
         self._strategy_consecutive_losses: dict[str, int] = {}
         self._strategy_cooldown_until: dict[str, float] = {}
 
+        # Exit-blocked market tracking
+        self._exit_blocked_markets: set[str] = set()
+        self._exit_rejection_counts: dict[str, int] = {}
+        self._exit_retry_after: dict[str, float] = {}
+
     def set_trade_db(self, trade_db: object) -> None:
         """Attach a TradeDatabase for persisting circuit breaker state."""
         self._trade_db = trade_db
@@ -165,6 +170,15 @@ class RiskManager:
             8. Time remaining > 30 seconds
         """
         condition_id = opp.market.condition_id
+
+        # 0. Exit-blocked market — never add exposure if exits are failing
+        if condition_id in self._exit_blocked_markets:
+            reason = (
+                f"exit orders failing "
+                f"({self._exit_rejection_counts.get(condition_id, 0)} rejections)"
+            )
+            self._log.warning("risk_rejected", check="exit_blocked", reason=reason)
+            return False, reason
 
         # Snapshot state values for consistent reads within this check
         _market_exp = self._state.market_exposure(condition_id)
@@ -410,6 +424,59 @@ class RiskManager:
                 reason=f"{self._consecutive_failures} consecutive failures",
                 duration_seconds=_DEFAULT_CIRCUIT_BREAKER_DURATION,
             )
+
+    # ------------------------------------------------------------------
+    # Exit-blocked market tracking
+    # ------------------------------------------------------------------
+
+    _EXIT_BACKOFF_BASE: float = 4.0
+    _EXIT_BACKOFF_CAP: float = 60.0
+
+    def mark_exit_blocked(self, condition_id: str) -> int:
+        """Flag market as exit-blocked, increment rejection count, set backoff timer.
+
+        Returns the new rejection count.
+        """
+        self._exit_blocked_markets.add(condition_id)
+        count = self._exit_rejection_counts.get(condition_id, 0) + 1
+        self._exit_rejection_counts[condition_id] = count
+
+        # Exponential backoff: 4s → 8s → 16s → 32s → 60s (capped)
+        delay = min(self._EXIT_BACKOFF_BASE * (2 ** (count - 1)), self._EXIT_BACKOFF_CAP)
+        self._exit_retry_after[condition_id] = time.time() + delay
+
+        self._log.warning(
+            "exit_blocked",
+            condition_id=condition_id,
+            rejection_count=count,
+            retry_after_seconds=delay,
+        )
+        return count
+
+    def clear_exit_blocked(self, condition_id: str) -> None:
+        """Remove exit-blocked flag, reset rejection count and retry timer."""
+        self._exit_blocked_markets.discard(condition_id)
+        self._exit_rejection_counts.pop(condition_id, None)
+        self._exit_retry_after.pop(condition_id, None)
+
+    def is_exit_blocked(self, condition_id: str) -> bool:
+        """Check if a market is exit-blocked."""
+        return condition_id in self._exit_blocked_markets
+
+    def exit_rejection_count(self, condition_id: str) -> int:
+        """Return consecutive rejection count for a market."""
+        return self._exit_rejection_counts.get(condition_id, 0)
+
+    def should_retry_exit(self, condition_id: str) -> bool:
+        """True if backoff timer has elapsed and exit should be retried.
+
+        Returns True if the market is not exit-blocked (no backoff needed)
+        or if the backoff timer has elapsed.
+        """
+        retry_after = self._exit_retry_after.get(condition_id)
+        if retry_after is None:
+            return True
+        return time.time() >= retry_after
 
     # ------------------------------------------------------------------
     # Circuit breaker

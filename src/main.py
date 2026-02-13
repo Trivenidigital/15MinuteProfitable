@@ -1742,6 +1742,10 @@ async def _exit_check_loop(
                 if market_manager.get_market_for_asset(market.asset) is None:
                     continue
 
+                # Backoff: skip exit retry if timer hasn't elapsed
+                if risk_manager is not None and not risk_manager.should_retry_exit(market.condition_id):
+                    continue
+
                 if strategy.should_exit(position, market):
                     await _execute_exit(
                         position, market, executor, state_manager,
@@ -1817,6 +1821,8 @@ async def _execute_exit(
                 market=market.slug,
                 results=[r.status.value for r in results],
             )
+            if risk_manager is not None:
+                risk_manager.mark_exit_blocked(market.condition_id)
             return  # Leave position open for retry on next exit-check cycle
 
         # Compute sell proceeds from actual fill data (not orderbook bids).
@@ -1836,6 +1842,10 @@ async def _execute_exit(
             state_manager.close_position(market.condition_id, payout_per_share, position.strategy)
         except KeyError:
             pass  # Already closed by resolution loop
+
+        # Successful exit — clear any exit-blocked flag for this market
+        if risk_manager is not None:
+            risk_manager.clear_exit_blocked(market.condition_id)
 
         # Close CEX hedge if one exists for this position
         if hedge_manager is not None:
@@ -1888,6 +1898,8 @@ async def _execute_exit(
         )
     except Exception as exc:
         _log.error("exit_execution_error", market=market.slug, error=str(exc))
+        if risk_manager is not None:
+            risk_manager.mark_exit_blocked(market.condition_id)
 
 
 # ---------------------------------------------------------------------------
@@ -2284,6 +2296,10 @@ async def _resolution_loop(
                 if trade_db is not None:
                     for report in resolved:
                         _save_attributed_results(trade_db, report, risk_manager)
+                # Clear exit-blocked flags for resolved markets
+                if risk_manager is not None:
+                    for report in resolved:
+                        risk_manager.clear_exit_blocked(str(report["condition_id"]))
                 # Close CEX hedges for resolved positions
                 if hedge_manager is not None:
                     for report in resolved:
