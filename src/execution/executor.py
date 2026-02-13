@@ -394,6 +394,48 @@ class OrderExecutor:
         return order
 
     # ------------------------------------------------------------------
+    # Balance queries
+    # ------------------------------------------------------------------
+
+    # Polymarket conditional tokens use 6 decimals (matching USDC.e)
+    _CT_DECIMALS = 6
+
+    async def get_token_balance(self, token_id: str) -> float | None:
+        """Query the CLOB API for actual on-chain CT balance (in shares).
+
+        Returns the balance as a float (e.g. 6.907200), or None on error.
+        Used to cap sell order sizes and avoid "not enough balance" rejections.
+        """
+        if self._dry_run:
+            return None  # Dry-run has no on-chain balance
+
+        try:
+            balance_raw = await asyncio.to_thread(
+                self._get_token_balance_sync, token_id
+            )
+            return balance_raw
+        except Exception as exc:
+            self._log.warning(
+                "get_token_balance_failed",
+                token_id=token_id[:12],
+                error=str(exc),
+            )
+            return None
+
+    def _get_token_balance_sync(self, token_id: str) -> float:
+        """Synchronous balance query via py-clob-client (runs in thread)."""
+        from py_clob_client.clob_types import AssetType, BalanceAllowanceParams
+
+        client = self._get_client()
+        params = BalanceAllowanceParams(
+            asset_type=AssetType.CONDITIONAL,
+            token_id=token_id,
+        )
+        result = client.get_balance_allowance(params)
+        raw_balance = int(result.get("balance", "0"))
+        return raw_balance / (10 ** self._CT_DECIMALS)
+
+    # ------------------------------------------------------------------
     # Cancellation
     # ------------------------------------------------------------------
 

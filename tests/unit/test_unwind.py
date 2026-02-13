@@ -75,6 +75,9 @@ class MockExecutor:
             order.status = OrderStatus.CANCELLED
         return order
 
+    async def get_token_balance(self, token_id: str) -> float | None:
+        return None  # Don't cap sell size in tests
+
     async def cancel_order(self, order_id: str) -> bool:
         self.cancelled_orders.append(order_id)
         return True

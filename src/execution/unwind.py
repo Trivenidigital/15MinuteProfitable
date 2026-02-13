@@ -33,31 +33,57 @@ class EmergencyUnwind:
 
         Creates FOK sell orders at price 0.01 (market sell - lowest acceptable)
         for both YES and NO shares. Returns True if all orders filled successfully.
+        Queries actual on-chain balance to cap sell size and avoid "not enough
+        balance" rejections from the CLOB.
         """
         orders: list[TradeOrder] = []
         market = position.market
 
         if position.yes_shares > 0:
-            orders.append(
-                TradeOrder(
-                    token_id=market.yes_token_id,
-                    side=Side.SELL,
-                    price=0.01,  # Polymarket minimum tick (maximizes fill probability)
-                    size=position.yes_shares,
-                    order_type="FOK",
+            yes_sell_size = position.yes_shares
+            actual_bal = await self._executor.get_token_balance(market.yes_token_id)
+            if actual_bal is not None and actual_bal < yes_sell_size:
+                logger.warning(
+                    "unwind_sell_size_capped",
+                    side="YES",
+                    recorded=yes_sell_size,
+                    on_chain=actual_bal,
+                    condition_id=market.condition_id,
                 )
-            )
+                yes_sell_size = actual_bal
+            if yes_sell_size > 0:
+                orders.append(
+                    TradeOrder(
+                        token_id=market.yes_token_id,
+                        side=Side.SELL,
+                        price=0.01,
+                        size=yes_sell_size,
+                        order_type="FOK",
+                    )
+                )
 
         if position.no_shares > 0:
-            orders.append(
-                TradeOrder(
-                    token_id=market.no_token_id,
-                    side=Side.SELL,
-                    price=0.01,  # Polymarket minimum tick (maximizes fill probability)
-                    size=position.no_shares,
-                    order_type="FOK",
+            no_sell_size = position.no_shares
+            actual_bal = await self._executor.get_token_balance(market.no_token_id)
+            if actual_bal is not None and actual_bal < no_sell_size:
+                logger.warning(
+                    "unwind_sell_size_capped",
+                    side="NO",
+                    recorded=no_sell_size,
+                    on_chain=actual_bal,
+                    condition_id=market.condition_id,
                 )
-            )
+                no_sell_size = actual_bal
+            if no_sell_size > 0:
+                orders.append(
+                    TradeOrder(
+                        token_id=market.no_token_id,
+                        side=Side.SELL,
+                        price=0.01,
+                        size=no_sell_size,
+                        order_type="FOK",
+                    )
+                )
 
         if not orders:
             return True  # Nothing to unwind

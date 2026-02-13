@@ -1802,22 +1802,48 @@ async def _execute_exit(
 
     orders = []
     if position.yes_shares > 0:
-        orders.append(TradeOrder(
-            token_id=market.yes_token_id,
-            side=Side.SELL,
-            price=0.01,  # market sell (lowest acceptable price)
-            size=position.yes_shares,
-            order_type="FOK",
-        ))
+        yes_sell_size = position.yes_shares
+        # Query actual on-chain balance to prevent "not enough balance" errors
+        # (CLOB matching can round down, leaving fewer shares than recorded)
+        actual_bal = await executor.get_token_balance(market.yes_token_id)
+        if actual_bal is not None and actual_bal < yes_sell_size:
+            _log.warning(
+                "sell_size_capped_to_balance",
+                side="YES",
+                recorded=yes_sell_size,
+                on_chain=actual_bal,
+                market=market.slug,
+            )
+            yes_sell_size = actual_bal
+        if yes_sell_size > 0:
+            orders.append(TradeOrder(
+                token_id=market.yes_token_id,
+                side=Side.SELL,
+                price=0.01,  # market sell (lowest acceptable price)
+                size=yes_sell_size,
+                order_type="FOK",
+            ))
 
     if position.no_shares > 0:
-        orders.append(TradeOrder(
-            token_id=market.no_token_id,
-            side=Side.SELL,
-            price=0.01,  # market sell
-            size=position.no_shares,
-            order_type="FOK",
-        ))
+        no_sell_size = position.no_shares
+        actual_bal = await executor.get_token_balance(market.no_token_id)
+        if actual_bal is not None and actual_bal < no_sell_size:
+            _log.warning(
+                "sell_size_capped_to_balance",
+                side="NO",
+                recorded=no_sell_size,
+                on_chain=actual_bal,
+                market=market.slug,
+            )
+            no_sell_size = actual_bal
+        if no_sell_size > 0:
+            orders.append(TradeOrder(
+                token_id=market.no_token_id,
+                side=Side.SELL,
+                price=0.01,  # market sell
+                size=no_sell_size,
+                order_type="FOK",
+            ))
 
     if not orders:
         return
