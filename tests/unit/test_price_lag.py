@@ -1417,3 +1417,159 @@ class TestSizingInEvaluate:
 
         result = await strategy.evaluate(market)
         assert result is None
+
+
+# ---------------------------------------------------------------------------
+# Deep loss guard
+# ---------------------------------------------------------------------------
+
+
+class TestDeepLossGuard:
+    """Tests for the deep loss guard (stop_loss_floor_ratio)."""
+
+    def test_deep_loss_blocks_exit(
+        self,
+        strategy: PriceLagStrategy,
+        book_manager: MockOrderBookManager,
+    ) -> None:
+        """Position with value_ratio < 0.30 should NOT exit (deep loss guard)."""
+        # First third of market so SL would normally trigger
+        market = _make_market(start_offset=-200.0, end_offset=700.0)
+        # Cost basis = 23.0, bid = 0.10 -> value = 50 * 0.10 = 5.0
+        # value_ratio = 5.0 / 23.0 = 0.217 -> below 0.30 floor
+        position = Position(
+            market=market,
+            yes_shares=50.0,
+            yes_cost_basis=23.0,
+            strategy=StrategyType.PRICE_LAG,
+        )
+        book_manager.yes_book = _make_orderbook("YES_TOKEN", best_bid=0.10)
+
+        # Even with enough confirmations, deep loss guard prevents exit
+        strategy._stop_loss_counts[market.condition_id] = 10
+        assert strategy.should_exit(position, market) is False
+
+    def test_deep_loss_clears_stop_loss_counter(
+        self,
+        strategy: PriceLagStrategy,
+        book_manager: MockOrderBookManager,
+    ) -> None:
+        """Deep loss guard should clear the stop-loss confirmation counter."""
+        market = _make_market(start_offset=-200.0, end_offset=700.0)
+        position = Position(
+            market=market,
+            yes_shares=50.0,
+            yes_cost_basis=23.0,
+            strategy=StrategyType.PRICE_LAG,
+        )
+        book_manager.yes_book = _make_orderbook("YES_TOKEN", best_bid=0.10)
+        strategy._stop_loss_counts[market.condition_id] = 5
+
+        strategy.should_exit(position, market)
+        assert market.condition_id not in strategy._stop_loss_counts
+
+    def test_above_floor_stop_loss_still_works(
+        self,
+        strategy: PriceLagStrategy,
+        book_manager: MockOrderBookManager,
+    ) -> None:
+        """Position with value_ratio > 0.30 should still allow stop-loss exit."""
+        market = _make_market(start_offset=-200.0, end_offset=700.0)
+        # Cost basis = 23.0, bid = 0.40 -> value = 50 * 0.40 = 20.0
+        # value_ratio = 20.0 / 23.0 = 0.870 -> above 0.30 floor
+        # pnl_pct = (20-23)/23 = -0.130 -> exceeds 5% stop-loss
+        position = Position(
+            market=market,
+            yes_shares=50.0,
+            yes_cost_basis=23.0,
+            strategy=StrategyType.PRICE_LAG,
+        )
+        book_manager.yes_book = _make_orderbook("YES_TOKEN", best_bid=0.40)
+
+        # 3 confirmations → stop-loss triggers
+        assert strategy.should_exit(position, market) is False
+        assert strategy.should_exit(position, market) is False
+        assert strategy.should_exit(position, market) is True
+
+    def test_at_exact_floor_still_exits(
+        self,
+        strategy: PriceLagStrategy,
+        book_manager: MockOrderBookManager,
+    ) -> None:
+        """value_ratio = 0.30 exactly → guard does NOT block (threshold is <, not <=)."""
+        market = _make_market(start_offset=-200.0, end_offset=700.0)
+        # Cost basis = 10.0, bid = 0.06 -> value = 50 * 0.06 = 3.0
+        # value_ratio = 3.0 / 10.0 = 0.30 exactly
+        # pnl_pct = (3-10)/10 = -0.70 -> exceeds 5% stop-loss
+        position = Position(
+            market=market,
+            yes_shares=50.0,
+            yes_cost_basis=10.0,
+            strategy=StrategyType.PRICE_LAG,
+        )
+        book_manager.yes_book = _make_orderbook("YES_TOKEN", best_bid=0.06)
+
+        # At exact boundary, should still allow SL to fire (after confirmations)
+        assert strategy.should_exit(position, market) is False  # 1st confirmation
+        assert strategy.should_exit(position, market) is False  # 2nd confirmation
+        assert strategy.should_exit(position, market) is True   # 3rd = confirmed
+
+    def test_custom_floor_ratio_is_respected(
+        self,
+        book_manager: MockOrderBookManager,
+        spot_buffer: MockSpotBuffer,
+    ) -> None:
+        """Custom stop_loss_floor_ratio config is used by the guard."""
+        custom_settings = Settings(
+            private_key="0x" + "ab" * 32,  # type: ignore[arg-type]
+            stop_loss_pct=0.05,
+            stop_loss_confirmations=1,
+            stop_loss_floor_ratio=0.50,  # Custom: block exit if value < 50% of cost
+            time_exit_seconds=60.0,
+        )
+        strat = PriceLagStrategy(
+            settings=custom_settings,
+            book_manager=book_manager,  # type: ignore[arg-type]
+            spot_buffer=spot_buffer,  # type: ignore[arg-type]
+        )
+
+        market = _make_market(start_offset=-200.0, end_offset=700.0)
+        # value_ratio = 20/23 = 0.870 → above 0.50 → SL fires
+        position_above = Position(
+            market=market,
+            yes_shares=50.0,
+            yes_cost_basis=23.0,
+            strategy=StrategyType.PRICE_LAG,
+        )
+        book_manager.yes_book = _make_orderbook("YES_TOKEN", best_bid=0.40)
+        assert strat.should_exit(position_above, market) is True
+
+        # value_ratio = 10/23 = 0.435 → below 0.50 → guard blocks
+        market2 = _make_market(start_offset=-200.0, end_offset=700.0, condition_id="cond_456")
+        position_below = Position(
+            market=market2,
+            yes_shares=50.0,
+            yes_cost_basis=23.0,
+            strategy=StrategyType.PRICE_LAG,
+        )
+        book_manager.yes_book = _make_orderbook("YES_TOKEN", best_bid=0.20)
+        assert strat.should_exit(position_below, market2) is False
+
+    def test_deep_loss_blocks_time_exit(
+        self,
+        strategy: PriceLagStrategy,
+        book_manager: MockOrderBookManager,
+    ) -> None:
+        """Deep loss guard runs before time exit, blocking even time-based exits."""
+        # Market ends in 30s → would normally trigger time exit
+        market = _make_market(start_offset=-870.0, end_offset=30.0)
+        # value_ratio = 5/23 = 0.217 → below 0.30 floor
+        position = Position(
+            market=market,
+            yes_shares=50.0,
+            yes_cost_basis=23.0,
+            strategy=StrategyType.PRICE_LAG,
+        )
+        book_manager.yes_book = _make_orderbook("YES_TOKEN", best_bid=0.10)
+
+        assert strategy.should_exit(position, market) is False

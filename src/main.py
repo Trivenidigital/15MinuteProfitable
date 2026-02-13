@@ -1775,6 +1775,31 @@ async def _execute_exit(
     risk_manager: RiskManager | None = None,
 ) -> None:
     """Sell all shares in a directional position."""
+    # Check orderbook bid before attempting exit — don't sell for dust
+    min_exit_bid = settings.min_exit_bid
+    if position.yes_shares > 0:
+        yes_book = book_manager.get_book(market.yes_token_id)
+        if yes_book is None or yes_book.best_bid is None or yes_book.best_bid < min_exit_bid:
+            _log.info(
+                "exit_skipped_dust_bid",
+                market=market.slug,
+                side="YES",
+                best_bid=yes_book.best_bid if yes_book else None,
+                threshold=min_exit_bid,
+            )
+            return
+    if position.no_shares > 0:
+        no_book = book_manager.get_book(market.no_token_id)
+        if no_book is None or no_book.best_bid is None or no_book.best_bid < min_exit_bid:
+            _log.info(
+                "exit_skipped_dust_bid",
+                market=market.slug,
+                side="NO",
+                best_bid=no_book.best_bid if no_book else None,
+                threshold=min_exit_bid,
+            )
+            return
+
     orders = []
     if position.yes_shares > 0:
         orders.append(TradeOrder(

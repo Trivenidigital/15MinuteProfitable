@@ -216,6 +216,12 @@ class Settings(BaseSettings):
     chainlink_max_divergence_pct: float = 0.003  # 0.3% max Binance-Chainlink divergence
     chainlink_rpc_url: str = "https://polygon-rpc.com"
 
+    # Deep loss guard: don't exit positions that have lost >70% of value
+    stop_loss_floor_ratio: float = 0.30  # Don't exit if value < 30% of cost (loss > 70%)
+
+    # Minimum bid to accept for exit orders (don't sell for dust)
+    min_exit_bid: float = 0.03  # Skip exit if best bid < $0.03
+
     # Fill quality guards
     min_entry_price: float = 0.10             # Don't buy contracts below this price
     max_fill_slippage: float = 0.05           # Max VWAP-to-best-price ratio (5% default)

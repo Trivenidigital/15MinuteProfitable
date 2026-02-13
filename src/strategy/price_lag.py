@@ -379,6 +379,21 @@ class PriceLagStrategy(BaseStrategy):
 
         pnl_pct = (current_value - cost_basis) / cost_basis
 
+        # Deep loss guard: if position has lost >70% of value, hold to resolution.
+        # Selling into an illiquid market recovers almost nothing ($0.01/share),
+        # while holding preserves the chance of full recovery at resolution.
+        value_ratio = current_value / cost_basis
+        if value_ratio < self._settings.stop_loss_floor_ratio:
+            self._log.info(
+                "exit_skipped_deep_loss",
+                market=market.slug,
+                value_ratio=round(value_ratio, 4),
+                current_value=round(current_value, 2),
+                cost_basis=round(cost_basis, 2),
+            )
+            self._stop_loss_counts.pop(cid, None)
+            return False
+
         # 1. Time-based exit — but skip for near-worthless positions (<5% of cost).
         # Selling recovers almost nothing while holding preserves the chance
         # of full recovery if the market resolves favorably.
