@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import contextlib
+import time
+
 from src.core.models import OrderStatus, Position, Side, TradeOrder
 from src.core.state import StateManager
 from src.monitoring.logger import get_logger
@@ -12,11 +15,18 @@ logger = get_logger(__name__)
 class EmergencyUnwind:
     """Handles emergency position flattening."""
 
-    def __init__(self, executor: object, state_manager: StateManager, risk_manager: object | None = None) -> None:
+    def __init__(
+        self,
+        executor: object,
+        state_manager: StateManager,
+        risk_manager: object | None = None,
+        trade_db: object | None = None,
+    ) -> None:
         # executor is OrderExecutor but we use duck typing to avoid circular imports
         self._executor = executor
         self._state = state_manager
         self._risk_manager = risk_manager
+        self._trade_db = trade_db
 
     async def unwind_position(self, position: Position) -> bool:
         """Attempt to sell all shares in a position at best available prices.
@@ -81,6 +91,46 @@ class EmergencyUnwind:
                     )
 
             if all_filled:
+                # Compute proceeds from actual fills
+                sell_proceeds = sum(
+                    o.fill_price * o.fill_size
+                    for o in signed
+                    if o.status == OrderStatus.FILLED
+                )
+                total_shares = position.yes_shares + position.no_shares
+                payout_per_share = (
+                    sell_proceeds / total_shares if total_shares > 0 else 0.0
+                )
+
+                # Close position in state to prevent phantom shares on restart
+                with contextlib.suppress(KeyError):
+                    self._state.close_position(
+                        market.condition_id, payout_per_share, position.strategy
+                    )
+
+                # Record in DB so unwind revenue is tracked
+                if self._trade_db is not None:
+                    from src.data.trade_db import TradeResult
+                    from src.utils.fees import WINNER_FEE_RATE
+
+                    net_profit = sell_proceeds - position.total_investment
+                    actual_fee = WINNER_FEE_RATE * max(0.0, net_profit)
+                    net_profit -= actual_fee
+                    self._trade_db.save_trade_result(TradeResult(
+                        timestamp=time.time(),
+                        condition_id=market.condition_id,
+                        market_slug=market.slug,
+                        asset=market.asset,
+                        strategy=position.strategy.value,
+                        was_hedged=position.is_hedged,
+                        yes_shares=position.yes_shares,
+                        no_shares=position.no_shares,
+                        investment=position.total_investment,
+                        gross_payout=sell_proceeds,
+                        net_profit=net_profit,
+                        outcome="emergency_unwind",
+                    ))
+
                 logger.info("position_unwound", condition_id=market.condition_id)
             else:
                 logger.error("partial_unwind", condition_id=market.condition_id)

@@ -1808,18 +1808,19 @@ async def _execute_exit(
         for result in results:
             await executor.verify_fill(result)
 
-        # Compute sell proceeds from orderbook best bids (accurate for
-        # both live and DRY_RUN; the FOK fill_price of $0.01 is just the
-        # floor, not the real execution price).
-        sell_proceeds = 0.0
-        if position.yes_shares > 0:
-            yes_book = book_manager.get_book(market.yes_token_id)
-            bid = yes_book.best_bid if yes_book and yes_book.best_bid else 0.0
-            sell_proceeds += position.yes_shares * bid
-        if position.no_shares > 0:
-            no_book = book_manager.get_book(market.no_token_id)
-            bid = no_book.best_bid if no_book and no_book.best_bid else 0.0
-            sell_proceeds += position.no_shares * bid
+        # Check if any orders actually filled — rejected orders must not
+        # trigger state close or revenue recording (phantom P&L bug).
+        filled_results = [r for r in results if r.status == OrderStatus.FILLED]
+        if not filled_results:
+            _log.warning(
+                "exit_orders_rejected",
+                market=market.slug,
+                results=[r.status.value for r in results],
+            )
+            return  # Leave position open for retry on next exit-check cycle
+
+        # Compute sell proceeds from actual fill data (not orderbook bids).
+        sell_proceeds = sum(r.fill_price * r.fill_size for r in filled_results)
 
         total_shares = position.yes_shares + position.no_shares
         payout_per_share = sell_proceeds / total_shares if total_shares > 0 else 0.0
@@ -2680,7 +2681,10 @@ async def _shutdown_sequence(
     unhedged = [p for p in state_manager.get_all_positions() if not p.is_hedged]
     if unhedged:
         _log.warning("shutdown_unwind_unhedged", count=len(unhedged))
-        unwinder = EmergencyUnwind(executor, state_manager, risk_manager=risk_manager)
+        unwinder = EmergencyUnwind(
+            executor, state_manager, risk_manager=risk_manager,
+            trade_db=trade_db,
+        )
         for pos in unhedged:
             try:
                 await unwinder.unwind_position(pos)
