@@ -145,6 +145,24 @@ class MarketOutcome:
     interval: str = "15m"
 
 
+@dataclass
+class LPRewardSample:
+    """Per-minute liquidity-rewards Q-score sample for our resting quotes."""
+
+    id: int | None = None
+    timestamp: float = 0.0
+    condition_id: str = ""
+    asset: str = ""
+    market_slug: str = ""
+    midpoint: float = 0.0
+    q_bid: float = 0.0
+    q_ask: float = 0.0
+    q_score: float = 0.0
+    yes_bid_price: float = 0.0
+    no_bid_price: float = 0.0
+    dry_run: bool = False
+
+
 # ---------------------------------------------------------------------------
 # Schema
 # ---------------------------------------------------------------------------
@@ -302,6 +320,23 @@ CREATE TABLE IF NOT EXISTS pending_orders (
 );
 
 CREATE INDEX IF NOT EXISTS idx_pending_order_id ON pending_orders(order_id);
+
+CREATE TABLE IF NOT EXISTS lp_reward_samples (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp REAL NOT NULL,
+    condition_id TEXT NOT NULL DEFAULT '',
+    asset TEXT NOT NULL DEFAULT '',
+    market_slug TEXT NOT NULL DEFAULT '',
+    midpoint REAL NOT NULL DEFAULT 0.0,
+    q_bid REAL NOT NULL DEFAULT 0.0,
+    q_ask REAL NOT NULL DEFAULT 0.0,
+    q_score REAL NOT NULL DEFAULT 0.0,
+    yes_bid_price REAL NOT NULL DEFAULT 0.0,
+    no_bid_price REAL NOT NULL DEFAULT 0.0,
+    dry_run INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_lp_samples_time ON lp_reward_samples(timestamp);
 """
 
 
@@ -766,6 +801,34 @@ class TradeDatabase:
             row_id = cursor.lastrowid
             assert row_id is not None
             return row_id
+
+    def save_lp_reward_sample(self, s: LPRewardSample) -> int:
+        """Insert a liquidity-rewards Q-score sample. Returns the row ID."""
+        with self._write_lock:
+            cursor = self._conn.execute(
+                """INSERT INTO lp_reward_samples
+                   (timestamp, condition_id, asset, market_slug, midpoint,
+                    q_bid, q_ask, q_score, yes_bid_price, no_bid_price, dry_run)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    s.timestamp, s.condition_id, s.asset, s.market_slug,
+                    s.midpoint, s.q_bid, s.q_ask, s.q_score,
+                    s.yes_bid_price, s.no_bid_price, int(s.dry_run),
+                ),
+            )
+            self._conn.commit()
+            row_id = cursor.lastrowid
+            assert row_id is not None
+            return row_id
+
+    def get_lp_daily_q_score(self, since_ts: float) -> dict[str, float]:
+        """Sum Q-scores per asset since *since_ts* (rewards-share proxy)."""
+        rows = self._conn.execute(
+            """SELECT asset, SUM(q_score) FROM lp_reward_samples
+               WHERE timestamp >= ? GROUP BY asset""",
+            (since_ts,),
+        ).fetchall()
+        return {str(r[0]): float(r[1] or 0.0) for r in rows}
 
     def get_spot_snapshots(
         self,

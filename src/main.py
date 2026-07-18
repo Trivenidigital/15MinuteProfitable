@@ -37,6 +37,7 @@ from src.strategy.base import BaseStrategy
 from src.strategy.dip_buyer import DipBuyerStrategy
 from src.strategy.fade_panic import FadePanicStrategy
 from src.strategy.hedged_mm import HedgedMMStrategy, HMMPair
+from src.strategy.lp_quoter import LiquidityQuoter
 from src.strategy.maker_arbitrage import ArbPair, MakerArbitrageStrategy
 from src.strategy.price_lag import ASSET_TO_BINANCE_SYMBOL, PriceLagStrategy
 from src.strategy.resolution_sniper import ResolutionSniperStrategy
@@ -2696,6 +2697,8 @@ async def _shutdown_sequence(
     spot_snapshot_task: asyncio.Task | None,
     market_outcome_task: asyncio.Task | None,
     alpha_signals_task: asyncio.Task | None,
+    hmm_task: asyncio.Task | None = None,
+    lp_task: asyncio.Task | None = None,
 ) -> None:
     """Execute full graceful shutdown sequence.
 
@@ -2772,7 +2775,7 @@ async def _shutdown_sequence(
         exit_task, gtc_task, maker_arb_task, summary_task,
         dashboard_task, snapshot_task, resolution_task,
         spot_snapshot_task, market_outcome_task,
-        alpha_signals_task,
+        alpha_signals_task, hmm_task, lp_task,
     ]
     for task in all_tasks:
         if task is not None:
@@ -2823,6 +2826,7 @@ async def _run_bot(settings: Settings, pid_lock: PidLock) -> None:
         enable_fade_panic=settings.enable_fade_panic,
         enable_divergence_scoring=settings.enable_divergence_scoring,
         enable_cross_asset_strategy=settings.enable_cross_asset_strategy,
+        enable_lp_quoter=settings.enable_lp_quoter,
     )
 
     # Live mode safety checks
@@ -3100,6 +3104,21 @@ async def _run_bot(settings: Settings, pid_lock: PidLock) -> None:
         ),
     )
 
+    # Liquidity rewards quoter (maker-side two-sided quoting, 0% fees)
+    lp_task: asyncio.Task | None = None
+    if settings.enable_lp_quoter:
+        lp_quoter = LiquidityQuoter(
+            settings=settings,
+            book_manager=book_manager,
+            market_manager=market_manager,
+            spot_buffer=spot_buffer,
+            executor=executor,
+            state_manager=state_manager,
+            risk_manager=risk_manager,
+            trade_db=trade_db,
+        )
+        lp_task = asyncio.create_task(lp_quoter.run())
+
     # Exit-check loop for directional positions (price-lag, etc.)
     exit_task = asyncio.create_task(
         _exit_check_loop(
@@ -3188,6 +3207,7 @@ async def _run_bot(settings: Settings, pid_lock: PidLock) -> None:
                 gtc_task, maker_arb_task, summary_task, dashboard_task,
                 snapshot_task, resolution_task, spot_snapshot_task,
                 market_outcome_task, alpha_signals_task,
+                hmm_task, lp_task,
             ),
             timeout=30.0,
         )

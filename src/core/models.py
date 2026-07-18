@@ -27,6 +27,7 @@ class StrategyType(str, Enum):
     FADE_PANIC = "fade_panic"
     CROSS_ASSET = "cross_asset"
     HEDGED_MM = "hedged_mm"
+    LP_QUOTER = "lp_quoter"
 
 
 class OrderStatus(str, Enum):

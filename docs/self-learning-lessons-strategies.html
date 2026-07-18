@@ -1579,6 +1579,18 @@
 
 <div class="card">
     <div class="card-header">
+        <h3>Liquidity Rewards Quoter (maker-side rewards farming)</h3>
+        <span class="badge badge-active">IMPLEMENTED &mdash; DISABLED BY DEFAULT</span>
+    </div>
+    <p><strong>Date:</strong> 2026-07-18 | <strong>Files:</strong> <code>src/strategy/lp_quoter.py</code> (new, ~490 lines), <code>src/config.py</code> (+17 <code>lp_*</code> settings), <code>src/data/trade_db.py</code> (new <code>lp_reward_samples</code> table + <code>LPRewardSample</code> + queries), <code>src/execution/executor.py</code> (<code>check_order_status()</code> one-shot poll), <code>src/core/models.py</code> (<code>StrategyType.LP_QUOTER</code>), <code>src/main.py</code> (wiring + shutdown, also fixed hmm_task never being cancelled on shutdown), <code>tests/unit/test_lp_quoter.py</code> (14 tests)</p>
+    <p><strong>Rationale (from the 8-day audit):</strong> Taker fees were 58.5% of all losses ($1,492 / $2,550), and price_lag flipped from &minus;$795 to +$174 without fees. Instead of paying the spread, the bot now can <em>be</em> the market maker and earn from three maker-side streams: (1) Polymarket's $5M+/month liquidity rewards pool (per-minute book sampling, paid daily), (2) spread capture &mdash; two-sided bids at <code>mid &minus; offset</code> cost &lt; $1.00 combined when both fill and pay exactly $1.00 at resolution, (3) maker rebates (15&ndash;25% of taker fees).</p>
+    <p><strong>Design:</strong> Runs as its own reconciliation loop (not a BaseStrategy &mdash; continuous cancel/replace doesn't fit evaluate()&rarr;Opportunity). Rests a YES bid and a NO bid near the midpoint, repricing when the desired price moves &ge; <code>lp_reprice_tolerance</code>. Fills are recorded through <code>StateManager.record_trade</code>, so the existing resolution loop handles P&amp;L. Q-score samples (mirroring Polymarket's published scoring shape) are persisted every minute to <code>lp_reward_samples</code> for DRY_RUN measurement and later reconciliation against real payouts.</p>
+    <p><strong>Adverse-selection guards:</strong> all quotes pulled at T&minus;90s; pulled when spot moves &gt;0.1% in 10s; no quoting outside mid &isin; [0.15, 0.85]; per-market net-inventory cap (60 shares) suppresses the accumulating side; circuit breaker pulls everything; all quotes cancelled on shutdown.</p>
+    <p><strong>Next step:</strong> Enable in DRY_RUN on the server (<code>BOT_ENABLE_LP_QUOTER=true</code>, <code>BOT_DRY_RUN=true</code>, BTC only) and measure: simulated fill P&amp;L at resolution, Q-score/day, and adverse-selection rate (fills followed by adverse mid moves). Do NOT go live until pair-completion rate and inventory P&amp;L are demonstrably positive over &ge;3 days.</p>
+</div>
+
+<div class="card">
+    <div class="card-header">
         <h3>Production readiness hardening (Round 2)</h3>
         <span class="badge badge-active">IMPLEMENTED</span>
     </div>
@@ -1851,7 +1863,7 @@
 
 <hr class="separator">
 <p class="muted" style="text-align: center; font-size: 0.8rem;">
-    This document is auto-maintained by the Claude analysis agent. Last updated: 2026-02-13 11:49 UTC.
+    This document is auto-maintained by the Claude analysis agent. Last updated: 2026-07-18 (Liquidity Rewards Quoter implemented).
 </p>
 
 </body>
