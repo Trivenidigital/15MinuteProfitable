@@ -278,6 +278,15 @@ The window controls BOTH when the strategy activates AND when it records odds da
 - **Risk limits must be proportional to bankroll.** Absolute limits ($500 daily loss, $10k position) are meaningless for a $132 bankroll. Added bankroll-proportional validation: max_daily_loss < 15% bankroll, max_total_position < 50%, max_position_per_market < 25%, max_unhedged_exposure < 25%, order_size < 15%.
 - **Trades table needs dry_run column.** Without it, dry-run data contaminates live metrics. Added `dry_run INTEGER NOT NULL DEFAULT 0` with migration for existing DBs.
 
+## Liquidity Rewards Quoter (Jul 18, 2026)
+
+- **Continuous quoting doesn't fit the BaseStrategy interface.** evaluate()→Opportunity models point-in-time entries; a quoter's job is stateful reconciliation (place/hold/cancel-replace) of resting orders. Built as a self-owned loop component (`LiquidityQuoter.run()`), like `_rollover_loop`, while still recording fills via `StateManager.record_trade` so resolution/P&L/exposure all flow through existing machinery.
+- **Executor dry-run instantly fills GTC orders — wrong for resting quotes.** The quoter bypasses executor submission in dry-run and simulates fills locally: a resting bid fills when the token's best ask crosses down to ≤ our bid price. Instant-fill simulation would massively overstate fill rate and understate adverse selection.
+- **A NO bid at price p is a YES ask at (1−p).** Two-sided liquidity on Polymarket binary markets = bid YES + bid NO. If both fill, the merged pair costs `1 − 2*offset` and pays $1.00 at resolution — adverse selection on BOTH sides degenerates into guaranteed spread profit. Single-side fills are the real risk; hence the net-inventory cap that suppresses only the accumulating side.
+- **Rewards Q-score is relative, not absolute dollars.** Pool share depends on competing makers' scores, which we can't observe. Log raw Q per minute (`lp_reward_samples`) and reconcile against actual daily payouts later; never present the estimate as expected revenue.
+- **Rate-limit budget must be designed up front for quoters.** Worst case at 6s refresh, 1 asset, 2 sides, full cancel+replace every cycle = 20 placements + 20 cancels/min vs limits of 60/200. Adding assets or lowering refresh eats this budget linearly — recompute before changing either.
+- **hmm_task was never cancelled in `_shutdown_sequence`** (created but not passed in). Fixed by appending `hmm_task`/`lp_task` params. When adding a background task to main.py, always add it to the shutdown cancel list in the same commit.
+
 ## Common Mistakes
 
 - **Heredoc in SSH:** Copy-pasting heredocs (`cat << 'EOF'`) over SSH often fails. Use multiple `printf` or `echo` commands instead.

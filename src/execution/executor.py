@@ -393,6 +393,46 @@ class OrderExecutor:
         )
         return order
 
+    async def check_order_status(self, order: TradeOrder) -> TradeOrder:
+        """One-shot status poll for a resting order (no waiting loop).
+
+        Updates ``status``, ``fill_size`` and ``fill_price`` in place.
+        Used by the LP quoter to detect fills on resting GTC quotes without
+        blocking. In dry-run mode this is a no-op (fills are simulated by
+        the caller against the orderbook).
+        """
+        if self._dry_run or not order.order_id:
+            return order
+
+        try:
+            status = await asyncio.to_thread(
+                self._get_client().get_order, order.order_id
+            )
+            if isinstance(status, dict):
+                state = status.get("status", "")
+                fill_size = float(status.get("size_matched", 0))
+                fill_price = float(status.get("price", order.price))
+            else:
+                state = getattr(status, "status", "")
+                fill_size = float(getattr(status, "size_matched", 0))
+                fill_price = float(getattr(status, "price", order.price))
+
+            order.fill_size = fill_size
+            order.fill_price = fill_price
+            if state in ("MATCHED", "FILLED"):
+                order.status = OrderStatus.FILLED
+            elif state in ("CANCELLED", "EXPIRED"):
+                order.status = OrderStatus.CANCELLED
+            elif fill_size > 0:
+                order.status = OrderStatus.PARTIALLY_FILLED
+        except Exception as exc:
+            self._log.warning(
+                "check_order_status_error",
+                order_id=order.order_id,
+                error=str(exc),
+            )
+        return order
+
     # ------------------------------------------------------------------
     # Balance queries
     # ------------------------------------------------------------------

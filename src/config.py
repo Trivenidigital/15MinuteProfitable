@@ -192,6 +192,27 @@ class Settings(BaseSettings):
     hmm_time_exit_seconds: float = 30.0       # Force-sell remaining side at T-30s
     hmm_hold_to_resolution: bool = True       # Hold remaining (non-scalped) side to resolution
 
+    # Liquidity Rewards Quoter (maker-side rewards farming, 0% maker fee)
+    # Earns: (1) Polymarket daily liquidity rewards pool (resting orders near
+    # midpoint, scored every minute), (2) spread capture when both sides fill
+    # (YES+NO pair costs < $1.00, pays $1.00 at resolution), (3) maker rebates.
+    enable_lp_quoter: bool = False
+    lp_assets: str = "BTC"                    # comma-separated assets to quote
+    lp_order_size: float = 20.0               # shares per quote (>= rewards min size)
+    lp_quote_offset: float = 0.01             # bid this far below mid / complement-mid
+    lp_reprice_tolerance: float = 0.01        # re-quote when desired price moves this much
+    lp_refresh_seconds: float = 6.0           # quote reconciliation interval
+    lp_quote_stop_seconds: float = 90.0       # pull all quotes at T-90s (adverse selection)
+    lp_min_mid: float = 0.15                  # don't quote when YES mid below this
+    lp_max_mid: float = 0.85                  # don't quote when YES mid above this
+    lp_max_inventory_shares: float = 60.0     # suppress a side when net inventory exceeds
+    lp_spot_guard_window: int = 10            # seconds of spot history for velocity guard
+    lp_spot_guard_threshold: float = 0.001    # 0.1% spot move in window pulls quotes
+    lp_rewards_max_spread: float = 0.035      # rewards-qualifying distance from midpoint ($)
+    lp_rewards_min_size: float = 20.0         # min qualifying order size (program rule)
+    lp_rewards_two_sided_divisor: float = 3.0 # single-sided score divisor (program rule)
+    lp_sample_interval: float = 60.0          # Q-score sampling cadence (rewards estimate)
+
     # Resolution Sniper Strategy Parameters
     enable_resolution_sniper: bool = False
     sniper_order_size: float = 30.0           # Must be >= 3 * MIN_TRADE_SIZE (3 tranches)
