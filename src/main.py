@@ -2958,7 +2958,7 @@ async def _run_bot(settings: Settings, pid_lock: PidLock) -> None:
         settings, book_manager, spot_buffer, trade_db, alpha_signals,
         state_manager=state_manager,
     )
-    if not strategies:
+    if not strategies and not settings.enable_lp_quoter:
         _log.warning("no_strategies_enabled", msg="Enable at least one strategy.")
         return
 
